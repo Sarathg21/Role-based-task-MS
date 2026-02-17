@@ -190,14 +190,14 @@ const TaskPage = () => {
                     <input
                         type="text"
                         placeholder="Search by title..."
-                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-orange-500 text-sm"
+                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500 text-sm"
                         value={filter.search}
                         onChange={(e) => setFilter(prev => ({ ...prev, search: e.target.value }))}
                     />
                 </div>
                 <div className="flex gap-4">
                     <select
-                        className="px-4 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-orange-500 bg-white"
+                        className="px-4 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-violet-500 bg-white"
                         value={filter.status}
                         onChange={(e) => setFilter(prev => ({ ...prev, status: e.target.value }))}
                     >
@@ -210,7 +210,7 @@ const TaskPage = () => {
                         <option value="CANCELLED">Cancelled</option>
                     </select>
                     <select
-                        className="px-4 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-orange-500 bg-white"
+                        className="px-4 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-violet-500 bg-white"
                         value={filter.severity}
                         onChange={(e) => setFilter(prev => ({ ...prev, severity: e.target.value }))}
                     >

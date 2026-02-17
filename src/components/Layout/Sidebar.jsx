@@ -17,7 +17,7 @@ const Sidebar = () => {
 
     const isActive = (path) => {
         return location.pathname === path
-            ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-900/20'
+            ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-900/20'
             : 'text-slate-400 hover:bg-slate-800/50 hover:text-white transition-all duration-200';
     };
 
@@ -30,7 +30,7 @@ const Sidebar = () => {
                 <Icon size={20} className={location.pathname === to ? 'text-white' : 'text-slate-500 transition-colors'} />
                 <span className="font-medium text-sm tracking-wide">{label}</span>
             </div>
-            {location.pathname === to && <ChevronRight size={16} className="text-orange-200" />}
+            {location.pathname === to && <ChevronRight size={16} className="text-blue-200" />}
         </Link>
     );
 
@@ -38,7 +38,7 @@ const Sidebar = () => {
         <aside className="sidebar">
             <div className="sidebar-header">
                 <div className="flex items-center gap-3 mb-1">
-                    <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center shadow-lg shadow-orange-500/20">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
                         <BarChart3 className="text-white" size={24} />
                     </div>
                     <div>

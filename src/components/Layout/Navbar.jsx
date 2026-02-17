@@ -19,7 +19,7 @@ const Navbar = () => {
             </div>
 
             <div className="flex items-center gap-6">
-                <button className="relative p-2 text-slate-500 hover:text-primary hover:bg-orange-50 rounded-full transition-all">
+                <button className="relative p-2 text-slate-500 hover:text-primary hover:bg-violet-50 rounded-full transition-all">
                     <Bell size={20} />
                     <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
                 </button>
@@ -29,7 +29,7 @@ const Navbar = () => {
                         <p className="text-sm font-bold text-slate-800 leading-tight">{user?.department}</p>
                         <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold">{user?.role}</p>
                     </div>
-                    <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 border border-orange-100 shadow-sm">
+                    <div className="w-10 h-10 rounded-full bg-violet-50 flex items-center justify-center text-violet-600 border border-violet-100 shadow-sm">
                         <User size={20} />
                     </div>
                 </div>

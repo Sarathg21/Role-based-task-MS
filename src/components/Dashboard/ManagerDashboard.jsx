@@ -96,7 +96,7 @@ const ManagerDashboard = () => {
                             <XAxis type="number" domain={[0, 100]} hide />
                             <YAxis dataKey="name" type="category" width={80} fontSize={10} />
                             <Tooltip />
-                            <Bar dataKey="score" fill="#f97316" radius={[0, 4, 4, 0]} barSize={20} />
+                            <Bar dataKey="score" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
                         </BarChart>
                     </ChartPanel>
 
