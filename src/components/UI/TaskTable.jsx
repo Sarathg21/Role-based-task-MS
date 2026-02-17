@@ -10,7 +10,7 @@ const TaskTable = ({ tasks }) => {
     const getStatusStyle = (status) => {
         switch (status) {
             case 'Completed': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-            case 'In Progress': return 'bg-violet-50 text-violet-700 border-violet-200';
+            case 'In Progress': return 'bg-orange-50 text-orange-700 border-orange-200';
             case 'Pending': return 'bg-slate-100 text-slate-600 border-slate-200';
             case 'In Review': return 'bg-amber-50 text-amber-700 border-amber-200';
             default: return 'bg-slate-50 text-slate-600 border-slate-200';
@@ -31,7 +31,7 @@ const TaskTable = ({ tasks }) => {
         switch (severity) {
             case 'Critical': return 'text-red-700 bg-red-50 border-red-200';
             case 'High': return 'text-orange-700 bg-orange-50 border-orange-200';
-            case 'Medium': return 'text-violet-700 bg-violet-50 border-violet-200';
+            case 'Medium': return 'text-blue-700 bg-blue-50 border-blue-200'; // Reverting Medium to blue to distinguish from High/Orange? Or maybe keep it subtle? Let's use blue for Medium to avoid too much orange.
             case 'Low': return 'text-slate-600 bg-slate-100 border-slate-200';
             default: return 'text-slate-600 bg-slate-50';
         }
@@ -61,7 +61,7 @@ const TaskTable = ({ tasks }) => {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {tasks.map((task) => (
-                            <tr key={task.id} className="group hover:bg-violet-50/30 transition-colors duration-200">
+                            <tr key={task.id} className="group hover:bg-orange-50/30 transition-colors duration-200">
                                 <td className="p-5 pl-6">
                                     <div>
                                         <p className="font-semibold text-slate-800 text-sm">{task.title}</p>
@@ -91,7 +91,7 @@ const TaskTable = ({ tasks }) => {
                                     <span className="text-sm text-slate-500 font-medium">{task.dueDate}</span>
                                 </td>
                                 <td className="p-5 text-right pr-6">
-                                    <button className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                                    <button className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                                         <MoreHorizontal size={18} />
                                     </button>
                                 </td>

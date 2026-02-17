@@ -88,13 +88,13 @@ const EmployeeDashboard = () => {
                             <XAxis dataKey="name" fontSize={12} />
                             <YAxis domain={[0, 100]} fontSize={12} />
                             <Tooltip />
-                            <Bar dataKey="score" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="score" fill="#ea580c" radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ChartPanel>
 
-                    <div className="mt-6 bg-violet-50 p-6 rounded-xl border border-violet-100">
-                        <h4 className="font-bold text-violet-800 mb-2">Recommendation</h4>
-                        <p className="text-sm text-violet-700">
+                    <div className="mt-6 bg-orange-50 p-6 rounded-xl border border-orange-100">
+                        <h4 className="font-bold text-orange-800 mb-2">Recommendation</h4>
+                        <p className="text-sm text-orange-700">
                             Your timeliness score is slightly low. Try to complete the "API Integration" task by Friday to improve your monthly rating.
                         </p>
                     </div>

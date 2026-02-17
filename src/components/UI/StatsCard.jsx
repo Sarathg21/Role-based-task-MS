@@ -8,7 +8,7 @@ const StatsCard = ({ title, value, icon: Icon, trend, trendValue, color = 'prima
     };
 
     const colorVariants = {
-        primary: 'from-violet-500 to-violet-600 text-white shadow-violet-200',
+        primary: 'from-orange-500 to-orange-600 text-white shadow-orange-200',
         success: 'from-emerald-500 to-emerald-600 text-white shadow-emerald-200',
         warning: 'from-amber-400 to-amber-500 text-white shadow-amber-200',
         danger: 'from-rose-500 to-rose-600 text-white shadow-rose-200',

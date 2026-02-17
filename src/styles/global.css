@@ -2,10 +2,10 @@
 
 :root {
   /* Enterprise Color Palette - Refined */
-  --primary-color: #8b5cf6;
-  /* Lavender / Violet */
-  --primary-dark: #7c3aed;
-  --primary-light: #ddd6fe;
+  --primary-color: #f97316;
+  /* Orange */
+  --primary-dark: #ea580c;
+  --primary-light: #ffedd5;
 
   --secondary: #64748b;
   --secondary-light: #f1f5f9;
@@ -266,7 +266,7 @@ h6 {
 .form-input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
 }
 
 /* Sidebar Styles */

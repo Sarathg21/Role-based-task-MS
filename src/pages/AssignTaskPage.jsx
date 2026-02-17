@@ -80,7 +80,7 @@ const AssignTaskPage = () => {
                                 type="text"
                                 name="title"
                                 required
-                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500"
+                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-orange-500"
                                 placeholder="e.g. Q3 Performance Review"
                                 value={formData.title}
                                 onChange={handleChange}
@@ -94,7 +94,7 @@ const AssignTaskPage = () => {
                             name="description"
                             required
                             rows="4"
-                            className="w-full p-3 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500"
+                            className="w-full p-3 rounded-lg border border-slate-200 focus:outline-none focus:border-orange-500"
                             placeholder="Detailed description of the task..."
                             value={formData.description}
                             onChange={handleChange}
@@ -109,7 +109,7 @@ const AssignTaskPage = () => {
                                 <select
                                     name="assignee"
                                     required
-                                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500 bg-white"
+                                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-orange-500 bg-white"
                                     value={formData.assignee}
                                     onChange={handleChange}
                                 >
@@ -125,7 +125,7 @@ const AssignTaskPage = () => {
                             <label className="block text-sm font-medium text-slate-700 mb-1">Priority</label>
                             <select
                                 name="priority"
-                                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500 bg-white"
+                                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-orange-500 bg-white"
                                 value={formData.priority}
                                 onChange={handleChange}
                             >
@@ -145,7 +145,7 @@ const AssignTaskPage = () => {
                                 type="date"
                                 name="dueDate"
                                 required
-                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500"
+                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-orange-500"
                                 value={formData.dueDate}
                                 onChange={handleChange}
                             />

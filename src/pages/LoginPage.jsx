@@ -105,7 +105,7 @@ const LoginPage = () => {
                             <a href="#" className="text-blue-600 hover:underline font-medium">Forgot password?</a>
                         </div>
 
-                        <Button type="submit" className="w-full py-3 text-base shadow-lg shadow-violet-500/20">
+                        <Button type="submit" className="w-full py-3 text-base shadow-lg shadow-orange-500/20">
                             Sign In
                         </Button>
                     </form>
