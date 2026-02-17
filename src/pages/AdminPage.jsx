@@ -77,14 +77,14 @@ const AdminPage = () => {
                             <input
                                 type="text"
                                 placeholder="Search employees..."
-                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-primary text-sm"
+                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500 text-sm"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
                         <div className="flex gap-2 flex-wrap">
                             <select
-                                className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-primary bg-white"
+                                className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-violet-500 bg-white"
                                 value={roleFilter}
                                 onChange={(e) => setRoleFilter(e.target.value)}
                             >
@@ -94,7 +94,7 @@ const AdminPage = () => {
                                 <option value="Employee">Employee</option>
                             </select>
                             <select
-                                className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-primary bg-white"
+                                className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-violet-500 bg-white"
                                 value={deptFilter}
                                 onChange={(e) => setDeptFilter(e.target.value)}
                             >
@@ -102,7 +102,7 @@ const AdminPage = () => {
                                 {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
                             <select
-                                className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-primary bg-white"
+                                className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-violet-500 bg-white"
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
                             >
