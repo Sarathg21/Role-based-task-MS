@@ -176,7 +176,7 @@ const TaskPage = () => {
                     <p className="text-slate-500">Manage and track project tasks</p>
                 </div>
                 {(user.role === 'Manager' || user.role === 'Admin') && (
-                    <Button onClick={() => navigate('/tasks/assign')} className="!bg-indigo-600 hover:!bg-indigo-700">
+                    <Button onClick={() => navigate('/tasks/assign')}>
                         <Plus size={18} className="mr-2" />
                         New Task
                     </Button>

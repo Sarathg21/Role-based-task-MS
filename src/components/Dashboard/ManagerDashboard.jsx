@@ -41,7 +41,7 @@ const ManagerDashboard = () => {
         };
     }, [user.id]);
 
-    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+    const COLORS = ['#4f46e5', '#00C49F', '#FFBB28', '#FF8042'];
     const teamPerformanceData = teamMembers.map(m => ({ name: m.name, score: m.score }));
 
     return (
@@ -96,7 +96,7 @@ const ManagerDashboard = () => {
                             <XAxis type="number" domain={[0, 100]} hide />
                             <YAxis dataKey="name" type="category" width={80} fontSize={10} />
                             <Tooltip />
-                            <Bar dataKey="score" fill="#8884d8" radius={[0, 4, 4, 0]} barSize={20} />
+                            <Bar dataKey="score" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={20} />
                         </BarChart>
                     </ChartPanel>
 

@@ -33,7 +33,7 @@ const AdminDashboard = () => {
         };
     }, []);
 
-    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+    const COLORS = ['#4f46e5', '#00C49F', '#FFBB28', '#FF8042'];
 
     return (
         <div className="space-y-6">
@@ -74,7 +74,7 @@ const AdminDashboard = () => {
                         {topEmployees.map((emp, index) => (
                             <div key={emp.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
+                                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm">
                                         {index + 1}
                                     </div>
                                     <div>
