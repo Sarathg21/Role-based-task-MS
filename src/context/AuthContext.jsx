@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
     }, []);
 
-    const login = (id, password, selectedRole) => {
+    const login = (id, password) => {
         const foundUser = USERS.find(u =>
             u.id.toUpperCase() === id.trim().toUpperCase() &&
             u.password === password
@@ -30,12 +30,7 @@ export const AuthProvider = ({ children }) => {
             return { success: false, message: 'Account Deactivated' };
         }
 
-        if (foundUser.role !== selectedRole && selectedRole !== '') {
-            // Optional: Strictly enforce role or allow login if credentials match but role differs (usually stricter)
-            // For this app, let's enforce role matching if UI sends it
-            return { success: false, message: `User is not a ${selectedRole}` };
-        }
-
+        // Implicitly set role from user data
         localStorage.setItem('pms_user', JSON.stringify(foundUser));
         setUser(foundUser);
         return { success: true };

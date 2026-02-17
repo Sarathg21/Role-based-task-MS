@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Role-Based Task & Performance Evaluation System
 
 A professional enterprise-style internal performance management system built with React.
@@ -38,3 +39,6 @@ A professional enterprise-style internal performance management system built wit
 - `/src/context`: Authentication state management.
 - `/src/utils`: Performance and ranking logic engines.
 - `/src/data`: Mock data for users and tasks.
+=======
+# student-management-system
+>>>>>>> 8738c25fd8d1a05c835d9a5b43894a6b91440d48

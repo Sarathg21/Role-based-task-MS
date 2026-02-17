@@ -4,9 +4,11 @@ import Layout from './components/Layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Pages
+// Pages
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import TaskPage from './pages/TaskPage';
+import AssignTaskPage from './pages/AssignTaskPage';
 import AdminPage from './pages/AdminPage';
 import ReportsPage from './pages/ReportsPage';
 
@@ -34,6 +36,15 @@ function App() {
               element={
                 <ProtectedRoute>
                   <TaskPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="tasks/assign"
+              element={
+                <ProtectedRoute allowedRoles={['Manager', 'Admin']}>
+                  <AssignTaskPage />
                 </ProtectedRoute>
               }
             />

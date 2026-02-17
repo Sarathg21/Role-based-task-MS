@@ -5,7 +5,7 @@ import { BarChart3, User, Lock, Shield } from 'lucide-react';
 import Button from '../components/UI/Button';
 
 const LoginPage = () => {
-    const [formData, setFormData] = useState({ id: '', password: '', role: 'Employee' });
+    const [formData, setFormData] = useState({ id: '', password: '' });
     const [error, setError] = useState('');
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -17,7 +17,7 @@ const LoginPage = () => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        const result = login(formData.id, formData.password, formData.role);
+        const result = login(formData.id, formData.password);
         if (result.success) {
             navigate('/dashboard');
         } else {
@@ -95,22 +95,7 @@ const LoginPage = () => {
                             </div>
                         </div>
 
-                        <div className="form-group">
-                            <label className="form-label">Role</label>
-                            <div className="input-wrapper">
-                                <Shield className="input-icon" size={18} />
-                                <select
-                                    name="role"
-                                    className="form-input cursor-pointer"
-                                    value={formData.role}
-                                    onChange={handleChange}
-                                >
-                                    <option value="Employee">Employee</option>
-                                    <option value="Manager">Manager</option>
-                                    <option value="Admin">Admin</option>
-                                </select>
-                            </div>
-                        </div>
+                        {/* Role selection removed - automatic detection */}
 
                         <div className="flex justify-between items-center mb-6 text-sm">
                             <label className="flex items-center gap-2 cursor-pointer">

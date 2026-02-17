@@ -99,6 +99,25 @@ const ManagerDashboard = () => {
                             <Bar dataKey="score" fill="#8884d8" radius={[0, 4, 4, 0]} barSize={20} />
                         </BarChart>
                     </ChartPanel>
+
+                    {/* My Tasks Summary */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">My Assigned Tasks</h3>
+                        <div className="space-y-3">
+                            {TASKS.filter(t => t.employeeId === user.id).slice(0, 3).map(task => (
+                                <div key={task.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div className="font-medium text-sm truncate">{task.title}</div>
+                                    <div className="flex justify-between items-center mt-2">
+                                        <Badge variant={task.status}>{task.status.replace(/_/g, ' ')}</Badge>
+                                        <span className="text-xs text-slate-500">{task.dueDate}</span>
+                                    </div>
+                                </div>
+                            ))}
+                            {TASKS.filter(t => t.employeeId === user.id).length === 0 && (
+                                <p className="text-slate-500 text-sm">No tasks assigned to you.</p>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
