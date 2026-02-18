@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { USERS, TASKS } from '../data/mockData';
-import { ArrowLeft, Calendar, FileText, User } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 const AssignTaskPage = () => {
     const { user } = useAuth();
@@ -75,26 +75,24 @@ const AssignTaskPage = () => {
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Task Title</label>
-                        <div className="relative">
-                            <FileText className="absolute left-3 top-3 text-slate-400" size={18} />
-                            <input
-                                type="text"
-                                name="title"
-                                required
-                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500"
-                                placeholder="e.g. Q3 Performance Review"
-                                value={formData.title}
-                                onChange={handleChange}
-                            />
-                        </div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Task Title <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            name="title"
+                            required
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500"
+                            placeholder="e.g. Q3 Performance Review"
+                            value={formData.title}
+                            onChange={handleChange}
+                        />
                     </div>
 
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
                         <textarea
                             name="description"
-                            required
                             rows="4"
                             className="w-full p-3 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500"
                             placeholder="Detailed description of the task..."
@@ -103,24 +101,37 @@ const AssignTaskPage = () => {
                         />
                     </div>
 
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Attachment</label>
+                        <input
+                            type="file"
+                            name="attachment"
+                            className="block w-full text-sm text-slate-500
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-lg file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-violet-50 file:text-violet-700
+                                hover:file:bg-violet-100"
+                        />
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Assignee</label>
-                            <div className="relative">
-                                <User className="absolute left-3 top-3 text-slate-400" size={18} />
-                                <select
-                                    name="assignee"
-                                    required
-                                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500 bg-white"
-                                    value={formData.assignee}
-                                    onChange={handleChange}
-                                >
-                                    <option value="">Select Employee</option>
-                                    {eligibleEmployees.map(emp => (
-                                        <option key={emp.id} value={emp.id}>{emp.name} ({emp.id})</option>
-                                    ))}
-                                </select>
-                            </div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">
+                                Assignee <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                name="assignee"
+                                required
+                                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500 bg-white"
+                                value={formData.assignee}
+                                onChange={handleChange}
+                            >
+                                <option value="">Select Employee</option>
+                                {eligibleEmployees.map(emp => (
+                                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.id})</option>
+                                ))}
+                            </select>
                         </div>
 
                         <div>
@@ -140,18 +151,17 @@ const AssignTaskPage = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
-                        <div className="relative">
-                            <Calendar className="absolute left-3 top-3 text-slate-400" size={18} />
-                            <input
-                                type="date"
-                                name="dueDate"
-                                required
-                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500"
-                                value={formData.dueDate}
-                                onChange={handleChange}
-                            />
-                        </div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Due Date <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="date"
+                            name="dueDate"
+                            required
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500"
+                            value={formData.dueDate}
+                            onChange={handleChange}
+                        />
                     </div>
 
                     <div className="pt-4 flex justify-end gap-3">
@@ -163,21 +173,21 @@ const AssignTaskPage = () => {
                             >
                                 Cancel
                             </button>
-                   <button
-  type="submit"
-  className="px-4 py-2 text-sm rounded-lg text-white transition-colors duration-200"
-  style={{
-    backgroundColor: 'var(--primary-color)'
-  }}
-  onMouseOver={(e) =>
-    (e.currentTarget.style.backgroundColor = 'var(--primary-dark)')
-  }
-  onMouseOut={(e) =>
-    (e.currentTarget.style.backgroundColor = 'var(--primary-color)')
-  }
->
-  Assign Task
-</button>
+                            <button
+                                type="submit"
+                                className="px-4 py-2 text-sm rounded-lg text-white transition-colors duration-200"
+                                style={{
+                                    backgroundColor: 'var(--primary-color)'
+                                }}
+                                onMouseOver={(e) =>
+                                    (e.currentTarget.style.backgroundColor = 'var(--primary-dark)')
+                                }
+                                onMouseOut={(e) =>
+                                    (e.currentTarget.style.backgroundColor = 'var(--primary-color)')
+                                }
+                            >
+                                Assign Task
+                            </button>
 
                         </div>
                     </div>

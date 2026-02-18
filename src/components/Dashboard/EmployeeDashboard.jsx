@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { TASKS } from '../../data/mockData';
 import { calculateEmployeeScore } from '../../utils/performanceEngine';
@@ -10,6 +11,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'rec
 
 const EmployeeDashboard = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
 
     // Memoize calculations
     const { stats, score, recentTasks, performanceData } = useMemo(() => {
@@ -76,7 +78,12 @@ const EmployeeDashboard = () => {
                     <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-bold text-slate-800">My Tasks</h3>
-                            <button className="text-sm text-primary hover:underline">View All</button>
+                            <button
+                                onClick={() => navigate('/tasks')}
+                                className="text-sm text-violet-600 hover:text-violet-800 hover:underline font-medium"
+                            >
+                                View All
+                            </button>
                         </div>
                         <TaskTable tasks={recentTasks} />
                     </div>

@@ -16,6 +16,7 @@ const ActionTaskTable = ({
   onStatusChange,
   onReassign,
   onCancel,
+  viewMode = "team", // Default view mode
 }) => {
   if (!tasks || tasks.length === 0) {
     return (
@@ -72,8 +73,7 @@ const ActionTaskTable = ({
                 <td className="p-4">
                   <Badge
                     variant={
-                      task.severity === "Critical" ||
-                        task.severity === "High"
+                      task.severity === "High"
                         ? "danger"
                         : task.severity === "Medium"
                           ? "primary"
@@ -84,6 +84,7 @@ const ActionTaskTable = ({
                   </Badge>
                 </td>
 
+
                 <td className="p-4 text-slate-500">
                   {task.dueDate}
                 </td>
@@ -92,8 +93,8 @@ const ActionTaskTable = ({
                 <td className="p-4 text-right">
                   <div className="flex justify-end gap-2">
 
-                    {/* EMPLOYEE ACTIONS */}
-                    {user.role === "Employee" && (
+                    {/* EMPLOYEE ACTIONS (OR MANAGER IN "MY TASKS" VIEW) */}
+                    {(user.role === "Employee" || (user.role === "Manager" && viewMode === "personal")) && (
                       <>
                         {task.status === "NEW" && (
                           <button
@@ -121,20 +122,7 @@ const ActionTaskTable = ({
                               Submit
                             </button>
 
-                            {/* Added Reassign/Cancel for Employees */}
-                            <button
-                              onClick={() => onReassign(task)}
-                              className="px-4 py-2 text-sm font-medium rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition shadow-sm"
-                            >
-                              Reassign
-                            </button>
-
-                            <button
-                              onClick={() => onCancel(task.id)}
-                              className="px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 transition shadow-sm"
-                            >
-                              Cancel
-                            </button>
+                            {/* Removed Reassign/Cancel for Employees */}
                           </>
                         )}
 
@@ -153,8 +141,8 @@ const ActionTaskTable = ({
                       </>
                     )}
 
-                    {/* MANAGER ACTIONS */}
-                    {user.role === "Manager" && (
+                    {/* MANAGER ACTIONS IN TEAM VIEW */}
+                    {user.role === "Manager" && viewMode === "team" && (
                       <>
                         {task.status === "SUBMITTED" && (
                           <>
@@ -190,28 +178,10 @@ const ActionTaskTable = ({
                           </>
                         )}
 
-                        {task.status === "WORKING_ON_IT" && (
-                          <>
-                            <button
-                              onClick={() => onReassign(task)}
-                              className="px-4 py-2 text-sm font-medium rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition shadow-sm"
-                            >
-                              Reassign
-                            </button>
-
-                            <button
-                              onClick={() => onCancel(task.id)}
-                              className="px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 transition shadow-sm"
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        )}
+                        {/* Remove Reassign/Start/Submit options */}
 
                         {task.status !== "APPROVED" &&
-                          task.status !== "CANCELLED" &&
-                          task.status !== "WORKING_ON_IT" &&
-                          task.status !== "SUBMITTED" && (
+                          task.status !== "CANCELLED" && (
                             <button
                               onClick={() => onCancel(task.id)}
                               className="px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 transition shadow-sm"
@@ -245,6 +215,7 @@ const TaskPage = () => {
     severity: "All",
     search: "",
   });
+  const [viewMode, setViewMode] = useState("team"); // 'team' or 'personal'
 
   const [reassignModalOpen, setReassignModalOpen] =
     useState(false);
@@ -258,6 +229,12 @@ const TaskPage = () => {
         task.employeeId !== user.id
       )
         return false;
+
+      // Filter for Managers based on viewMode
+      if (user.role === "Manager") {
+        if (viewMode === "team" && task.managerId !== user.id) return false;
+        if (viewMode === "personal" && task.employeeId !== user.id) return false;
+      }
 
       if (filter.status !== "All" &&
         task.status !== filter.status)
@@ -351,6 +328,30 @@ const TaskPage = () => {
           )}
       </div>
 
+      {/* View Toggle for Managers */}
+      {user.role === "Manager" && (
+        <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
+          <button
+            onClick={() => setViewMode("team")}
+            className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === "team"
+              ? "bg-white text-slate-800 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+              }`}
+          >
+            Team Tasks
+          </button>
+          <button
+            onClick={() => setViewMode("personal")}
+            className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === "personal"
+              ? "bg-white text-slate-800 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+              }`}
+          >
+            My Tasks
+          </button>
+        </div>
+      )}
+
       {/* Filters & Search */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-row items-center gap-4">
         <div className="relative w-full">
@@ -388,7 +389,6 @@ const TaskPage = () => {
           onChange={(e) => setFilter({ ...filter, severity: e.target.value })}
         >
           <option value="All">Severity: All</option>
-          <option value="Critical">Critical</option>
           <option value="High">High</option>
           <option value="Medium">Medium</option>
           <option value="Low">Low</option>
@@ -401,6 +401,7 @@ const TaskPage = () => {
         onStatusChange={handleStatusChange}
         onReassign={openReassignModal}
         onCancel={handleCancel}
+        viewMode={viewMode}
       />
     </div>
   );

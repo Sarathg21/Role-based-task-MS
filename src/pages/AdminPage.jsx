@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import OrgTreeModal from "../components/Modals/OrgTreeModal";
+import AddEmployeeModal from "../components/Modals/AddEmployeeModal";
 
 const AdminPage = () => {
   const [employees, setEmployees] = useState(USERS);
@@ -19,6 +20,7 @@ const AdminPage = () => {
   const [deptFilter, setDeptFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [showOrgTreeModal, setShowOrgTreeModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   /* ============================= */
   /* Filtering */
@@ -59,12 +61,28 @@ const AdminPage = () => {
     }
   };
 
+  const handleAddEmployee = (newUser) => {
+    setEmployees(prev => [...prev, newUser]);
+    alert(`Employee ${newUser.name} added successfully!`);
+  };
+
+  // Get managers for the dropdown
+  const managers = employees.filter(u => u.role === 'Manager' || u.role === 'Admin');
+
   return (
     <div className="space-y-6">
       <OrgTreeModal
         isOpen={showOrgTreeModal}
         onClose={() => setShowOrgTreeModal(false)}
         users={USERS}
+      />
+
+      <AddEmployeeModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onAdd={handleAddEmployee}
+        managers={managers}
+        departments={DEPARTMENTS}
       />
 
       {/* ================= Header ================= */}
@@ -89,7 +107,11 @@ const AdminPage = () => {
           </button>
 
           {/* Add Employee */}
-          <button className="btn btn-sm btn-primary">
+          {/* Add Employee */}
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-700 flex items-center gap-2 transition"
+          >
             <Plus size={18} />
             Add Employee
           </button>
