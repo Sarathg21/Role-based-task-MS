@@ -1,0 +1,20 @@
+
+> rolebased-task-ms@0.0.0 build
+> vite build
+
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 3 modules transformed.
+[31m✗[39m Build failed in 417ms
+[31merror during build:
+[31m[vite:css] [postcss] It looks like you're trying to use `tailwindcss` directly as a PostCSS plugin. The PostCSS plugin has moved to a separate package, so to continue using Tailwind CSS with PostCSS you'll need to install `@tailwindcss/postcss` and update your PostCSS configuration.[31m
+file: [36mC:/Users/SARATH/Project UAE/Rolebased task MS/src/styles/global.css:undefined:NaN[31m
+    at lt (C:\Users\SARATH\Project UAE\Rolebased task MS\node_modules\tailwindcss\dist\lib.js:38:1643)
+    at LazyResult.runOnRoot (C:\Users\SARATH\Project UAE\Rolebased task MS\node_modules\postcss\lib\lazy-result.js:361:16)
+    at LazyResult.runAsync (C:\Users\SARATH\Project UAE\Rolebased task MS\node_modules\postcss\lib\lazy-result.js:290:26)
+    at async runPostCSS (file:///C:/Users/SARATH/Project%20UAE/Rolebased%20task%20MS/node_modules/vite/dist/node/chunks/config.js:30145:19)
+    at async compilePostCSS (file:///C:/Users/SARATH/Project%20UAE/Rolebased%20task%20MS/node_modules/vite/dist/node/chunks/config.js:30129:6)
+    at async compileCSS (file:///C:/Users/SARATH/Project%20UAE/Rolebased%20task%20MS/node_modules/vite/dist/node/chunks/config.js:30059:26)
+    at async Object.handler (file:///C:/Users/SARATH/Project%20UAE/Rolebased%20task%20MS/node_modules/vite/dist/node/chunks/config.js:29592:54)
+    at async transform (file:///C:/Users/SARATH/Project%20UAE/Rolebased%20task%20MS/node_modules/rollup/dist/es/shared/node-entry.js:21246:16)
+    at async ModuleLoader.addModuleSource (file:///C:/Users/SARATH/Project%20UAE/Rolebased%20task%20MS/node_modules/rollup/dist/es/shared/node-entry.js:21474:36)[39m

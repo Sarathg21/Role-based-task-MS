@@ -8,15 +8,15 @@ const Badge = ({ children, variant = 'default' }) => {
         primary: 'bg-violet-50 text-violet-700 border-violet-200',
         // Status specific
         APPROVED: 'bg-green-100 text-green-700 border-green-200',
-        SUBMITTED: 'bg-amber-100 text-amber-700 border-amber-200',
-        WORKING_ON_IT: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-        REWORK: 'bg-orange-100 text-orange-700 border-orange-200',
+        SUBMITTED: 'bg-blue-100 text-blue-700 border-blue-200',
+        WORKING_ON_IT: 'bg-orange-100 text-orange-700 border-orange-200',
+        REWORK: 'bg-red-100 text-red-700 border-red-200',
         NEW: 'bg-slate-100 text-slate-700 border-slate-200',
         CANCELLED: 'bg-red-100 text-red-700 border-red-200'
     };
 
     return (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${variants[variant] || variants.default}`}>
+        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold border shadow-sm ${variants[variant] ? variants[variant] : variants.default}`}>
             {children}
         </span>
     );

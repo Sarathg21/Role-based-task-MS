@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+@import "tailwindcss";
+
 :root {
   /* Enterprise Color Palette - Refined */
   --primary-color: #8b5cf6;
@@ -49,6 +51,7 @@
   margin: 0;
   padding: 0;
 }
+
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -1025,4 +1028,85 @@ h6 {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Primary Button Styles */
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease-in-out;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-dark);
+}
+
+.btn-primary:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Warning Button */
+.btn-warning {
+  background-color: var(--warning);
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease-in-out;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-warning:hover {
+  background-color: #d97706;
+}
+
+.btn-warning:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+
+/* Danger Button */
+.btn-danger {
+  background-color: var(--danger);
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease-in-out;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background-color: #dc2626;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

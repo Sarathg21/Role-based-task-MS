@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { USERS, TASKS } from '../data/mockData';
-import Button from '../components/UI/Button';
 import { ArrowLeft, Calendar, FileText, User } from 'lucide-react';
 
 const AssignTaskPage = () => {
@@ -61,9 +60,12 @@ const AssignTaskPage = () => {
     return (
         <div className="max-w-2xl mx-auto space-y-6">
             <div className="flex items-center gap-4">
-                <Button variant="secondary" onClick={() => navigate(-1)} className="p-2">
+                <button
+                    onClick={() => navigate(-1)}
+                    className="inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus:ring-slate-500 p-2"
+                >
                     <ArrowLeft size={20} />
-                </Button>
+                </button>
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Assign New Task</h1>
                     <p className="text-slate-500">Create and assign a task to your team members</p>
@@ -153,8 +155,31 @@ const AssignTaskPage = () => {
                     </div>
 
                     <div className="pt-4 flex justify-end gap-3">
-                        <Button type="button" variant="secondary" onClick={() => navigate('/tasks')}>Cancel</Button>
-                        <Button type="submit" className="min-w-[120px]">Assign Task</Button>
+                        <div className="pt-4 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => navigate('/tasks')}
+                                className="inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus:ring-slate-500"
+                            >
+                                Cancel
+                            </button>
+                   <button
+  type="submit"
+  className="px-4 py-2 text-sm rounded-lg text-white transition-colors duration-200"
+  style={{
+    backgroundColor: 'var(--primary-color)'
+  }}
+  onMouseOver={(e) =>
+    (e.currentTarget.style.backgroundColor = 'var(--primary-dark)')
+  }
+  onMouseOut={(e) =>
+    (e.currentTarget.style.backgroundColor = 'var(--primary-color)')
+  }
+>
+  Assign Task
+</button>
+
+                        </div>
                     </div>
                 </form>
             </div>

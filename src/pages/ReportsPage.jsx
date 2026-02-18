@@ -66,7 +66,7 @@ const ReportsPage = () => {
                         <YAxis />
                         <Tooltip />
                         <Legend />
-                        <Bar dataKey="Performance" fill="#2563eb" name="Completion Rate %" />
+                        <Bar dataKey="Performance" fill="#8b5cf6" name="Completion Rate %" />
                     </BarChart>
                 </ChartPanel>
 
@@ -77,7 +77,7 @@ const ReportsPage = () => {
                         <YAxis />
                         <Tooltip />
                         <Legend />
-                        <Line type="monotone" dataKey="Engineering" stroke="#2563eb" strokeWidth={2} />
+                        <Line type="monotone" dataKey="Engineering" stroke="#8b5cf6" strokeWidth={2} />
                         <Line type="monotone" dataKey="Sales" stroke="#f59e0b" strokeWidth={2} />
                         <Line type="monotone" dataKey="HR" stroke="#10b981" strokeWidth={2} />
                     </LineChart>

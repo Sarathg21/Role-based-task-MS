@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { BarChart3, User, Lock, Shield } from 'lucide-react';
-import Button from '../components/UI/Button';
 
 const LoginPage = () => {
     const [formData, setFormData] = useState({ id: '', password: '' });
@@ -38,11 +37,11 @@ const LoginPage = () => {
                             <h1 className="text-2xl font-bold">PerfMetric</h1>
                         </div>
                         <h2 className="text-4xl font-bold mb-6">Elevate Team Performance</h2>
-                        <p className="text-blue-100 text-lg leading-relaxed">
+                        <p className="text-violet-100 text-lg leading-relaxed">
                             Enterprise-grade performance management and task tracking system for modern organizations.
                         </p>
                     </div>
-                    <div className="flex gap-4 text-sm text-blue-200">
+                    <div className="flex gap-4 text-sm text-violet-200">
                         <span>© 2024 PerfMetric Inc.</span>
                         <span>Privacy Policy</span>
                     </div>
@@ -99,19 +98,22 @@ const LoginPage = () => {
 
                         <div className="flex justify-between items-center mb-6 text-sm">
                             <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
                                 <span className="text-slate-600">Remember me</span>
                             </label>
-                            <a href="#" className="text-blue-600 hover:underline font-medium">Forgot password?</a>
+                            <a href="#" className="text-violet-600 hover:underline font-medium">Forgot password?</a>
                         </div>
 
-                        <Button type="submit" className="w-full py-3 text-base shadow-lg shadow-violet-500/20">
+                        <button
+                            type="submit"
+                            className="w-full inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-3 text-base bg-orange-500 text-white hover:bg-orange-600 focus:ring-orange-500 shadow-lg shadow-orange-500/20"
+                        >
                             Sign In
-                        </Button>
+                        </button>
                     </form>
 
                     <div className="mt-8 text-center text-sm text-slate-500">
-                        Need help? <a href="#" className="text-blue-600 hover:underline">Contact System Admin</a>
+                        Need help? <a href="#" className="text-violet-600 hover:underline">Contact System Admin</a>
                     </div>
 
                     <div className="mt-4 p-4 bg-slate-50 rounded-lg text-xs text-slate-500">
