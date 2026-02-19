@@ -10,7 +10,7 @@ export const calculateEmployeeScore = (tasks, employeeId) => {
   const totalAssigned = employeeTasks.length;
   if (totalAssigned === 0) return 0;
 
-  const completedTasks = employeeTasks.filter(t => t.status === 'Completed');
+  const completedTasks = employeeTasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED');
   const completedCount = completedTasks.length;
 
   // 1. Completion Rate (40%)
@@ -52,7 +52,7 @@ export const calculateManagerScore = (tasks, managerId, teamMembers) => {
     
     if (totalTeamAssigned === 0) return 0;
 
-    const teamCompleted = teamTasks.filter(t => t.status === 'Completed');
+    const teamCompleted = teamTasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED');
     const teamCompletedCount = teamCompleted.length;
 
     // 1. Team Completion Rate (35%)

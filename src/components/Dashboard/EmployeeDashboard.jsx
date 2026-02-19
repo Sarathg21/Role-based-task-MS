@@ -43,8 +43,8 @@ const EmployeeDashboard = () => {
     }, [user.id]);
 
     return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <StatsCard
                     title="Performance Score"
                     value={score}
@@ -52,32 +52,36 @@ const EmployeeDashboard = () => {
                     color="primary"
                     trend="up"
                     trendValue="5.2%"
+                    compact
                 />
                 <StatsCard
                     title="Assigned Tasks"
                     value={stats.total}
                     icon={Clock}
                     color="info"
+                    compact
                 />
                 <StatsCard
                     title="Completed"
                     value={stats.completed}
                     icon={CheckCircle}
                     color="success"
+                    compact
                 />
                 <StatsCard
                     title="Pending"
                     value={stats.pending}
                     icon={AlertCircle}
                     color="warning"
+                    compact
                 />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="lg:col-span-2">
                     <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-lg font-bold text-slate-800">My Tasks</h3>
+                            <h3 className="text-lg font-medium text-slate-800">My Tasks</h3>
                             <button
                                 onClick={() => navigate('/tasks')}
                                 className="text-sm text-violet-600 hover:text-violet-800 hover:underline font-medium"
@@ -100,7 +104,7 @@ const EmployeeDashboard = () => {
                     </ChartPanel>
 
                     <div className="mt-6 bg-violet-50 p-6 rounded-xl border border-violet-100">
-                        <h4 className="font-bold text-violet-800 mb-2">Recommendation</h4>
+                        <h4 className="font-medium text-violet-800 mb-2">Recommendation</h4>
                         <p className="text-sm text-violet-700">
                             Your timeliness score is slightly low. Try to complete the "API Integration" task by Friday to improve your monthly rating.
                         </p>

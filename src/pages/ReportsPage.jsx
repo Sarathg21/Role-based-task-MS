@@ -1,26 +1,34 @@
 import { useState, useMemo } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { TASKS, USERS, DEPARTMENTS } from '../data/mockData';
 import { getEmployeeRankings } from '../utils/rankingEngine';
 import ChartPanel from '../components/Charts/ChartPanel';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Download, Filter } from 'lucide-react'; // Assuming lucide-react is available
+import { Download, FileSpreadsheet, TrendingUp, TrendingDown } from 'lucide-react';
 
 const ReportsPage = () => {
+    const { user } = useAuth();
     const [filters, setFilters] = useState({
         employeeId: '',
         month: '',
         year: new Date().getFullYear().toString()
     });
 
-    const { deptScores, topList, performanceData } = useMemo(() => {
-        // Department Performance Analysis
-        const deptPerformance = DEPARTMENTS.map(dept => {
+    const { deptScores, topList, performanceData, topDept, underperformingDept, workloadData } = useMemo(() => {
+        // Manager sees only their department
+        const scopeDepts = user?.role === 'Manager' ? [user.department] : DEPARTMENTS;
+        const scopeUserIds = user?.role === 'Manager'
+            ? USERS.filter(u => u.department === user.department).map(u => u.id)
+            : null;
+
+        // Department Performance Analysis (scoped for Manager)
+        const deptPerformance = scopeDepts.filter(d => USERS.some(u => u.department === d)).map(dept => {
             const deptUsers = USERS.filter(u => u.department === dept && u.role === 'Employee');
             const deptParams = deptUsers.map(u => ({
                 id: u.id,
-                tasks: TASKS.filter(t => t.employeeId === u.id)
+                tasks: TASKS.filter(t => t.employeeId === u.id && (!scopeUserIds || scopeUserIds.includes(t.employeeId)))
             }));
 
             // Average completion rate
@@ -29,7 +37,7 @@ const ReportsPage = () => {
 
             deptParams.forEach(p => {
                 totalTasks += p.tasks.length;
-                completedTasks += p.tasks.filter(t => t.status === 'Completed').length;
+                completedTasks += p.tasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED').length;
             });
 
             const score = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
@@ -41,12 +49,12 @@ const ReportsPage = () => {
             };
         });
 
-        // Top 10 Employees
-        const allEmployees = USERS.filter(u => u.role === 'Employee');
+        // Top 10 Employees (scoped for Manager)
+        const allEmployees = USERS.filter(u => u.role === 'Employee' && (!user?.department || u.department === user.department));
         const ranking = getEmployeeRankings(allEmployees, TASKS);
 
-        // Detailed Performance Data
-        let filteredTasks = TASKS;
+        // Detailed Performance Data (scoped for Manager)
+        let filteredTasks = scopeUserIds ? TASKS.filter(t => scopeUserIds.includes(t.employeeId)) : TASKS;
 
         if (filters.employeeId) {
             filteredTasks = filteredTasks.filter(t => t.employeeId === filters.employeeId);
@@ -78,9 +86,9 @@ const ReportsPage = () => {
         const reportData = reportEmployees.map(emp => {
             const empTasks = filteredTasks.filter(t => t.employeeId === emp.id);
             const total = empTasks.length;
-            const completed = empTasks.filter(t => t.status === 'Completed').length;
+            const completed = empTasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED').length;
             const pending = total - completed;
-            const onTime = empTasks.filter(t => t.status === 'Completed' && t.completedDate <= t.dueDate).length;
+            const onTime = empTasks.filter(t => (t.status === 'Completed' || t.status === 'APPROVED') && t.completedDate && t.completedDate <= t.dueDate).length;
             const onTimePct = completed > 0 ? Math.round((onTime / completed) * 100) : 0;
             const reworks = empTasks.reduce((sum, t) => sum + (t.reworkCount || 0), 0);
             const avgReworks = total > 0 ? (reworks / total).toFixed(1) : 0;
@@ -97,12 +105,30 @@ const ReportsPage = () => {
             };
         }).filter(row => row.total > 0 || !filters.month); // Optional: hide rows with no tasks if filtering by specific month? Or show zeros. Let's show all.
 
+        // Top & underperforming departments (CFO only)
+        const sortedDepts = [...deptPerformance].sort((a, b) => b.Performance - a.Performance);
+        const topDept = sortedDepts[0];
+        const underperformingDept = sortedDepts.filter(d => d.Tasks > 0).pop();
+
+        // Workload distribution (tasks per department)
+        const workloadData = scopeDepts.filter(d => USERS.some(u => u.department === d)).map(dept => {
+            const deptUserIds = USERS.filter(u => u.department === dept).map(u => u.id);
+            const tasks = (scopeUserIds ? TASKS.filter(t => scopeUserIds.includes(t.employeeId)) : TASKS)
+                .filter(t => deptUserIds.includes(t.employeeId));
+            const total = tasks.length;
+            const completed = tasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED').length;
+            return { name: dept, Total: total, Completed: completed, Pending: total - completed };
+        });
+
         return {
             deptScores: deptPerformance,
             topList: ranking.slice(0, 10),
-            performanceData: reportData
+            performanceData: reportData,
+            topDept,
+            underperformingDept,
+            workloadData
         };
-    }, [filters]);
+    }, [filters, user?.role, user?.department]);
 
     const handleDownloadPDF = () => {
         const doc = new jsPDF();
@@ -142,6 +168,18 @@ const ReportsPage = () => {
         doc.save('performance_report.pdf');
     };
 
+    const handleDownloadExcel = () => {
+        const headers = ['Employee', 'Department', 'Total Tasks', 'Completed', 'Pending', 'On-Time %', 'Avg Reworks'];
+        const rows = performanceData.map(r => [r.name, r.department, r.total, r.completed, r.pending, `${r.onTimePct}%`, r.avgReworks]);
+        const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `performance_report_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    };
+
     const trendData = [
         { name: 'Jan', Sales: 65, Engineering: 70, HR: 80 },
         { name: 'Feb', Sales: 68, Engineering: 75, HR: 78 },
@@ -155,13 +193,52 @@ const ReportsPage = () => {
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-slate-800">Analytics & Reports</h1>
-                <p className="text-slate-500">System-wide performance metrics</p>
+                <p className="text-slate-500">{user?.role === 'Manager' ? 'Department performance metrics' : 'System-wide performance metrics'}</p>
             </div>
+
+            {/* Top / Underperforming Departments & Workload (CFO only) */}
+            {user?.role === 'Admin' && (topDept || underperformingDept) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {topDept && (
+                        <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                            <div className="flex items-center gap-2 text-emerald-700">
+                                <TrendingUp size={20} />
+                                <span className="font-medium">Top Performing Department</span>
+                            </div>
+                            <p className="mt-2 text-xl font-semibold text-emerald-800">{topDept.name}</p>
+                            <p className="text-sm text-emerald-600">{topDept.Performance}% completion · {topDept.Tasks} tasks</p>
+                        </div>
+                    )}
+                    {underperformingDept && underperformingDept.name !== topDept?.name && (
+                        <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                            <div className="flex items-center gap-2 text-amber-700">
+                                <TrendingDown size={20} />
+                                <span className="font-medium">Needs Attention</span>
+                            </div>
+                            <p className="mt-2 text-xl font-semibold text-amber-800">{underperformingDept.name}</p>
+                            <p className="text-sm text-amber-600">{underperformingDept.Performance}% completion · {underperformingDept.Tasks} tasks</p>
+                        </div>
+                    )}
+                    {workloadData?.length > 0 && (
+                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                            <span className="font-medium text-slate-700">Workload Summary</span>
+                            <div className="mt-2 space-y-1 text-sm">
+                                {workloadData.map(d => (
+                                    <div key={d.name} className="flex justify-between">
+                                        <span>{d.name}</span>
+                                        <span className="text-slate-600">{d.Total} tasks ({d.Pending} pending)</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                 <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                     <div>
-                        <h3 className="text-lg font-bold text-slate-800">Detailed Performance Report</h3>
+                        <h3 className="text-lg font-medium text-slate-800">Detailed Performance Report</h3>
                         <p className="text-sm text-slate-500">Filter and download performance metrics</p>
                     </div>
                     <div className="flex flex-wrap gap-3">
@@ -201,12 +278,18 @@ const ReportsPage = () => {
                         >
                             <Download size={16} /> Export PDF
                         </button>
+                        <button
+                            onClick={handleDownloadExcel}
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+                        >
+                            <FileSpreadsheet size={16} /> Export Excel (CSV)
+                        </button>
                     </div>
                 </div>
 
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
-                        <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
+                        <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-medium">
                             <tr>
                                 <th className="p-4">Employee</th>
                                 <th className="p-4">Total Tasks</th>
@@ -220,12 +303,12 @@ const ReportsPage = () => {
                             {performanceData.length > 0 ? (
                                 performanceData.map((row) => (
                                     <tr key={row.id} className="hover:bg-slate-50">
-                                        <td className="p-4 font-medium">
-                                            <div>{row.name}</div>
+                                        <td className="p-4 truncate">
+                                            <div className="truncate">{row.name}</div>
                                             <div className="text-xs text-slate-500">{row.department}</div>
                                         </td>
                                         <td className="p-4">{row.total}</td>
-                                        <td className="p-4 text-green-600 font-medium">{row.completed}</td>
+                                        <td className="p-4 text-green-600 truncate">{row.completed}</td>
                                         <td className="p-4 text-orange-500">{row.pending}</td>
                                         <td className="p-4">
                                             <div className="flex items-center gap-2">
@@ -254,6 +337,18 @@ const ReportsPage = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ChartPanel title="Workload Distribution by Department">
+                    <BarChart data={workloadData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="Completed" stackId="a" fill="#10b981" name="Completed" />
+                        <Bar dataKey="Pending" stackId="a" fill="#f59e0b" name="Pending" />
+                    </BarChart>
+                </ChartPanel>
+
                 <ChartPanel title="Department Performance Index">
                     <BarChart data={deptScores}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -281,11 +376,11 @@ const ReportsPage = () => {
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200">
                 <div className="p-6 border-b border-slate-200">
-                    <h3 className="text-lg font-bold text-slate-800">Top High Performers</h3>
+                    <h3 className="text-lg font-medium text-slate-800">Top High Performers</h3>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
-                        <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
+                        <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-medium">
                             <tr>
                                 <th className="p-4">Rank</th>
                                 <th className="p-4">Employee</th>
@@ -297,11 +392,11 @@ const ReportsPage = () => {
                         <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                             {topList.map((emp, i) => (
                                 <tr key={emp.id} className="hover:bg-slate-50">
-                                    <td className="p-4 font-bold text-slate-600">#{i + 1}</td>
-                                    <td className="p-4 font-medium">{emp.name}</td>
-                                    <td className="p-4">{emp.department}</td>
-                                    <td className="p-4 text-slate-500">{emp.managerId}</td>
-                                    <td className="p-4 font-bold text-primary">{emp.score}</td>
+                                    <td className="p-4 text-slate-600 truncate">#{i + 1}</td>
+                                    <td className="p-4 truncate">{emp.name}</td>
+                                    <td className="p-4 truncate">{emp.department}</td>
+                                    <td className="p-4 text-slate-500 truncate">{emp.managerId}</td>
+                                    <td className="p-4 text-violet-600 truncate">{emp.score}</td>
                                 </tr>
                             ))}
                         </tbody>

@@ -69,7 +69,7 @@ const TaskTable = ({ tasks = [] }) => {
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-200/60 text-xs uppercase tracking-wider text-slate-500 font-semibold">
+                        <tr className="bg-slate-50/50 border-b border-slate-200/60 text-xs uppercase tracking-wider text-slate-500 font-medium">
                             <th className="p-5 pl-6">Task Title</th>
                             <th className="p-5">Assignee</th>
                             <th className="p-5">Priority</th>
@@ -88,7 +88,7 @@ const TaskTable = ({ tasks = [] }) => {
                                 {/* Title */}
                                 <td className="p-5 pl-6">
                                     <div>
-                                        <p className="font-semibold text-slate-800 text-sm">
+                                        <p className="text-slate-800 text-sm truncate">
                                             {task.title}
                                         </p>
                                         <p className="text-xs text-slate-400 mt-0.5">
@@ -100,10 +100,10 @@ const TaskTable = ({ tasks = [] }) => {
                                 {/* Assignee */}
                                 <td className="p-5">
                                     <div className="flex items-center gap-2">
-                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-600 shrink-0">
                                             {task.employeeId?.charAt(0)}
                                         </div>
-                                        <span className="text-sm text-slate-600 font-medium">
+                                        <span className="text-sm text-slate-600 truncate">
                                             {task.employeeId}
                                         </span>
                                     </div>
@@ -134,7 +134,7 @@ const TaskTable = ({ tasks = [] }) => {
 
                                 {/* Due Date */}
                                 <td className="p-5">
-                                    <span className="text-sm text-slate-500 font-medium">
+                                    <span className="text-sm text-slate-500">
                                         {task.dueDate}
                                     </span>
                                 </td>

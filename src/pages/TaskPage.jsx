@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { TASKS, USERS } from "../data/mockData";
+import { TASKS, USERS, DEPARTMENTS } from "../data/mockData";
 import Badge from "../components/UI/Badge";
 import { Plus, Search } from "lucide-react";
 import ReassignTaskModal from "../components/Modals/ReassignTaskModal";
@@ -29,7 +29,7 @@ const ActionTaskTable = ({
   return (
     <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-slate-200">
       <table className="w-full text-left border-collapse">
-        <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
+        <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-medium">
           <tr>
             <th className="p-4">Task</th>
             <th className="p-4">Assignee</th>
@@ -43,6 +43,10 @@ const ActionTaskTable = ({
 
         <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
           {tasks.map((task) => {
+            const today = new Date().toISOString().split('T')[0];
+            const isOverdue = task.dueDate < today && !['Completed', 'APPROVED', 'CANCELLED'].includes(task.status);
+            const displayStatus = isOverdue ? 'Overdue' : task.status;
+
             const assigneeName =
               USERS.find((u) => u.id === task.employeeId)?.name ||
               task.employeeId;
@@ -54,23 +58,23 @@ const ActionTaskTable = ({
 
             return (
               <tr key={task.id} className="hover:bg-slate-50">
-                <td className="p-4">
-                  <div className="font-medium">{task.title}</div>
+                <td className="p-4 min-w-0">
+                  <div className="truncate">{task.title}</div>
                   <div className="text-xs text-slate-500">
                     {task.description}
                   </div>
                 </td>
 
-                <td className="p-4">{assigneeName}</td>
-                <td className="p-4">{assignerName}</td>
+                <td className="p-4 truncate">{assigneeName}</td>
+                <td className="p-4 truncate">{assignerName}</td>
 
-                <td className="p-4">
-                  <Badge variant={task.status}>
-                    {task.status.replace(/_/g, " ")}
+                <td className="p-4 max-w-[120px] overflow-hidden">
+                  <Badge variant={displayStatus}>
+                    {displayStatus.replace(/_/g, " ")}
                   </Badge>
                 </td>
 
-                <td className="p-4">
+                <td className="p-4 max-w-[90px] overflow-hidden">
                   <Badge
                     variant={
                       task.severity === "High"
@@ -213,6 +217,7 @@ const TaskPage = () => {
   const [filter, setFilter] = useState({
     status: "All",
     severity: "All",
+    department: "All",
     search: "",
   });
   const [viewMode, setViewMode] = useState("team"); // 'team' or 'personal'
@@ -236,12 +241,19 @@ const TaskPage = () => {
         if (viewMode === "personal" && task.employeeId !== user.id) return false;
       }
 
-      if (filter.status !== "All" &&
-        task.status !== filter.status)
-        return false;
+      if (filter.status !== "All") {
+        const today = new Date().toISOString().split('T')[0];
+        const isOverdue = task.dueDate < today && !['Completed', 'APPROVED', 'CANCELLED'].includes(task.status);
+        if (filter.status === 'Overdue') return isOverdue;
+        if (task.status !== filter.status) return false;
+      }
 
       if (filter.severity !== "All" &&
         task.severity !== filter.severity)
+        return false;
+
+      if (filter.department !== "All" &&
+        task.department !== filter.department)
         return false;
 
       if (
@@ -308,7 +320,7 @@ const TaskPage = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">
+          <h1 className="text-2xl font-medium text-slate-800">
             Task Management
           </h1>
           <p className="text-slate-500">
@@ -375,7 +387,8 @@ const TaskPage = () => {
           onChange={(e) => setFilter({ ...filter, status: e.target.value })}
         >
           <option value="All">Status: All</option>
-          <option value="NEW">New</option>
+          <option value="Overdue">Overdue</option>
+          <option value="NEW">Not Started</option>
           <option value="WORKING_ON_IT">In Progress</option>
           <option value="SUBMITTED">Submitted</option>
           <option value="APPROVED">Approved</option>
@@ -392,6 +405,17 @@ const TaskPage = () => {
           <option value="High">High</option>
           <option value="Medium">Medium</option>
           <option value="Low">Low</option>
+        </select>
+
+        <select
+          className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 w-40"
+          value={filter.department}
+          onChange={(e) => setFilter({ ...filter, department: e.target.value })}
+        >
+          <option value="All">Department: All</option>
+          {DEPARTMENTS.map((dept) => (
+            <option key={dept} value={dept}>{dept}</option>
+          ))}
         </select>
       </div>
 

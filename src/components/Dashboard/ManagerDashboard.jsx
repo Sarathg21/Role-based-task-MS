@@ -45,38 +45,38 @@ const ManagerDashboard = () => {
     const teamPerformanceData = teamMembers.map(m => ({ name: m.name, score: m.score }));
 
     return (
-        <div className="space-y-6">
-            {/* Stats Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatsCard title="Team Score" value={stats.score} icon={BarChart2} color="primary" />
-                <StatsCard title="Completion Rate" value={`${stats.completionRate}%`} icon={CheckSquare} color="success" />
-                <StatsCard title="Total Reworks" value={stats.rework} icon={AlertTriangle} color="warning" />
-                <StatsCard title="Top Performer" value={topPerformer?.name || 'N/A'} icon={Users} color="purple" />
+        <div className="space-y-4">
+            {/* Stats Row - Compact */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <StatsCard title="Team Score" value={stats.score} icon={BarChart2} color="primary" compact />
+                <StatsCard title="Completion Rate" value={`${stats.completionRate}%`} icon={CheckSquare} color="success" compact />
+                <StatsCard title="Total Reworks" value={stats.rework} icon={AlertTriangle} color="warning" compact />
+                <StatsCard title="Top Performer" value={topPerformer?.name || 'N/A'} icon={Users} color="purple" compact />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Team Ranking Table */}
-                <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-4">Team Performance Rankings</h3>
+                <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+                    <h3 className="text-base font-medium text-slate-800 mb-3">Team Performance Rankings</h3>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
                             <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
                                 <tr>
-                                    <th className="p-3">Rank</th>
-                                    <th className="p-3">Employee</th>
-                                    <th className="p-3">Role</th>
-                                    <th className="p-3">Score</th>
-                                    <th className="p-3">Status</th>
+                                    <th className="py-2 px-2">Rank</th>
+                                    <th className="py-2 px-2">Employee</th>
+                                    <th className="py-2 px-2">Role</th>
+                                    <th className="py-2 px-2">Score</th>
+                                    <th className="py-2 px-2">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
                                 {teamMembers.map((member) => (
                                     <tr key={member.id} className="hover:bg-slate-50">
-                                        <td className="p-3 font-bold text-slate-700">#{member.rank}</td>
-                                        <td className="p-3 font-medium">{member.name}</td>
-                                        <td className="p-3">{member.role}</td>
-                                        <td className="p-3 font-bold text-primary">{member.score}</td>
-                                        <td className="p-3">
+                                        <td className="py-2 px-2 text-slate-700 truncate">#{member.rank}</td>
+                                        <td className="py-2 px-2 truncate">{member.name}</td>
+                                        <td className="py-2 px-2 truncate">{member.role}</td>
+                                        <td className="py-2 px-2 text-violet-600 truncate">{member.score}</td>
+                                        <td className="py-2 px-2">
                                             <Badge variant={member.score >= 80 ? 'success' : member.score >= 50 ? 'warning' : 'danger'}>
                                                 {member.score >= 80 ? 'Excellent' : 'Average'}
                                             </Badge>
@@ -89,25 +89,25 @@ const ManagerDashboard = () => {
                 </div>
 
                 {/* Chart */}
-                <div className="flex flex-col gap-6">
-                    <ChartPanel title="Score Distribution" height={250}>
+                <div className="flex flex-col gap-4">
+                    <ChartPanel title="Score Distribution" height={180} compact>
                         <BarChart data={teamPerformanceData} layout="vertical" margin={{ left: 20 }}>
                             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                             <XAxis type="number" domain={[0, 100]} hide />
                             <YAxis dataKey="name" type="category" width={80} fontSize={10} />
                             <Tooltip />
-                            <Bar dataKey="score" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
+                            <Bar dataKey="score" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={16} />
                         </BarChart>
                     </ChartPanel>
 
                     {/* My Tasks Summary */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">My Assigned Tasks</h3>
-                        <div className="space-y-3">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+                        <h3 className="text-base font-medium text-slate-800 mb-3">My Assigned Tasks</h3>
+                        <div className="space-y-2">
                             {TASKS.filter(t => t.employeeId === user.id).slice(0, 3).map(task => (
-                                <div key={task.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                <div key={task.id} className="p-2 bg-slate-50 rounded-lg border border-slate-100">
                                     <div className="font-medium text-sm truncate">{task.title}</div>
-                                    <div className="flex justify-between items-center mt-2">
+                                    <div className="flex justify-between items-center mt-1">
                                         <Badge variant={task.status}>{task.status.replace(/_/g, ' ')}</Badge>
                                         <span className="text-xs text-slate-500">{task.dueDate}</span>
                                     </div>

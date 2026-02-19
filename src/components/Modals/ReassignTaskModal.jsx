@@ -19,7 +19,7 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                    <h3 className="font-medium text-slate-800 flex items-center gap-2">
                         <User size={20} className="text-violet-600" /> Reassign Task
                     </h3>
                     <button onClick={onClose} className="p-1 hover:bg-slate-200 rounded-full text-slate-500">
@@ -29,7 +29,7 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
 
                 <div className="p-6">
                     <p className="text-sm text-slate-600 mb-4">
-                        Current Task: <span className="font-semibold text-slate-800">"{currentTask?.title}"</span>
+                        Current Task: <span className="text-slate-800">"{currentTask?.title}"</span>
                     </p>
 
                     <form onSubmit={handleSubmit}>

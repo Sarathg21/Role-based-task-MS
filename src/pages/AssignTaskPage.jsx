@@ -16,13 +16,14 @@ const AssignTaskPage = () => {
         dueDate: ''
     });
 
-    // Employees that can be assigned tasks
-    // For now, Managers can assign to anyone in their department + direct reports
-    // Admin can assign to anyone
-    const eligibleEmployees = USERS.filter(u => {
-        if (user.role === 'Admin') return u.role === 'Employee';
+    // CFO (Admin) can assign to any Dept Manager or any Employee
+    // Dept Manager can assign only to employees in their department
+    const eligibleAssignees = USERS.filter(u => {
+        if (user.role === 'Admin') {
+            return (u.role === 'Manager' && u.managerId === user.id) || u.role === 'Employee';
+        }
         if (user.role === 'Manager') {
-            return u.role === 'Employee' && (u.managerId === user.id || u.department === user.department);
+            return u.role === 'Employee' && u.department === user.department;
         }
         return false;
     });
@@ -34,14 +35,17 @@ const AssignTaskPage = () => {
     const handleSubmit = (e) => {
         e.preventDefault();
 
+        const assignee = USERS.find(u => u.id === formData.assignee);
+        const dept = assignee?.department || user.department;
+        const managerId = assignee?.role === 'Manager' ? user.id : (assignee?.managerId || user.id);
         const newTask = {
-            id: `TSK-${Math.floor(Math.random() * 10000)}`, // Simple ID generation
+            id: `TSK-${Math.floor(Math.random() * 10000)}`,
             title: formData.title,
             description: formData.description,
             employeeId: formData.assignee,
-            managerId: user.id, // Current user is the manager
+            managerId,
             assignedBy: user.id,
-            department: user.department,
+            department: dept,
             severity: formData.priority,
             status: 'NEW',
             reworkCount: 0,
@@ -67,7 +71,7 @@ const AssignTaskPage = () => {
                     <ArrowLeft size={20} />
                 </button>
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Assign New Task</h1>
+                    <h1 className="text-2xl font-medium text-slate-800">Assign New Task</h1>
                     <p className="text-slate-500">Create and assign a task to your team members</p>
                 </div>
             </div>
@@ -109,7 +113,7 @@ const AssignTaskPage = () => {
                             className="block w-full text-sm text-slate-500
                                 file:mr-4 file:py-2 file:px-4
                                 file:rounded-lg file:border-0
-                                file:text-sm file:font-semibold
+                                file:text-sm file:font-medium
                                 file:bg-violet-50 file:text-violet-700
                                 hover:file:bg-violet-100"
                         />
@@ -127,9 +131,9 @@ const AssignTaskPage = () => {
                                 value={formData.assignee}
                                 onChange={handleChange}
                             >
-                                <option value="">Select Employee</option>
-                                {eligibleEmployees.map(emp => (
-                                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.id})</option>
+                                <option value="">Select Assignee</option>
+                                {eligibleAssignees.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name} ({p.role}) - {p.department}</option>
                                 ))}
                             </select>
                         </div>

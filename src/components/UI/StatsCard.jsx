@@ -1,6 +1,6 @@
 import { ArrowUp, ArrowDown } from 'lucide-react';
 
-const StatsCard = ({ title, value, icon: Icon, trend, trendValue, color = 'primary' }) => {
+const StatsCard = ({ title, value, icon: Icon, trend, trendValue, color = 'primary', compact = false }) => {
     const getTrendColor = () => {
         if (trend === 'up') return 'text-emerald-600 bg-emerald-50';
         if (trend === 'down') return 'text-rose-600 bg-rose-50';
@@ -17,14 +17,14 @@ const StatsCard = ({ title, value, icon: Icon, trend, trendValue, color = 'prima
     };
 
     return (
-        <div className="bg-white p-6 rounded-2xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-100/50 hover:shadow-lg transition-all duration-300 group">
+        <div className={`bg-white shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-100/50 hover:shadow-lg transition-all duration-300 group ${compact ? 'p-4 rounded-xl' : 'p-6 rounded-2xl'}`}>
             <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                    <p className="text-sm font-medium text-slate-500 tracking-wide">{title}</p>
-                    <h3 className="text-2xl font-bold text-slate-800 tracking-tight">{value}</h3>
+                <div className="space-y-0.5">
+                    <p className={`font-medium text-slate-500 tracking-wide ${compact ? 'text-xs' : 'text-sm'}`}>{title}</p>
+                    <h3 className={`font-bold text-slate-800 tracking-tight ${compact ? 'text-xl' : 'text-2xl'}`}>{value}</h3>
                 </div>
-                <div className={`p-3 rounded-xl bg-gradient-to-br shadow-lg ${colorVariants[color] || colorVariants.primary} transform group-hover:scale-110 transition-transform duration-300`}>
-                    {Icon && <Icon size={22} strokeWidth={2} />}
+                <div className={`rounded-lg bg-linear-to-br shadow-lg ${colorVariants[color] || colorVariants.primary} transform group-hover:scale-110 transition-transform duration-300 ${compact ? 'p-2' : 'p-3 rounded-xl'}`}>
+                    {Icon && <Icon size={compact ? 18 : 22} strokeWidth={2} />}
                 </div>
             </div>
 
