@@ -69,7 +69,20 @@ const AdminPage = () => {
       <OrgTreeModal
         isOpen={showOrgTreeModal}
         onClose={() => setShowOrgTreeModal(false)}
-        users={USERS}
+        users={employees}
+        departments={DEPARTMENTS}
+        onAddNode={(parentId, newUser) => {
+          const parent = employees.find(u => u.id === parentId);
+          const isParentAdmin = parent?.role === 'Admin';
+          setEmployees(prev => [
+            ...prev,
+            {
+              ...newUser,
+              managerId: isParentAdmin ? parentId : parentId,
+              active: true,
+            }
+          ]);
+        }}
       />
 
       <AddEmployeeModal
@@ -137,6 +150,7 @@ const AdminPage = () => {
                 onChange={(e) => setRoleFilter(e.target.value)}
               >
                 <option value="All">All Roles</option>
+                <option value="CFO">CFO</option>
                 <option value="Admin">Admin</option>
                 <option value="Manager">Manager</option>
                 <option value="Employee">Employee</option>
@@ -228,8 +242,8 @@ const AdminPage = () => {
                       <button
                         onClick={() => handleToggleStatus(emp.id)}
                         className={`p-1.5 rounded text-white ${emp.active
-                            ? "bg-red-500 hover:bg-red-600"
-                            : "bg-green-600 hover:bg-green-700"
+                          ? "bg-red-500 hover:bg-red-600"
+                          : "bg-green-600 hover:bg-green-700"
                           }`}
                       >
                         {emp.active ? (

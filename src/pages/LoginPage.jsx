@@ -298,6 +298,7 @@ const LoginPage = () => {
                                 <span>Admin: ADMIN001 / password123</span>
                                 <span>Manager: MGR001 / password123</span>
                                 <span>Employee: EMP001 / password123</span>
+                                <span>  CFO: CFO001    / password123</span>
                             </div>
                         </div>
                     )}

@@ -16,10 +16,15 @@ const Layout = () => {
     return (
         <div className="app-container">
             <Sidebar />
-            <Navbar />
-            <main className="main-layout fade-in">
-                <Outlet />
-            </main>
+            {/* Right-side column: Navbar on top, content below */}
+            <div className="content-column">
+                <Navbar />
+                <main className="main-layout fade-in">
+                    <div className="page-container">
+                        <Outlet />
+                    </div>
+                </main>
+            </div>
         </div>
     );
 };

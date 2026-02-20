@@ -326,14 +326,36 @@ h6 {
   position: sticky;
   top: 0;
   z-index: 40;
+  /* no margin-left — content-column already offsets from sidebar */
+}
+
+.app-container {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Right-side column: flex-col so navbar sits on top, content below */
+.content-column {
   margin-left: 280px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 .main-layout {
-  margin-left: 280px;
+  flex: 1;
   padding: 2rem;
   background-color: var(--bg-body);
-  min-height: calc(100vh - 80px);
+}
+
+/* Centred page content container (wraps Outlet in Layout.jsx) */
+.page-container {
+  width: 100%;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* Responsive Overrides */
@@ -351,8 +373,7 @@ h6 {
     transition: transform 0.3s;
   }
 
-  .navbar,
-  .main-layout {
+  .content-column {
     margin-left: 0;
   }
 }

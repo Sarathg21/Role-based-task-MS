@@ -13,7 +13,10 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     }
 
     if (allowedRoles && !allowedRoles.includes(user.role)) {
-        // Or redirect to unauthorized page
+        // Admin-only has /admin, so redirect them there
+        if (user.role === 'Admin') {
+            return <Navigate to="/admin" replace />;
+        }
         return <Navigate to="/dashboard" replace />;
     }
 

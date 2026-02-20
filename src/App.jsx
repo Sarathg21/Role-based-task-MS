@@ -26,7 +26,7 @@ function App() {
             <Route
               path="dashboard"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={['Employee', 'Manager', 'CFO']}>
                   <DashboardPage />
                 </ProtectedRoute>
               }
@@ -44,7 +44,7 @@ function App() {
             <Route
               path="tasks/assign"
               element={
-                <ProtectedRoute allowedRoles={['Manager', 'Admin']}>
+                <ProtectedRoute allowedRoles={['Manager', 'Admin', 'CFO']}>
                   <AssignTaskPage />
                 </ProtectedRoute>
               }
@@ -53,7 +53,7 @@ function App() {
             <Route
               path="reports"
               element={
-                <ProtectedRoute allowedRoles={['Manager', 'Admin']}>
+                <ProtectedRoute allowedRoles={['Manager', 'Admin', 'CFO']}>
                   <ReportsPage />
                 </ProtectedRoute>
               }
@@ -62,7 +62,7 @@ function App() {
             <Route
               path="admin"
               element={
-                <ProtectedRoute allowedRoles={['Admin']}>
+                <ProtectedRoute allowedRoles={['Admin', 'CFO']}>
                   <AdminPage />
                 </ProtectedRoute>
               }

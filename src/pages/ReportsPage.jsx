@@ -16,8 +16,8 @@ const ReportsPage = () => {
         year: new Date().getFullYear().toString()
     });
 
-    const { deptScores, topList, performanceData, topDept, underperformingDept, workloadData } = useMemo(() => {
-        // Manager sees only their department
+    const { deptScores, topList, performanceData, topDept, underperformingDept, workloadData, empWorkloadData, empPerformanceData } = useMemo(() => {
+        // Manager sees only their department; CFO and Admin see all
         const scopeDepts = user?.role === 'Manager' ? [user.department] : DEPARTMENTS;
         const scopeUserIds = user?.role === 'Manager'
             ? USERS.filter(u => u.department === user.department).map(u => u.id)
@@ -49,8 +49,8 @@ const ReportsPage = () => {
             };
         });
 
-        // Top 10 Employees (scoped for Manager)
-        const allEmployees = USERS.filter(u => u.role === 'Employee' && (!user?.department || u.department === user.department));
+        // Top 10 Employees (scoped for Manager; all for CFO/Admin)
+        const allEmployees = USERS.filter(u => u.role === 'Employee' && (user?.role === 'Manager' ? u.department === user.department : true));
         const ranking = getEmployeeRankings(allEmployees, TASKS);
 
         // Detailed Performance Data (scoped for Manager)
@@ -120,13 +120,33 @@ const ReportsPage = () => {
             return { name: dept, Total: total, Completed: completed, Pending: total - completed };
         });
 
+        // ── Employee-wise data (for Manager charts) ──────────────────────
+        const empWorkloadData = allEmployees.map(emp => {
+            const empTasks = (scopeUserIds ? TASKS.filter(t => scopeUserIds.includes(t.employeeId)) : TASKS)
+                .filter(t => t.employeeId === emp.id);
+            const total = empTasks.length;
+            const completed = empTasks.filter(t => ['Completed', 'APPROVED'].includes(t.status)).length;
+            return { name: emp.name.split(' ')[0], Total: total, Completed: completed, Pending: total - completed };
+        });
+
+        const empPerformanceData = allEmployees.map(emp => {
+            const empTasks = (scopeUserIds ? TASKS.filter(t => scopeUserIds.includes(t.employeeId)) : TASKS)
+                .filter(t => t.employeeId === emp.id);
+            const total = empTasks.length;
+            const completed = empTasks.filter(t => ['Completed', 'APPROVED'].includes(t.status)).length;
+            const perf = total > 0 ? Math.round((completed / total) * 100) : 0;
+            return { name: emp.name.split(' ')[0], Performance: perf };
+        });
+
         return {
             deptScores: deptPerformance,
             topList: ranking.slice(0, 10),
             performanceData: reportData,
             topDept,
             underperformingDept,
-            workloadData
+            workloadData,
+            empWorkloadData,
+            empPerformanceData,
         };
     }, [filters, user?.role, user?.department]);
 
@@ -196,8 +216,8 @@ const ReportsPage = () => {
                 <p className="text-slate-500">{user?.role === 'Manager' ? 'Department performance metrics' : 'System-wide performance metrics'}</p>
             </div>
 
-            {/* Top / Underperforming Departments & Workload (CFO only) */}
-            {user?.role === 'Admin' && (topDept || underperformingDept) && (
+            {/* Top / Underperforming Departments & Workload (CFO & Admin) */}
+            {(user?.role === 'Admin' || user?.role === 'CFO') && (topDept || underperformingDept) && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {topDept && (
                         <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
@@ -337,41 +357,61 @@ const ReportsPage = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ChartPanel title="Workload Distribution by Department">
-                    <BarChart data={workloadData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="Completed" stackId="a" fill="#10b981" name="Completed" />
-                        <Bar dataKey="Pending" stackId="a" fill="#f59e0b" name="Pending" />
-                    </BarChart>
-                </ChartPanel>
 
-                <ChartPanel title="Department Performance Index">
-                    <BarChart data={deptScores}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="Performance" fill="#8b5cf6" name="Completion Rate %" />
-                    </BarChart>
-                </ChartPanel>
+                {/* ── Manager: employee-wise charts ── */}
+                {user?.role === 'Manager' && (
+                    <>
+                        <ChartPanel title="Employee Workload Distribution">
+                            <BarChart data={empWorkloadData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                                <YAxis />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="Completed" stackId="a" fill="#10b981" name="Completed" />
+                                <Bar dataKey="Pending" stackId="a" fill="#f59e0b" name="Pending" />
+                            </BarChart>
+                        </ChartPanel>
 
-                <ChartPanel title="Monthly Trend by Department">
-                    <LineChart data={trendData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Line type="monotone" dataKey="Engineering" stroke="#8b5cf6" strokeWidth={2} />
-                        <Line type="monotone" dataKey="Sales" stroke="#f59e0b" strokeWidth={2} />
-                        <Line type="monotone" dataKey="HR" stroke="#10b981" strokeWidth={2} />
-                    </LineChart>
-                </ChartPanel>
+                        <ChartPanel title="Employee Performance Index (%)">
+                            <BarChart data={empPerformanceData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                                <YAxis domain={[0, 100]} />
+                                <Tooltip formatter={v => [`${v}%`, 'Completion Rate']} />
+                                <Bar dataKey="Performance" fill="#8b5cf6" name="Performance %" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ChartPanel>
+                    </>
+                )}
+
+                {/* ── CFO / Admin: dept-wise charts ── */}
+                {(user?.role === 'Admin' || user?.role === 'CFO') && (
+                    <>
+                        <ChartPanel title="Workload Distribution by Department">
+                            <BarChart data={workloadData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                                <YAxis />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="Completed" stackId="a" fill="#10b981" name="Completed" />
+                                <Bar dataKey="Pending" stackId="a" fill="#f59e0b" name="Pending" />
+                            </BarChart>
+                        </ChartPanel>
+
+                        <ChartPanel title="Department Performance Index (%)">
+                            <BarChart data={deptScores}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                                <YAxis domain={[0, 100]} />
+                                <Tooltip />
+                                <Legend />
+                                <Bar dataKey="Performance" fill="#8b5cf6" name="Completion Rate %" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ChartPanel>
+                    </>
+                )}
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200">

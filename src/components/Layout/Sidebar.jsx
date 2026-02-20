@@ -53,21 +53,38 @@ const Sidebar = () => {
             </div>
 
             <nav className="flex-1 space-y-1 px-2">
-                <div className="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Menu</div>
-                <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-                <NavItem to="/tasks" icon={CheckSquare} label="My Tasks" />
 
-                {(user.role === 'Manager' || user.role === 'Admin') && (
+                {/* ── Admin: Employee Directory only ── */}
+                {user.role === 'Admin' && (
                     <>
+                        <div className="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Administration</div>
+                        <NavItem to="/admin" icon={Users} label="Employee Directory" />
+                    </>
+                )}
+
+                {/* ── CFO: Dashboard + My Tasks + Reports ── */}
+                {user.role === 'CFO' && (
+                    <>
+                        <div className="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Menu</div>
+                        <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
+                        <NavItem to="/tasks" icon={CheckSquare} label="My Tasks" />
                         <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Analytics</div>
                         <NavItem to="/reports" icon={BarChart3} label="Reports & Insights" />
                     </>
                 )}
 
-                {user.role === 'Admin' && (
+                {/* ── Manager / Employee: Standard nav ── */}
+                {(user.role === 'Manager' || user.role === 'Employee') && (
                     <>
-                        <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Administration</div>
-                        <NavItem to="/admin" icon={Users} label="Employee Directory" />
+                        <div className="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Menu</div>
+                        <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
+                        <NavItem to="/tasks" icon={CheckSquare} label="My Tasks" />
+                        {user.role === 'Manager' && (
+                            <>
+                                <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Analytics</div>
+                                <NavItem to="/reports" icon={BarChart3} label="Reports & Insights" />
+                            </>
+                        )}
                     </>
                 )}
             </nav>
