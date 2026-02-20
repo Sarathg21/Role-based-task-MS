@@ -6,8 +6,9 @@ import { calculateManagerScore } from '../../utils/performanceEngine';
 import Badge from '../UI/Badge';
 import {
     BarChart2, CheckSquare, AlertTriangle, Clock, ArrowRight,
-    Calendar, Users, TrendingUp, Medal
+    Calendar, Users, TrendingUp, Medal, CalendarCheck, CheckCircle
 } from 'lucide-react';
+
 
 /* ─── Small stat card ──────────────────────────────────────── */
 const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
@@ -43,7 +44,7 @@ const ManagerDashboard = () => {
     const [toDate, setToDate] = useState('');
 
     /* ── Derived data ──────────────── */
-    const { stats, rankedTeam } = useMemo(() => {
+    const { stats, rankedTeam, todayTeamTasks } = useMemo(() => {
         const myTeam = USERS.filter(u => u.managerId === user.id);
         const teamIds = myTeam.map(u => u.id);
 
@@ -66,16 +67,97 @@ const ManagerDashboard = () => {
         }).sort((a, b) => b.completed - a.completed || b.assigned - a.assigned)
             .map((emp, idx) => ({ ...emp, rank: idx + 1 }));
 
+        /* Today's tasks for the team — not affected by date range filter */
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayTeamTasks = TASKS.filter(t =>
+            teamIds.includes(t.employeeId) &&
+            t.dueDate === todayStr &&
+            !['Completed', 'APPROVED', 'CANCELLED'].includes(t.status)
+        ).sort((a, b) => (a.severity === 'High' ? -1 : 1));
+
         return {
             stats: { score, completionRate, totalReworks, pending, total: teamTasks.length },
             rankedTeam: ranked,
+            todayTeamTasks,
         };
     }, [user.id, fromDate, toDate]);
+
+    const dateLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
     return (
         <div className="space-y-6">
 
-            {/* ══ HEADER + DATE FILTER ══ */}
+            {/* ══ TODAY'S TASKS HERO ══ */}
+            <div
+                className="rounded-2xl overflow-hidden shadow-xl"
+                style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 40%, #a78bfa 80%, #c4b5fd 100%)' }}
+            >
+                <div className="px-6 pt-5 pb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-white/30 backdrop-blur-sm p-2.5 rounded-xl">
+                            <CalendarCheck size={22} className="text-white drop-shadow" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-extrabold text-white tracking-tight drop-shadow-sm">Team's Tasks Today</h2>
+                            <p className="text-violet-200 text-xs mt-0.5">{dateLabel}</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="text-center bg-white/25 backdrop-blur rounded-xl px-5 py-2">
+                            <div className="text-3xl font-black text-white">{todayTeamTasks.length}</div>
+                            <div className="text-violet-200 text-[10px] uppercase tracking-widest font-semibold">Due Today</div>
+                        </div>
+                        <button
+                            onClick={() => navigate('/tasks')}
+                            className="flex items-center gap-2 bg-white text-violet-700 hover:bg-violet-50 hover:scale-105 transition-all text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg"
+                        >
+                            View All <ArrowRight size={15} />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="mx-6 border-t border-white/30" />
+
+                <div className="p-5">
+                    {todayTeamTasks.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-8 gap-2 bg-white/20 backdrop-blur rounded-2xl">
+                            <CheckCircle size={38} className="text-white drop-shadow" />
+                            <p className="text-white font-bold text-lg drop-shadow-sm">Team is on track! 🎉</p>
+                            <p className="text-violet-200 text-sm">No team tasks due today.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                            {todayTeamTasks.map(task => {
+                                const assignee = USERS.find(u => u.id === task.employeeId);
+                                const sevColor =
+                                    task.severity === 'High' ? { pill: 'bg-red-500 text-white', border: 'border-l-red-400' } :
+                                        task.severity === 'Medium' ? { pill: 'bg-amber-500 text-white', border: 'border-l-amber-400' } :
+                                            { pill: 'bg-emerald-500 text-white', border: 'border-l-emerald-400' };
+                                return (
+                                    <div
+                                        key={task.id}
+                                        onClick={() => navigate('/tasks')}
+                                        className={`bg-white rounded-xl p-4 shadow-lg cursor-pointer hover:scale-[1.03] hover:shadow-xl transition-all border-l-4 ${sevColor.border}`}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${sevColor.pill}`}>
+                                                {task.severity}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 font-semibold">{task.id}</span>
+                                        </div>
+                                        <h4 className="font-bold text-slate-800 text-sm leading-snug mb-0.5 truncate">{task.title}</h4>
+                                        <p className="text-slate-400 text-xs mb-2 truncate">{task.description}</p>
+                                        <div className="text-[10px] text-slate-500 font-medium">
+                                            Assigned to: <span className="font-semibold text-slate-700">{assignee?.name || task.employeeId}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-5">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
@@ -195,9 +277,9 @@ const ManagerDashboard = () => {
                                     <tr key={member.id} className="hover:bg-slate-50">
                                         <td className="py-3 px-5">
                                             <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${member.rank === 1 ? 'bg-amber-100 text-amber-700' :
-                                                    member.rank === 2 ? 'bg-slate-200 text-slate-600' :
-                                                        member.rank === 3 ? 'bg-orange-100 text-orange-700' :
-                                                            'bg-slate-100 text-slate-500'
+                                                member.rank === 2 ? 'bg-slate-200 text-slate-600' :
+                                                    member.rank === 3 ? 'bg-orange-100 text-orange-700' :
+                                                        'bg-slate-100 text-slate-500'
                                                 }`}>
                                                 #{member.rank}
                                             </span>

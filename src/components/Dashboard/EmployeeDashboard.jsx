@@ -7,7 +7,7 @@ import Badge from '../UI/Badge';
 import ChartPanel from '../Charts/ChartPanel';
 import {
     TrendingUp, CheckCircle, Clock, AlertCircle,
-    ThumbsUp, Calendar, ArrowRight, ChevronRight
+    ThumbsUp, Calendar, ArrowRight, ChevronRight, CalendarCheck
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -70,7 +70,7 @@ const EmployeeDashboard = () => {
     const [toDate, setToDate] = useState('');
 
     /* Derived metrics */
-    const { score, stats, pendingTasks, performanceTrend, statusDistribution } = useMemo(() => {
+    const { score, stats, pendingTasks, performanceTrend, statusDistribution, todayTasks } = useMemo(() => {
         let myTasks = TASKS.filter(t => t.employeeId === user.id);
 
         /* Apply date range to assigned date */
@@ -111,6 +111,12 @@ const EmployeeDashboard = () => {
             ? `${fromDate} to ${toDate}`
             : fromDate ? `From ${fromDate}` : toDate ? `Until ${toDate}` : 'All time';
 
+        /* Today's tasks — always based on today, not date range */
+        const today = new Date().toISOString().split('T')[0];
+        const todayTasks = TASKS
+            .filter(t => t.employeeId === user.id && t.dueDate === today && !TERMINAL.includes(t.status))
+            .sort((a, b) => a.severity === 'High' ? -1 : 1);
+
         return {
             score: currentScore,
             stats: {
@@ -123,6 +129,7 @@ const EmployeeDashboard = () => {
             pendingTasks,
             performanceTrend,
             statusDistribution,
+            todayTasks,
         };
     }, [user.id, fromDate, toDate]);
 
@@ -133,7 +140,80 @@ const EmployeeDashboard = () => {
     return (
         <div className="space-y-6">
 
-            {/* ══ HEADER + DATE FILTER ══ */}
+            {/* ══ TODAY'S TASKS HERO ══ */}
+            <div
+                className="rounded-2xl overflow-hidden shadow-xl"
+                style={{ background: 'linear-gradient(135deg, #f97316 0%, #fb923c 35%, #fbbf24 80%, #facc15 100%)' }}
+            >
+                {/* Banner header */}
+                <div className="px-6 pt-5 pb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-white/30 backdrop-blur-sm p-2.5 rounded-xl">
+                            <CalendarCheck size={22} className="text-white drop-shadow" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-extrabold text-white tracking-tight drop-shadow-sm">Today's Tasks</h2>
+                            <p className="text-orange-100 text-xs mt-0.5">{dateLabel}</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="text-center bg-white/25 backdrop-blur rounded-xl px-5 py-2">
+                            <div className="text-3xl font-black text-white">{todayTasks.length}</div>
+                            <div className="text-orange-100 text-[10px] uppercase tracking-widest font-semibold">Due Today</div>
+                        </div>
+                        <button
+                            onClick={() => navigate('/tasks')}
+                            className="flex items-center gap-2 bg-white text-orange-600 hover:bg-orange-50 hover:scale-105 transition-all text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg"
+                        >
+                            View All <ArrowRight size={15} />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="mx-6 border-t border-white/30" />
+
+                {/* Task cards */}
+                <div className="p-5">
+                    {todayTasks.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-8 gap-2 bg-white/20 backdrop-blur rounded-2xl">
+                            <CheckCircle size={38} className="text-white drop-shadow" />
+                            <p className="text-white font-bold text-lg drop-shadow-sm">All clear for today! 🎉</p>
+                            <p className="text-orange-100 text-sm">No tasks due today. Keep it up!</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                            {todayTasks.map(task => {
+                                const sevColor =
+                                    task.severity === 'High' ? { pill: 'bg-red-500 text-white', border: 'border-l-red-400' } :
+                                        task.severity === 'Medium' ? { pill: 'bg-amber-500 text-white', border: 'border-l-amber-400' } :
+                                            { pill: 'bg-emerald-500 text-white', border: 'border-l-emerald-400' };
+                                const statusCls = STATUS_COLORS[task.status]
+                                    ? `bg-[${STATUS_COLORS[task.status]}]` : 'bg-slate-100 text-slate-600';
+                                return (
+                                    <div
+                                        key={task.id}
+                                        onClick={() => navigate('/tasks')}
+                                        className={`bg-white rounded-xl p-4 shadow-lg cursor-pointer hover:scale-[1.03] hover:shadow-xl transition-all border-l-4 ${sevColor.border}`}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${sevColor.pill}`}>
+                                                {task.severity}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 font-semibold">{task.id}</span>
+                                        </div>
+                                        <h4 className="font-bold text-slate-800 text-sm leading-snug mb-0.5 truncate">{task.title}</h4>
+                                        <p className="text-slate-500 text-xs truncate mb-3">{task.description}</p>
+                                        <Badge variant={task.status}>
+                                            {STATUS_LABEL[task.status] || task.status.replace(/_/g, ' ')}
+                                        </Badge>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-5">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
@@ -224,31 +304,36 @@ const EmployeeDashboard = () => {
                 </ChartPanel>
 
                 {/* Chart B — Status Distribution */}
-                <ChartPanel title="Task Status Distribution">
-                    {statusDistribution.length > 0 ? (
-                        <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                            <Pie
-                                data={statusDistribution}
-                                cx="50%"
-                                cy="50%"
-                                outerRadius={80}
-                                dataKey="value"
-                                label={({ name, value }) => `${name}: ${value}`}
-                                labelLine={false}
-                            >
-                                {statusDistribution.map((entry, i) => (
-                                    <Cell key={i} fill={entry.color} />
-                                ))}
-                            </Pie>
-                            <Tooltip formatter={(v, name) => [v, name]} />
-                            <Legend />
-                        </PieChart>
-                    ) : (
-                        <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-                            No tasks in selected range
-                        </div>
-                    )}
-                </ChartPanel>
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                    <h3 className="font-bold text-slate-800 text-lg mb-6">Task Status Distribution</h3>
+                    <div style={{ width: '100%', height: 240 }}>
+                        {statusDistribution.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={statusDistribution}
+                                        cx="50%"
+                                        cy="50%"
+                                        outerRadius={80}
+                                        dataKey="value"
+                                        label={({ name, value }) => `${name}: ${value}`}
+                                        labelLine={false}
+                                    >
+                                        {statusDistribution.map((entry, i) => (
+                                            <Cell key={i} fill={entry.color} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip formatter={(v, name) => [v, name]} />
+                                    <Legend />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                                No tasks in selected range
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
 
             {/* ══ PENDING TASKS LIST ══ */}
@@ -298,8 +383,8 @@ const EmployeeDashboard = () => {
                                             </td>
                                             <td className="py-3 px-5">
                                                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${task.severity === 'High' ? 'bg-red-100 text-red-700' :
-                                                        task.severity === 'Medium' ? 'bg-amber-100 text-amber-700' :
-                                                            'bg-green-100 text-green-700'
+                                                    task.severity === 'Medium' ? 'bg-amber-100 text-amber-700' :
+                                                        'bg-green-100 text-green-700'
                                                     }`}>
                                                     {task.severity}
                                                 </span>
