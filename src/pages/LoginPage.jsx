@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { BarChart3, User, Lock, Shield } from 'lucide-react';
+import { User, Lock, Shield } from 'lucide-react';
 
 const LoginPage = () => {
     // view: 'login' | 'forgot' | 'reset'
@@ -83,11 +83,14 @@ const LoginPage = () => {
                 {/* Left Side - Hero */}
                 <div className="login-hero">
                     <div>
-                        <div className="flex items-center gap-3 mb-8">
-                            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                                <BarChart3 size={32} />
+                        <div className="flex items-center justify-center mb-8">
+                            <div style={{ background: 'rgba(255,255,255,0.95)', borderRadius: '16px', padding: '16px 28px', display: 'inline-flex' }}>
+                                <img
+                                    src="/fj-group-logo.png"
+                                    alt="FJ Group Logo"
+                                    style={{ maxWidth: '280px', width: '100%' }}
+                                />
                             </div>
-                            <h1 className="text-2xl font-bold">PerfMetric</h1>
                         </div>
                         <h2 className="text-4xl font-bold mb-6">Elevate Team Performance</h2>
                         <p className="text-violet-100 text-lg leading-relaxed">
@@ -95,13 +98,21 @@ const LoginPage = () => {
                         </p>
                     </div>
                     <div className="flex gap-4 text-sm text-violet-200">
-                        <span>© 2024 PerfMetric Inc.</span>
-                        <span>Privacy Policy</span>
+                        <span>© 2026 FJ Group. All rights reserved.</span>
                     </div>
                 </div>
 
                 {/* Right Side - Forms */}
                 <div className="login-form-section">
+
+                    {/* FJ Group Logo */}
+                    <div className="flex justify-center mb-6">
+                        <img
+                            src="/fj-group-logo.png"
+                            alt="FJ Group Logo"
+                            style={{ maxWidth: '240px', width: '100%' }}
+                        />
+                    </div>
 
                     {/* Header updates based on view */}
                     <div className="mb-8">
