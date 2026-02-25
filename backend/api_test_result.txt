@@ -1,0 +1,26 @@
+﻿=== POST /auth/login ===
+HTTP Status : 200 OK
+User        : David Hughes / CFO
+Department  : Finance
+Token       : eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIi...
+
+=== GET /users ===
+HTTP Status : 200 OK
+Total users : 27
+  -> ADMIN001 | Sarah Connor | Admin
+  -> CFO001 | David Hughes | CFO
+  -> EMP017 | Amira Said | Employee
+  -> EMP013 | Chloe Martin | Employee
+  -> EMP010 | David Park | Employee
+
+=== GET /tasks ===
+HTTP Status : 200 OK
+Total tasks : 37
+  -> TSK-101 | Fix Login Bug | APPROVED
+  -> TSK-106 | Unit Testing | APPROVED
+  -> TSK-104 | Q3 Sales Report | APPROVED
+  -> TSK-103 | Database Schema | APPROVED
+  -> TSK-107 | Code Review | APPROVED
+
+=== SUMMARY ===
+PostgreSQL <-> FastAPI <-> API : ALL WORKING

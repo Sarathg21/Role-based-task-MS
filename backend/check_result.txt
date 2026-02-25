@@ -1,0 +1,11 @@
+psycopg2 : PASS
+PG Ver   : PostgreSQL 18.2 on x86_64-windows, compiled by msvc-19.44.35
+Users    : 27
+Tasks    : 37
+  user -> ADMIN001 | Sarah Connor | Admin
+  user -> CFO001 | David Hughes | CFO
+  user -> EMP017 | Amira Said | Employee
+  user -> EMP013 | Chloe Martin | Employee
+  user -> EMP010 | David Park | Employee
+SQLAlchemy: PASS
+FastAPI  : PASS - Task Management API is running

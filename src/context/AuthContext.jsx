@@ -8,7 +8,6 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check localStorage for persisted session
         const storedUser = localStorage.getItem('pms_user');
         if (storedUser) {
             setUser(JSON.parse(storedUser));
@@ -30,7 +29,6 @@ export const AuthProvider = ({ children }) => {
             return { success: false, message: 'Account Deactivated' };
         }
 
-        // Implicitly set role from user data
         localStorage.setItem('pms_user', JSON.stringify(foundUser));
         setUser(foundUser);
         return { success: true };

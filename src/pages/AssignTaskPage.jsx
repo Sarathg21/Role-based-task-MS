@@ -16,11 +16,10 @@ const AssignTaskPage = () => {
         dueDate: ''
     });
 
-    // CFO (Admin) can assign to any Dept Manager or any Employee
-    // Dept Manager can assign only to employees in their department
+    // CFO/Admin → any Manager or Employee; Manager → only own dept employees
     const eligibleAssignees = USERS.filter(u => {
-        if (user.role === 'Admin') {
-            return (u.role === 'Manager' && u.managerId === user.id) || u.role === 'Employee';
+        if (user.role === 'CFO' || user.role === 'Admin') {
+            return u.role === 'Manager' || u.role === 'Employee';
         }
         if (user.role === 'Manager') {
             return u.role === 'Employee' && u.department === user.department;
@@ -53,10 +52,7 @@ const AssignTaskPage = () => {
             dueDate: formData.dueDate,
             completedDate: null
         };
-
-        // In a real app, this would be an API call
         TASKS.push(newTask);
-
         alert('Task Assigned Successfully!');
         navigate('/tasks');
     };

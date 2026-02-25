@@ -98,7 +98,7 @@ const LoginPage = () => {
                         </p>
                     </div>
                     <div className="flex gap-4 text-sm text-violet-200">
-                        <span>© 2026 FJ Group. All rights reserved.</span>
+                        <span>© 2026 ZENITH DATA INTELLIGENCE LLC</span>
                     </div>
                 </div>
 

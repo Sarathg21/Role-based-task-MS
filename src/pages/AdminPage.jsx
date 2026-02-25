@@ -41,7 +41,6 @@ const AdminPage = () => {
   const handleToggleStatus = (id) => {
     const emp = employees.find((e) => e.id === id);
     const action = emp.active ? "deactivate" : "activate";
-
     if (window.confirm(`Are you sure you want to ${action} ${emp.name}?`)) {
       setEmployees((prev) =>
         prev.map((e) => (e.id === id ? { ...e, active: !e.active } : e))

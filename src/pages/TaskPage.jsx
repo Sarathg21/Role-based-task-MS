@@ -6,6 +6,14 @@ import Badge from "../components/UI/Badge";
 import { Plus, Search } from "lucide-react";
 import ReassignTaskModal from "../components/Modals/ReassignTaskModal";
 
+// Convert status keys to Title Case labels
+// e.g. "IN_PROGRESS" → "In Progress", "APPROVED" → "Approved"
+const formatStatus = (status) =>
+  status
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
 /* ========================================================= */
 /*  CFO Task Table — uses the full column schema requested   */
 /* ========================================================= */
@@ -41,7 +49,7 @@ const CFOTaskTable = ({ tasks, onStatusChange, onAssign, onApprove, onRework, on
           {tasks.map((task, idx) => {
             const isOverdue = task.dueDate < today && !['Completed', 'APPROVED', 'CANCELLED'].includes(task.status);
             const displayStatus = isOverdue ? 'Overdue' : task.status;
-            const assignee = USERS.find(u => u.id === task.employeeId);
+            const assignee = USERS.find(u => u.id === (task.employee_id || task.employeeId));
 
             return (
               <tr key={task.id} className="hover:bg-slate-50">
@@ -88,7 +96,7 @@ const CFOTaskTable = ({ tasks, onStatusChange, onAssign, onApprove, onRework, on
 
                 {/* Status */}
                 <td className="p-3">
-                  <Badge variant={displayStatus}>{displayStatus.replace(/_/g, " ")}</Badge>
+                  <Badge variant={displayStatus}>{formatStatus(displayStatus)}</Badge>
                 </td>
 
                 {/* Actions — CFO state machine */}
@@ -190,13 +198,10 @@ const ActionTaskTable = ({
             const displayStatus = isOverdue ? 'Overdue' : task.status;
 
             const assigneeName =
-              USERS.find((u) => u.id === task.employeeId)?.name ||
-              task.employeeId;
+              USERS.find((u) => u.id === task.employeeId)?.name || task.employeeId;
 
             const assignerName =
-              USERS.find((u) => u.id === task.assignedBy)?.name ||
-              task.assignedBy ||
-              "System";
+              USERS.find((u) => u.id === task.assignedBy)?.name || task.assignedBy || "System";
 
             return (
               <tr key={task.id} className="hover:bg-slate-50">
@@ -212,27 +217,17 @@ const ActionTaskTable = ({
 
                 <td className="p-4 max-w-[120px] overflow-hidden">
                   <Badge variant={displayStatus}>
-                    {displayStatus.replace(/_/g, " ")}
+                    {formatStatus(displayStatus)}
                   </Badge>
                 </td>
 
                 <td className="p-4 max-w-[90px] overflow-hidden">
-                  <Badge
-                    variant={
-                      task.severity === "High"
-                        ? "danger"
-                        : task.severity === "Medium"
-                          ? "primary"
-                          : "info"
-                    }
-                  >
+                  <Badge variant={task.severity}>
                     {task.severity}
                   </Badge>
                 </td>
 
-                <td className="p-4 text-slate-500">
-                  {task.dueDate}
-                </td>
+                <td className="p-4 text-slate-500">{task.dueDate}</td>
 
                 {/* ================= Actions ================= */}
                 <td className="p-4 text-right">
@@ -366,22 +361,22 @@ const TaskPage = () => {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
-      // EMPLOYEE: only see own tasks
-      if (user.role === "Employee" && task.employeeId !== user.id) return false;
+      const empId = task.employeeId;
+      const mgrId = task.managerId;
+      const dueDate = task.dueDate;
 
-      // MANAGER: team or personal view
+      if (user.role === "Employee" && empId !== user.id) return false;
+
       if (user.role === "Manager") {
-        if (viewMode === "team" && task.managerId !== user.id) return false;
-        if (viewMode === "personal" && task.employeeId !== user.id) return false;
+        if (viewMode === "team" && mgrId !== user.id) return false;
+        if (viewMode === "personal" && empId !== user.id) return false;
       }
 
-      // CFO: all tasks (viewMode = 'all') or personal only (viewMode = 'personal')
-      if (user.role === "CFO" && viewMode === "personal" && task.employeeId !== user.id) return false;
+      if (user.role === "CFO" && viewMode === "personal" && empId !== user.id) return false;
 
-      // Status filter
       if (filter.status !== "All") {
         const today = new Date().toISOString().split('T')[0];
-        const isOverdue = task.dueDate < today && !['Completed', 'APPROVED', 'CANCELLED'].includes(task.status);
+        const isOverdue = dueDate < today && !['Completed', 'APPROVED', 'CANCELLED'].includes(task.status);
         if (filter.status === 'Overdue') return isOverdue;
         if (task.status !== filter.status) return false;
       }
@@ -431,28 +426,20 @@ const TaskPage = () => {
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id !== taskToReassign.id) return t;
-
-        // Build history entry for the outgoing employee
-        const historyEntry = {
-          employeeId: t.employeeId,
-          reassignedAt: new Date().toISOString(),
-          reassignedBy: user.id,
-          statusAtReassign: t.status,
-          reason: reason || null,
-        };
-
-        // If SUBMITTED → reset to IN_PROGRESS, clear submittedAt
         const newStatus = t.status === 'SUBMITTED' ? 'IN_PROGRESS' : t.status;
-        const newSubmittedAt = t.status === 'SUBMITTED' ? null : (t.submittedAt ?? null);
-
         return {
           ...t,
           employeeId: newAssigneeId,
           assignedBy: user.id,
           dueDate: newDueDate || t.dueDate,
           status: newStatus,
-          submittedAt: newSubmittedAt,
-          reassignmentHistory: [...(t.reassignmentHistory ?? []), historyEntry],
+          reassignmentHistory: [...(t.reassignmentHistory ?? []), {
+            employeeId: t.employeeId,
+            reassignedAt: new Date().toISOString(),
+            reassignedBy: user.id,
+            statusAtReassign: t.status,
+            reason: reason || null,
+          }],
         };
       })
     );
