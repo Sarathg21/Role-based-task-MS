@@ -19,7 +19,7 @@ const AdminDashboard = () => {
     const { stats, deptData, topEmployees, orgTableData, managerRankings, deptPerformanceChart, workloadData, trendData } = useMemo(() => {
         const totalEmployees = USERS.filter(u => u.role === 'Employee').length;
         const totalManagers = USERS.filter(u => u.role === 'Manager').length;
-        const activeTasks = TASKS.filter(t => t.status !== 'Completed' && t.status !== 'APPROVED').length;
+        const activeTasks = TASKS.filter(t => t.status !== 'APPROVED').length;
 
         // Department Breakdown (headcount)
         const deptCounts = DEPARTMENTS.filter(d => USERS.some(u => u.department === d)).map(dept => ({
@@ -53,7 +53,7 @@ const AdminDashboard = () => {
         const deptPerf = DEPARTMENTS.filter(d => USERS.some(u => u.department === d)).map(dept => {
             const deptUserIds = USERS.filter(u => u.department === dept).map(u => u.id);
             const deptTasks = TASKS.filter(t => deptUserIds.includes(t.employeeId));
-            const completed = deptTasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED').length;
+            const completed = deptTasks.filter(t => t.status === 'APPROVED').length;
             const total = deptTasks.length;
             const score = total > 0 ? Math.round((completed / total) * 100) : 0;
             return { name: dept, Performance: score, Tasks: total };
@@ -66,7 +66,7 @@ const AdminDashboard = () => {
         const workload = DEPARTMENTS.filter(d => USERS.some(u => u.department === d)).map(dept => {
             const deptUserIds = USERS.filter(u => u.department === dept).map(u => u.id);
             const total = TASKS.filter(t => deptUserIds.includes(t.employeeId)).length;
-            const pending = TASKS.filter(t => deptUserIds.includes(t.employeeId) && t.status !== 'Completed' && t.status !== 'APPROVED').length;
+            const pending = TASKS.filter(t => deptUserIds.includes(t.employeeId) && t.status !== 'APPROVED').length;
             return { name: dept, Total: total, Pending: pending, Completed: total - pending };
         });
 
@@ -286,20 +286,20 @@ const AdminDashboard = () => {
                 </ChartPanel>
 
                 <div className="lg:col-span-2">
-                <ChartPanel title="Performance Trend by Department">
-                    <LineChart data={trendData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" />
-                        <YAxis domain={[0, 100]} />
-                        <Tooltip />
-                        <Legend />
-                        <Line type="monotone" dataKey="Engineering" stroke="#8b5cf6" strokeWidth={2} />
-                        <Line type="monotone" dataKey="Sales" stroke="#f59e0b" strokeWidth={2} />
-                        <Line type="monotone" dataKey="HR" stroke="#10b981" strokeWidth={2} />
-                        <Line type="monotone" dataKey="Administration" stroke="#6366f1" strokeWidth={2} />
-                    </LineChart>
-                </ChartPanel>
-            </div>
+                    <ChartPanel title="Performance Trend by Department">
+                        <LineChart data={trendData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="name" />
+                            <YAxis domain={[0, 100]} />
+                            <Tooltip />
+                            <Legend />
+                            <Line type="monotone" dataKey="Engineering" stroke="#8b5cf6" strokeWidth={2} />
+                            <Line type="monotone" dataKey="Sales" stroke="#f59e0b" strokeWidth={2} />
+                            <Line type="monotone" dataKey="HR" stroke="#10b981" strokeWidth={2} />
+                            <Line type="monotone" dataKey="Administration" stroke="#6366f1" strokeWidth={2} />
+                        </LineChart>
+                    </ChartPanel>
+                </div>
             </div>
 
             {/* Top Performers */}

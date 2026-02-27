@@ -15,7 +15,7 @@ import {
 } from 'recharts';
 
 /* ─── Helpers ─────────────────────────────────────────────── */
-const TERMINAL = ['Completed', 'APPROVED', 'CANCELLED'];
+const TERMINAL = ['APPROVED', 'CANCELLED'];
 
 const STATUS_LABEL = {
     NEW: 'New',
@@ -27,12 +27,12 @@ const STATUS_LABEL = {
 };
 
 const STATUS_COLORS = {
-    NEW: '#3b82f6',
-    IN_PROGRESS: '#f59e0b',
-    SUBMITTED: '#8b5cf6',
-    APPROVED: '#10b981',
-    REWORK: '#f97316',
-    CANCELLED: '#94a3b8',
+    NEW: '#3b82f6',        // Blue
+    IN_PROGRESS: '#6366f1', // Indigo (light blue/purple)
+    SUBMITTED: '#f59e0b',  // Amber/Yellow
+    APPROVED: '#10b981',   // Green
+    REWORK: '#ea580c',     // Orange/Red
+    CANCELLED: '#94a3b8',  // Grey
 };
 
 /* Small stat tile */
@@ -79,7 +79,7 @@ const EmployeeDashboard = () => {
 
         const currentScore = calculateEmployeeScore(TASKS, user.id);
         const approved = myTasks.filter(t => t.status === 'APPROVED').length;
-        const completedOrSub = myTasks.filter(t => ['Completed', 'APPROVED', 'SUBMITTED'].includes(t.status)).length;
+        const completedOrSub = myTasks.filter(t => ['APPROVED', 'SUBMITTED'].includes(t.status)).length;
         const pending = myTasks.filter(t => !TERMINAL.includes(t.status) && t.status !== 'SUBMITTED').length;
 
         /* Pending tasks list (exclude terminal + submitted) */
@@ -196,9 +196,9 @@ const EmployeeDashboard = () => {
                                         className={`bg-white rounded-xl p-4 shadow-lg cursor-pointer hover:scale-[1.03] hover:shadow-xl transition-all border-l-4 ${sevColor.border}`}
                                     >
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${sevColor.pill}`}>
+                                            <Badge variant={task.severity}>
                                                 {task.severity}
-                                            </span>
+                                            </Badge>
                                             <span className="text-[10px] text-slate-400 font-semibold">{task.id}</span>
                                         </div>
                                         <h4 className="font-bold text-slate-800 text-sm leading-snug mb-0.5 truncate">{task.title}</h4>
@@ -221,29 +221,44 @@ const EmployeeDashboard = () => {
                         <p className="text-sm text-slate-500 mt-0.5">{dateLabel}</p>
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
-                        <div className="flex items-center gap-2">
-                            <Calendar size={14} className="text-slate-400" />
-                            <span className="text-xs text-slate-500 font-medium">From</span>
-                            <input
-                                type="date" value={fromDate}
-                                onChange={e => setFromDate(e.target.value)}
-                                className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-400 bg-slate-50"
-                            />
+                        {/* Glassy date range card */}
+                        <div className="flex items-center bg-violet-50 border border-violet-100 rounded-2xl px-4 py-2.5 gap-3 shadow-sm">
+                            {/* From */}
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] font-semibold text-violet-400 uppercase tracking-widest flex items-center gap-1">
+                                    <Calendar size={10} /> From
+                                </span>
+                                <input
+                                    type="date"
+                                    value={fromDate}
+                                    onChange={e => setFromDate(e.target.value)}
+                                    className="text-sm font-medium bg-transparent text-violet-800 border-none outline-none cursor-pointer w-36 focus:ring-0"
+                                />
+                            </div>
+                            {/* Arrow separator */}
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-violet-100">
+                                <ArrowRight size={12} className="text-violet-400" />
+                            </div>
+                            {/* To */}
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] font-semibold text-violet-400 uppercase tracking-widest flex items-center gap-1">
+                                    <Calendar size={10} /> To
+                                </span>
+                                <input
+                                    type="date"
+                                    value={toDate}
+                                    onChange={e => setToDate(e.target.value)}
+                                    className="text-sm font-medium bg-transparent text-violet-800 border-none outline-none cursor-pointer w-36 focus:ring-0"
+                                />
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 font-medium">To</span>
-                            <input
-                                type="date" value={toDate}
-                                onChange={e => setToDate(e.target.value)}
-                                className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-400 bg-slate-50"
-                            />
-                        </div>
+                        {/* Active filter — clear pill */}
                         {(fromDate || toDate) && (
                             <button
                                 onClick={() => { setFromDate(''); setToDate(''); }}
-                                className="text-xs text-rose-500 hover:text-rose-700 font-medium"
+                                className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 text-xs font-semibold px-3 py-2 rounded-xl transition-all"
                             >
-                                Clear
+                                ✕ Clear Filter
                             </button>
                         )}
                     </div>
@@ -382,12 +397,9 @@ const EmployeeDashboard = () => {
                                                 </Badge>
                                             </td>
                                             <td className="py-3 px-5">
-                                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${task.severity === 'High' ? 'bg-red-100 text-red-700' :
-                                                    task.severity === 'Medium' ? 'bg-amber-100 text-amber-700' :
-                                                        'bg-green-100 text-green-700'
-                                                    }`}>
+                                                <Badge variant={task.severity}>
                                                     {task.severity}
-                                                </span>
+                                                </Badge>
                                             </td>
                                             <td className="py-3 px-5 text-slate-500 text-xs">{task.assignedDate}</td>
                                             <td className="py-3 px-5">

@@ -47,7 +47,7 @@ const CFOTaskTable = ({ tasks, onStatusChange, onAssign, onApprove, onRework, on
         </thead>
         <tbody className="divide-y divide-slate-100 text-slate-700">
           {tasks.map((task, idx) => {
-            const isOverdue = task.dueDate < today && !['Completed', 'APPROVED', 'CANCELLED'].includes(task.status);
+            const isOverdue = task.dueDate < today && !['APPROVED', 'CANCELLED'].includes(task.status);
             const displayStatus = isOverdue ? 'Overdue' : task.status;
             const assignee = USERS.find(u => u.id === (task.employee_id || task.employeeId));
 
@@ -194,7 +194,7 @@ const ActionTaskTable = ({
         <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
           {tasks.map((task) => {
             const today = new Date().toISOString().split('T')[0];
-            const isOverdue = task.dueDate < today && !['Completed', 'APPROVED', 'CANCELLED'].includes(task.status);
+            const isOverdue = task.dueDate < today && !['APPROVED', 'CANCELLED'].includes(task.status);
             const displayStatus = isOverdue ? 'Overdue' : task.status;
 
             const assigneeName =
@@ -243,7 +243,7 @@ const ActionTaskTable = ({
                                 onStatusChange(task.id, "IN_PROGRESS");
                               }
                             }}
-                            className="px-4 py-2 text-sm font-medium rounded-md text-white bg-amber-500 hover:bg-amber-600 transition shadow-sm"
+                            className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-indigo-500 hover:bg-indigo-600 transition shadow-sm whitespace-nowrap"
                           >
                             Start
                           </button>
@@ -256,7 +256,7 @@ const ActionTaskTable = ({
                                 onStatusChange(task.id, "SUBMITTED");
                               }
                             }}
-                            className="px-4 py-2 text-sm font-medium rounded-md text-white bg-violet-600 hover:bg-violet-700 transition shadow-sm"
+                            className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-amber-400 hover:bg-amber-500 transition shadow-sm whitespace-nowrap"
                           >
                             Submit
                           </button>
@@ -269,7 +269,7 @@ const ActionTaskTable = ({
                                 onStatusChange(task.id, "IN_PROGRESS");
                               }
                             }}
-                            className="px-4 py-2 text-sm font-medium rounded-md text-white bg-amber-500 hover:bg-amber-600 transition shadow-sm"
+                            className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-indigo-500 hover:bg-indigo-600 transition shadow-sm whitespace-nowrap"
                           >
                             Restart
                           </button>
@@ -288,7 +288,7 @@ const ActionTaskTable = ({
                                   onStatusChange(task.id, "APPROVED");
                                 }
                               }}
-                              className="px-4 py-2 text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 transition shadow-sm"
+                              className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-green-600 hover:bg-green-700 transition shadow-sm whitespace-nowrap"
                             >
                               Approve
                             </button>
@@ -299,7 +299,7 @@ const ActionTaskTable = ({
                                   onStatusChange(task.id, "REWORK");
                                 }
                               }}
-                              className="px-4 py-2 text-sm font-medium rounded-md text-white bg-orange-500 hover:bg-orange-600 transition shadow-sm"
+                              className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-orange-600 hover:bg-orange-700 transition shadow-sm whitespace-nowrap"
                             >
                               Rework
                             </button>
@@ -311,7 +311,7 @@ const ActionTaskTable = ({
                           task.department === user.department && (
                             <button
                               onClick={() => onReassign(task)}
-                              className="px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-500 hover:bg-blue-600 transition shadow-sm"
+                              className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-blue-500 hover:bg-blue-600 transition shadow-sm whitespace-nowrap"
                             >
                               Reassign
                             </button>
@@ -320,7 +320,7 @@ const ActionTaskTable = ({
                         {!["APPROVED", "CANCELLED"].includes(task.status) && (
                           <button
                             onClick={() => onCancel(task.id)}
-                            className="px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 transition shadow-sm"
+                            className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-red-600 hover:bg-red-700 transition shadow-sm whitespace-nowrap"
                           >
                             Cancel
                           </button>
@@ -353,7 +353,7 @@ const TaskPage = () => {
     search: "",
   });
   const [viewMode, setViewMode] = useState(
-    user.role === 'CFO' ? 'all' : user.role === 'Manager' ? 'team' : 'personal'
+    user.role === 'CFO' ? 'all' : 'personal'
   );
 
   const [reassignModalOpen, setReassignModalOpen] = useState(false);
@@ -372,11 +372,10 @@ const TaskPage = () => {
         if (viewMode === "personal" && empId !== user.id) return false;
       }
 
-      if (user.role === "CFO" && viewMode === "personal" && empId !== user.id) return false;
 
       if (filter.status !== "All") {
         const today = new Date().toISOString().split('T')[0];
-        const isOverdue = dueDate < today && !['Completed', 'APPROVED', 'CANCELLED'].includes(task.status);
+        const isOverdue = dueDate < today && !['APPROVED', 'CANCELLED'].includes(task.status);
         if (filter.status === 'Overdue') return isOverdue;
         if (task.status !== filter.status) return false;
       }
@@ -448,7 +447,7 @@ const TaskPage = () => {
 
 
   const isCFO = user.role === 'CFO';
-  const pendingCount = filteredTasks.filter(t => !['Completed', 'APPROVED', 'CANCELLED'].includes(t.status)).length;
+  const pendingCount = filteredTasks.filter(t => !['APPROVED', 'CANCELLED'].includes(t.status)).length;
 
   return (
     <div className="space-y-6">
@@ -474,7 +473,7 @@ const TaskPage = () => {
           </p>
         </div>
 
-        {(user.role === "Manager" || user.role === "Admin" || isCFO) && (
+        {(user.role === "Admin" || isCFO || (user.role === "Manager" && viewMode === "team")) && (
           <button
             onClick={() => navigate("/tasks/assign")}
             className="px-4 py-2 text-sm rounded-lg bg-violet-500 text-white hover:bg-violet-600 transition flex items-center"
@@ -486,30 +485,17 @@ const TaskPage = () => {
       </div>
 
       {/* View Toggle */}
-      {(user.role === "Manager" || isCFO) && (
+      {user.role === "Manager" && (
         <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
-          {isCFO && (
-            <button
-              onClick={() => setViewMode("all")}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === "all"
-                ? "bg-white text-slate-800 shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
-                }`}
-            >
-              All Departments
-            </button>
-          )}
-          {!isCFO && (
-            <button
-              onClick={() => setViewMode("team")}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === "team"
-                ? "bg-white text-slate-800 shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
-                }`}
-            >
-              Team Tasks
-            </button>
-          )}
+          <button
+            onClick={() => setViewMode("team")}
+            className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === "team"
+              ? "bg-white text-slate-800 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+              }`}
+          >
+            Team Tasks
+          </button>
           <button
             onClick={() => setViewMode("personal")}
             className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === "personal"

@@ -8,26 +8,40 @@ const Badge = ({ children, variant = 'default', className = '' }) => {
         info: 'bg-sky-500 text-white border-sky-500',
         primary: 'bg-violet-600 text-white border-violet-600',
 
-        // ── Task status badges — solid filled, same style as action buttons ──
-        NEW: 'bg-blue-500 text-white border-blue-500',          // Blue   — Not started
-        IN_PROGRESS: 'bg-amber-500 text-white border-amber-500',        // Amber  — Work ongoing
-        WORKING_ON_IT: 'bg-amber-500 text-white border-amber-500',        // Amber  — alias
-        SUBMITTED: 'bg-violet-600 text-white border-violet-600',      // Purple — Awaiting review
-        APPROVED: 'bg-green-600 text-white border-green-600',        // Green  — Done
-        Completed: 'bg-green-600 text-white border-green-600',        // Green  — Done (alt)
-        REWORK: 'bg-orange-500 text-white border-orange-500',      // Orange — Needs correction
-        CANCELLED: 'bg-slate-400 text-white border-slate-400',        // Gray   — Terminated
-        Overdue: 'bg-rose-600 text-white border-rose-600',          // Red    — Past due
+        // ── Task status badges ──
+        NEW: 'bg-blue-500 text-white border-blue-500',
+        IN_PROGRESS: 'bg-indigo-500 text-white border-indigo-500',
+        WORKING_ON_IT: 'bg-indigo-500 text-white border-indigo-500',
+        SUBMITTED: 'bg-amber-400 text-amber-900 border-amber-400',
+        APPROVED: 'bg-green-600 text-white border-green-600',
+        REWORK: 'bg-orange-600 text-white border-orange-600',
+        CANCELLED: 'bg-slate-400 text-white border-slate-400',
+        // ── Action-based variants ──
+        Approve: 'bg-green-600 text-white border-green-600',
+        Rework: 'bg-orange-600 text-white border-orange-600',
+        Reassign: 'bg-blue-500 text-white border-blue-500',
+        Cancel: 'bg-red-600 text-white border-red-600',
+        Overdue: 'bg-rose-600 text-white border-rose-600',
 
-        // ── Severity badges — vivid & high contrast ──────────────────────────
-        High: 'bg-red-600 text-white border-red-700 shadow-red-300',    // Bold red
-        Medium: 'bg-yellow-400 text-yellow-900 border-yellow-500 shadow-yellow-200', // Bold amber
-        Low: 'bg-emerald-500 text-white border-emerald-600 shadow-emerald-200',   // Bold green
+        // ── Severity badges ──
+        High: 'bg-red-600 text-white border-red-600',
+        Medium: 'bg-amber-500 text-white border-amber-500',
+        Low: 'bg-emerald-500 text-white border-emerald-500',
     };
 
     return (
         <span
-            className={`inline-flex items-center justify-center w-24 px-2 py-1 rounded-md text-[11px] font-semibold border truncate shadow-sm ${variants[variant] ?? variants.default} ${className}`}
+            className={`
+                inline-flex items-center justify-center
+                px-4 py-2
+                rounded-full
+                text-xs font-semibold
+                border
+                whitespace-nowrap
+                shadow-sm
+                ${variants[variant] ?? variants.default}
+                ${className}
+            `}
         >
             {children}
         </span>
@@ -35,4 +49,3 @@ const Badge = ({ children, variant = 'default', className = '' }) => {
 };
 
 export default Badge;
-

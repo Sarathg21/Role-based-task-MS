@@ -62,12 +62,12 @@ const Sidebar = () => {
                     </>
                 )}
 
-                {/* ── CFO: Dashboard + My Tasks + Reports ── */}
+                {/* ── CFO: Dashboard + Task Management + Reports ── */}
                 {user.role === 'CFO' && (
                     <>
                         <div className="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Menu</div>
                         <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-                        <NavItem to="/tasks" icon={CheckSquare} label="My Tasks" />
+                        <NavItem to="/tasks" icon={CheckSquare} label="Accounts Team Tasks" />
                         <div className="px-4 mt-6 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Analytics</div>
                         <NavItem to="/reports" icon={BarChart3} label="Reports & Insights" />
                     </>

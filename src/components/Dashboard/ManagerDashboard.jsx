@@ -9,6 +9,15 @@ import {
     Calendar, Users, TrendingUp, Medal, CalendarCheck, CheckCircle
 } from 'lucide-react';
 
+const STATUS_LABEL = {
+    NEW: 'New',
+    IN_PROGRESS: 'In Progress',
+    SUBMITTED: 'Submitted',
+    APPROVED: 'Approved',
+    REWORK: 'Rework',
+    CANCELLED: 'Cancelled',
+};
+
 
 /* ─── Small stat card ──────────────────────────────────────── */
 const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
@@ -54,15 +63,15 @@ const ManagerDashboard = () => {
         if (toDate) teamTasks = teamTasks.filter(t => t.assignedDate <= toDate);
 
         const score = calculateManagerScore(TASKS, user.id, teamIds);
-        const completed = teamTasks.filter(t => ['Completed', 'APPROVED'].includes(t.status)).length;
-        const pending = teamTasks.filter(t => !['Completed', 'APPROVED', 'CANCELLED'].includes(t.status)).length;
+        const completed = teamTasks.filter(t => ['APPROVED'].includes(t.status)).length;
+        const pending = teamTasks.filter(t => !['APPROVED', 'CANCELLED'].includes(t.status)).length;
         const totalReworks = teamTasks.reduce((s, t) => s + (t.reworkCount || 0), 0);
         const completionRate = teamTasks.length > 0 ? Math.round((completed / teamTasks.length) * 100) : 0;
 
         /* Build ranking table: tasks assigned & completed per employee */
         const ranked = myTeam.map(emp => {
             const empTasks = teamTasks.filter(t => t.employeeId === emp.id);
-            const empDone = empTasks.filter(t => ['Completed', 'APPROVED'].includes(t.status)).length;
+            const empDone = empTasks.filter(t => ['APPROVED'].includes(t.status)).length;
             return { ...emp, assigned: empTasks.length, completed: empDone };
         }).sort((a, b) => b.completed - a.completed || b.assigned - a.assigned)
             .map((emp, idx) => ({ ...emp, rank: idx + 1 }));
@@ -72,7 +81,7 @@ const ManagerDashboard = () => {
         const todayTeamTasks = TASKS.filter(t =>
             teamIds.includes(t.employeeId) &&
             t.dueDate === todayStr &&
-            !['Completed', 'APPROVED', 'CANCELLED'].includes(t.status)
+            !['APPROVED', 'CANCELLED'].includes(t.status)
         ).sort((a, b) => (a.severity === 'High' ? -1 : 1));
 
         return {
@@ -140,15 +149,20 @@ const ManagerDashboard = () => {
                                         className={`bg-white rounded-xl p-4 shadow-lg cursor-pointer hover:scale-[1.03] hover:shadow-xl transition-all border-l-4 ${sevColor.border}`}
                                     >
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${sevColor.pill}`}>
+                                            <Badge variant={task.severity}>
                                                 {task.severity}
-                                            </span>
+                                            </Badge>
                                             <span className="text-[10px] text-slate-400 font-semibold">{task.id}</span>
                                         </div>
                                         <h4 className="font-bold text-slate-800 text-sm leading-snug mb-0.5 truncate">{task.title}</h4>
                                         <p className="text-slate-400 text-xs mb-2 truncate">{task.description}</p>
-                                        <div className="text-[10px] text-slate-500 font-medium">
-                                            Assigned to: <span className="font-semibold text-slate-700">{assignee?.name || task.employeeId}</span>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="text-[10px] text-slate-500 font-medium truncate">
+                                                Assigned to: <span className="font-semibold text-slate-700">{assignee?.name || task.employeeId}</span>
+                                            </div>
+                                            <Badge variant={task.status}>
+                                                {STATUS_LABEL[task.status] || task.status.replace(/_/g, ' ')}
+                                            </Badge>
                                         </div>
                                     </div>
                                 );
@@ -165,33 +179,46 @@ const ManagerDashboard = () => {
                         <p className="text-sm text-slate-500 mt-0.5">{user.department} · {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
                     </div>
 
-                    {/* Date range */}
+                    {/* Date range — premium styled */}
                     <div className="flex items-center gap-3 flex-wrap">
-                        <div className="flex items-center gap-2">
-                            <Calendar size={14} className="text-slate-400" />
-                            <span className="text-xs text-slate-500 font-medium">From</span>
-                            <input
-                                type="date"
-                                value={fromDate}
-                                onChange={e => setFromDate(e.target.value)}
-                                className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-400 bg-slate-50"
-                            />
+                        {/* Glassy date range card */}
+                        <div className="flex items-center bg-violet-50 border border-violet-100 rounded-2xl px-4 py-2.5 gap-3 shadow-sm">
+                            {/* From */}
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] font-semibold text-violet-400 uppercase tracking-widest flex items-center gap-1">
+                                    <Calendar size={10} /> From
+                                </span>
+                                <input
+                                    type="date"
+                                    value={fromDate}
+                                    onChange={e => setFromDate(e.target.value)}
+                                    className="text-sm font-medium bg-transparent text-violet-800 border-none outline-none cursor-pointer w-36 focus:ring-0"
+                                />
+                            </div>
+                            {/* Arrow separator */}
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-violet-100">
+                                <ArrowRight size={12} className="text-violet-400" />
+                            </div>
+                            {/* To */}
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] font-semibold text-violet-400 uppercase tracking-widest flex items-center gap-1">
+                                    <Calendar size={10} /> To
+                                </span>
+                                <input
+                                    type="date"
+                                    value={toDate}
+                                    onChange={e => setToDate(e.target.value)}
+                                    className="text-sm font-medium bg-transparent text-violet-800 border-none outline-none cursor-pointer w-36 focus:ring-0"
+                                />
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 font-medium">To</span>
-                            <input
-                                type="date"
-                                value={toDate}
-                                onChange={e => setToDate(e.target.value)}
-                                className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-400 bg-slate-50"
-                            />
-                        </div>
+                        {/* Active filter — clear pill */}
                         {(fromDate || toDate) && (
                             <button
                                 onClick={() => { setFromDate(''); setToDate(''); }}
-                                className="text-xs text-rose-500 hover:text-rose-700 font-medium"
+                                className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 text-xs font-semibold px-3 py-2 rounded-xl transition-all"
                             >
-                                Clear
+                                ✕ Clear Filter
                             </button>
                         )}
                     </div>

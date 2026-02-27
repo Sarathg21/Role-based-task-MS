@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, User, CalendarDays, FileText, Clock, AlertTriangle, RotateCcw } from 'lucide-react';
+import Badge from "../UI/Badge";
 import { USERS } from '../../data/mockData';
 
 /* ── status label map ── */
@@ -121,10 +122,9 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
                             </div>
                             <div>
                                 <p className="text-xs text-slate-400 font-medium mb-0.5">Priority / Severity</p>
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${currentTask.severity === 'High' ? 'bg-red-100 text-red-700' :
-                                        currentTask.severity === 'Medium' ? 'bg-amber-100 text-amber-700' :
-                                            'bg-green-100 text-green-700'
-                                    }`}>{currentTask.severity}</span>
+                                <Badge variant={currentTask.severity}>
+                                    {currentTask.severity}
+                                </Badge>
                             </div>
                             <div>
                                 <p className="text-xs text-slate-400 font-medium mb-0.5">Current Assignee</p>
@@ -237,7 +237,7 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition"
+                        className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-full hover:bg-slate-50 transition shadow-sm whitespace-nowrap"
                     >
                         Cancel
                     </button>
@@ -245,9 +245,9 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
                         type="submit"
                         form="reassign-form"
                         disabled={!canSave}
-                        className={`px-5 py-2 text-sm font-semibold rounded-xl transition shadow-sm flex items-center gap-2 ${canSave
-                                ? 'bg-violet-600 text-white hover:bg-violet-700'
-                                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        className={`px-5 py-2 text-xs font-semibold rounded-full transition shadow-sm flex items-center gap-2 whitespace-nowrap ${canSave
+                            ? 'bg-violet-600 text-white hover:bg-violet-700'
+                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                             }`}
                     >
                         <RotateCcw size={15} />
@@ -260,3 +260,4 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
 };
 
 export default ReassignTaskModal;
+

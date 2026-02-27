@@ -37,7 +37,7 @@ const ReportsPage = () => {
 
             deptParams.forEach(p => {
                 totalTasks += p.tasks.length;
-                completedTasks += p.tasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED').length;
+                completedTasks += p.tasks.filter(t => t.status === 'APPROVED').length;
             });
 
             const score = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
@@ -86,9 +86,9 @@ const ReportsPage = () => {
         const reportData = reportEmployees.map(emp => {
             const empTasks = filteredTasks.filter(t => t.employeeId === emp.id);
             const total = empTasks.length;
-            const completed = empTasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED').length;
+            const completed = empTasks.filter(t => t.status === 'APPROVED').length;
             const pending = total - completed;
-            const onTime = empTasks.filter(t => (t.status === 'Completed' || t.status === 'APPROVED') && t.completedDate && t.completedDate <= t.dueDate).length;
+            const onTime = empTasks.filter(t => t.status === 'APPROVED' && t.completedDate && t.completedDate <= t.dueDate).length;
             const onTimePct = completed > 0 ? Math.round((onTime / completed) * 100) : 0;
             const reworks = empTasks.reduce((sum, t) => sum + (t.reworkCount || 0), 0);
             const avgReworks = total > 0 ? (reworks / total).toFixed(1) : 0;
@@ -116,7 +116,7 @@ const ReportsPage = () => {
             const tasks = (scopeUserIds ? TASKS.filter(t => scopeUserIds.includes(t.employeeId)) : TASKS)
                 .filter(t => deptUserIds.includes(t.employeeId));
             const total = tasks.length;
-            const completed = tasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED').length;
+            const completed = tasks.filter(t => t.status === 'APPROVED').length;
             return { name: dept, Total: total, Completed: completed, Pending: total - completed };
         });
 
@@ -125,7 +125,7 @@ const ReportsPage = () => {
             const empTasks = (scopeUserIds ? TASKS.filter(t => scopeUserIds.includes(t.employeeId)) : TASKS)
                 .filter(t => t.employeeId === emp.id);
             const total = empTasks.length;
-            const completed = empTasks.filter(t => ['Completed', 'APPROVED'].includes(t.status)).length;
+            const completed = empTasks.filter(t => ['APPROVED'].includes(t.status)).length;
             return { name: emp.name.split(' ')[0], Total: total, Completed: completed, Pending: total - completed };
         });
 
@@ -133,7 +133,7 @@ const ReportsPage = () => {
             const empTasks = (scopeUserIds ? TASKS.filter(t => scopeUserIds.includes(t.employeeId)) : TASKS)
                 .filter(t => t.employeeId === emp.id);
             const total = empTasks.length;
-            const completed = empTasks.filter(t => ['Completed', 'APPROVED'].includes(t.status)).length;
+            const completed = empTasks.filter(t => ['APPROVED'].includes(t.status)).length;
             const perf = total > 0 ? Math.round((completed / total) * 100) : 0;
             return { name: emp.name.split(' ')[0], Performance: perf };
         });

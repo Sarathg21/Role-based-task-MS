@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TASKS, USERS, DEPARTMENTS } from '../../data/mockData';
 import { getEmployeeRankings } from '../../utils/rankingEngine';
@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import {
     TrendingUp, Users, CheckSquare, AlertTriangle, ArrowRight,
-    BarChart2, Building2, Star, Clock, CalendarCheck
+    BarChart2, Building2, Star, CalendarCheck, Calendar
 } from 'lucide-react';
 
 /* ─── Helpers ──────────────────────────────────────────────────── */
@@ -20,20 +20,17 @@ const DEPT_COLORS = [
     '#ef4444', '#ec4899', '#14b8a6', '#f97316',
 ];
 
-const STATUS_STYLES = {
-    NEW: 'bg-blue-100 text-blue-700',       // Blue
-    IN_PROGRESS: 'bg-amber-100 text-amber-700',     // Amber
-    SUBMITTED: 'bg-violet-100 text-violet-700',   // Purple
-    APPROVED: 'bg-green-100 text-green-700',     // Green
-    REWORK: 'bg-orange-100 text-orange-700',   // Orange-Red
-    CANCELLED: 'bg-slate-100 text-slate-500',     // Gray
-};
+
 
 /* ─── CFO Dashboard ─────────────────────────────────────────────── */
 const CFODashboard = () => {
     const navigate = useNavigate();
     const today = new Date().toISOString().split('T')[0];
     const dateLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+    /* Date range state */
+    const [fromDate, setFromDate] = useState('');
+    const [toDate, setToDate] = useState('');
 
     /* ── Computed metrics ─── */
     const {
@@ -42,15 +39,19 @@ const CFODashboard = () => {
         topPerformersByDept,
         topManagers,
         globalStats,
-        todayTasks,
     } = useMemo(() => {
         const activeDepts = DEPARTMENTS.filter(d => USERS.some(u => u.department === d));
+
+        /* Apply date range filter to all tasks */
+        let filteredTasks = TASKS;
+        if (fromDate) filteredTasks = filteredTasks.filter(t => t.assignedDate >= fromDate);
+        if (toDate) filteredTasks = filteredTasks.filter(t => t.assignedDate <= toDate);
 
         /* Workload per department */
         const workloadData = activeDepts.map((dept, i) => {
             const deptUserIds = USERS.filter(u => u.department === dept).map(u => u.id);
-            const deptTasks = TASKS.filter(t => deptUserIds.includes(t.employeeId));
-            const completed = deptTasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED').length;
+            const deptTasks = filteredTasks.filter(t => deptUserIds.includes(t.employeeId));
+            const completed = deptTasks.filter(t => t.status === 'APPROVED').length;
             return {
                 name: dept.length > 14 ? dept.slice(0, 13) + '…' : dept,
                 fullName: dept,
@@ -64,13 +65,13 @@ const CFODashboard = () => {
         /* Department performance index */
         const deptPerformanceData = activeDepts.map(dept => {
             const empIds = USERS.filter(u => u.department === dept && u.role === 'Employee').map(u => u.id);
-            const allTasks = TASKS.filter(t => empIds.includes(t.employeeId));
-            const completed = allTasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED').length;
-            const score = allTasks.length > 0 ? Math.round((completed / allTasks.length) * 100) : 0;
+            const deptTasks = filteredTasks.filter(t => empIds.includes(t.employeeId));
+            const completed = deptTasks.filter(t => t.status === 'APPROVED').length;
+            const score = deptTasks.length > 0 ? Math.round((completed / deptTasks.length) * 100) : 0;
             return { name: dept.length > 14 ? dept.slice(0, 13) + '…' : dept, fullName: dept, Performance: score };
         });
 
-        /* Top performer per department */
+        /* Top performer per department — always based on full TASKS for rankings */
         const topPerformersByDept = activeDepts.map(dept => {
             const deptEmps = USERS.filter(u => u.department === dept && u.role === 'Employee');
             const ranked = getEmployeeRankings(deptEmps, TASKS);
@@ -86,18 +87,11 @@ const CFODashboard = () => {
             return { ...mgr, score };
         }).sort((a, b) => b.score - a.score);
 
-        /* Global stats */
-        const allTasks = TASKS;
-        const totalTasks = allTasks.length;
-        const completedTasks = allTasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED').length;
-        const pendingTasks = allTasks.filter(t => !['Completed', 'APPROVED', 'CANCELLED'].includes(t.status)).length;
+        /* Global stats — filtered by date range */
+        const totalTasks = filteredTasks.length;
+        const completedTasks = filteredTasks.filter(t => t.status === 'APPROVED').length;
+        const pendingTasks = filteredTasks.filter(t => !['APPROVED', 'CANCELLED'].includes(t.status)).length;
         const overallScore = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-        /* Today's tasks for CFO (personal tasks due today) */
-        const todayTasks = TASKS.filter(
-            t => t.employeeId === 'CFO001' && t.dueDate === today
-                && !['Completed', 'APPROVED', 'CANCELLED'].includes(t.status)
-        );
 
         return {
             workloadData,
@@ -105,19 +99,18 @@ const CFODashboard = () => {
             topPerformersByDept,
             topManagers,
             globalStats: { totalTasks, completedTasks, pendingTasks, overallScore },
-            todayTasks,
         };
-    }, [today]);
+    }, [fromDate, toDate]);
 
     return (
         <div className="space-y-5">
 
-            {/* ══ TODAY HERO ══ */}
+            {/* ══ HEADER WITH DATE RANGE ══ */}
             <div
                 className="rounded-2xl overflow-hidden shadow-2xl"
                 style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 40%, #a78bfa 100%)' }}
             >
-                <div className="px-6 pt-5 pb-4 flex items-center justify-between">
+                <div className="px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <div className="bg-white/25 backdrop-blur-sm p-2.5 rounded-xl">
                             <CalendarCheck size={22} className="text-white" />
@@ -127,59 +120,63 @@ const CFODashboard = () => {
                             <p className="text-violet-200 text-xs mt-0.5">{dateLabel}</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        {todayTasks.length > 0 && (
-                            <div className="text-center bg-white/20 backdrop-blur rounded-xl px-4 py-2">
-                                <div className="text-2xl font-black text-white">{todayTasks.length}</div>
-                                <div className="text-violet-200 text-[10px] uppercase tracking-widest">Due Today</div>
+
+                    {/* Date range filter — premium styled */}
+                    <div className="flex items-center gap-3 flex-wrap">
+
+                        {/* Glassy date range card */}
+                        <div className="flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-2.5 gap-3 shadow-inner">
+                            {/* From */}
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] font-semibold text-violet-200 uppercase tracking-widest flex items-center gap-1">
+                                    <Calendar size={10} /> From
+                                </span>
+                                <input
+                                    type="date"
+                                    value={fromDate}
+                                    onChange={e => setFromDate(e.target.value)}
+                                    className="text-sm font-medium bg-transparent text-white border-none outline-none cursor-pointer [color-scheme:dark] w-36"
+                                />
                             </div>
+
+                            {/* Arrow separator */}
+                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/15">
+                                <ArrowRight size={12} className="text-violet-200" />
+                            </div>
+
+                            {/* To */}
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] font-semibold text-violet-200 uppercase tracking-widest flex items-center gap-1">
+                                    <Calendar size={10} /> To
+                                </span>
+                                <input
+                                    type="date"
+                                    value={toDate}
+                                    onChange={e => setToDate(e.target.value)}
+                                    className="text-sm font-medium bg-transparent text-white border-none outline-none cursor-pointer [color-scheme:dark] w-36"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Active filter badge + clear */}
+                        {(fromDate || toDate) && (
+                            <button
+                                onClick={() => { setFromDate(''); setToDate(''); }}
+                                className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 border border-white/30 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-all"
+                            >
+                                ✕ Clear Filter
+                            </button>
                         )}
+
                         <button
                             onClick={() => navigate('/tasks')}
                             className="flex items-center gap-2 bg-white text-violet-700 hover:bg-violet-50 hover:scale-105 transition-all text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg"
                         >
                             All Tasks <ArrowRight size={15} />
                         </button>
+
                     </div>
                 </div>
-
-                {todayTasks.length > 0 && (
-                    <>
-                        <div className="mx-6 border-t border-white/20" />
-                        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                            {todayTasks.map(task => {
-                                const statusCls = STATUS_STYLES[task.status] || 'bg-slate-100 text-slate-600';
-                                return (
-                                    <div
-                                        key={task.id}
-                                        onClick={() => navigate('/tasks')}
-                                        className="bg-white rounded-xl p-4 shadow-lg cursor-pointer hover:scale-[1.03] transition-all border-l-4 border-l-violet-400"
-                                    >
-                                        <div className="flex items-center justify-between mb-1">
-                                            <span className="text-[10px] font-bold uppercase text-violet-500">{task.id}</span>
-                                            <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                                                <Clock size={10} /> Due Today
-                                            </span>
-                                        </div>
-                                        <h4 className="font-bold text-slate-800 text-sm leading-snug truncate">{task.title}</h4>
-                                        <p className="text-slate-500 text-xs truncate mt-0.5 mb-2">{task.description}</p>
-                                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${statusCls}`}>
-                                            {task.status.replace(/_/g, ' ')}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </>
-                )}
-
-                {todayTasks.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-6 gap-2">
-                        <CheckSquare size={36} className="text-white/70" />
-                        <p className="text-white font-bold drop-shadow-sm">No personal tasks due today 🎉</p>
-                        <p className="text-violet-200 text-xs">All departments are being monitored</p>
-                    </div>
-                )}
             </div>
 
             {/* ══ GLOBAL STATS ══ */}

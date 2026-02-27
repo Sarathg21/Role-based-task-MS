@@ -10,7 +10,7 @@ export const calculateEmployeeScore = (tasks, employeeId) => {
   const totalAssigned = employeeTasks.length;
   if (totalAssigned === 0) return 0;
 
-  const completedTasks = employeeTasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED');
+  const completedTasks = employeeTasks.filter(t => t.status === 'APPROVED');
   const completedCount = completedTasks.length;
 
   // 1. Completion Rate (40%)
@@ -29,7 +29,7 @@ export const calculateEmployeeScore = (tasks, employeeId) => {
 
   // 4. Productivity (15%)
   // Normalized against a target. Let's assume target is 10 tasks/month for now.
-  const COMPLETED_TARGET = 10; 
+  const COMPLETED_TARGET = 10;
   const productivityScore = Math.min((completedCount / COMPLETED_TARGET) * 100, 100);
 
   // Final Weighted Score
@@ -44,46 +44,46 @@ export const calculateEmployeeScore = (tasks, employeeId) => {
 };
 
 export const calculateManagerScore = (tasks, managerId, teamMembers) => {
-    // teamMembers is array of employeeIds
-    if (!teamMembers || teamMembers.length === 0) return 0;
+  // teamMembers is array of employeeIds
+  if (!teamMembers || teamMembers.length === 0) return 0;
 
-    const teamTasks = tasks.filter(t => teamMembers.includes(t.employeeId));
-    const totalTeamAssigned = teamTasks.length;
-    
-    if (totalTeamAssigned === 0) return 0;
+  const teamTasks = tasks.filter(t => teamMembers.includes(t.employeeId));
+  const totalTeamAssigned = teamTasks.length;
 
-    const teamCompleted = teamTasks.filter(t => t.status === 'Completed' || t.status === 'APPROVED');
-    const teamCompletedCount = teamCompleted.length;
+  if (totalTeamAssigned === 0) return 0;
 
-    // 1. Team Completion Rate (35%)
-    const teamCompletionRate = (teamCompletedCount / totalTeamAssigned) * 100;
+  const teamCompleted = teamTasks.filter(t => t.status === 'APPROVED');
+  const teamCompletedCount = teamCompleted.length;
 
-    // 2. Low Rework Percentage (30%)
-    // Percentage of tasks that needed rework (inverse of quality)
-    // "Low Rework" means high quality. So (Tasks with 0 rework / Total Completed) * 100
-    const noReworkCount = teamCompleted.filter(t => t.reworkCount === 0).length;
-    const lowReworkRate = teamCompletedCount > 0 ? (noReworkCount / teamCompletedCount) * 100 : 0;
+  // 1. Team Completion Rate (35%)
+  const teamCompletionRate = (teamCompletedCount / totalTeamAssigned) * 100;
 
-    // 3. Approval Efficiency (20%)
-    // Measure time between "Submitted" and "Approved/Completed". 
-    // For now, simpler metric: % of tasks processed (Completed or Rejected) vs Pending Approval
-    // Assuming status 'In Review' exists. 
-    // Let's simplified: If manager has no 'In Review' tasks older than 2 days => 100%. 
-    // For this mock, we'll simulate it based on ratio of 'Completed' to 'In Review'
-    const inReviewCount = teamTasks.filter(t => t.status === 'In Review').length;
-    const approvalEfficiency = (teamCompletedCount / (teamCompletedCount + inReviewCount || 1)) * 100;
+  // 2. Low Rework Percentage (30%)
+  // Percentage of tasks that needed rework (inverse of quality)
+  // "Low Rework" means high quality. So (Tasks with 0 rework / Total Completed) * 100
+  const noReworkCount = teamCompleted.filter(t => t.reworkCount === 0).length;
+  const lowReworkRate = teamCompletedCount > 0 ? (noReworkCount / teamCompletedCount) * 100 : 0;
 
-    // 4. Team Stability (15%)
-    // Hard to measure without turnover data. We'll set a baseline high score for now 
-    // or base it on active employees vs total team size.
-    const teamStability = 95; // Placeholder
+  // 3. Approval Efficiency (20%)
+  // Measure time between "Submitted" and "Approved/Completed". 
+  // For now, simpler metric: % of tasks processed (Completed or Rejected) vs Pending Approval
+  // Assuming status 'In Review' exists. 
+  // Let's simplified: If manager has no 'In Review' tasks older than 2 days => 100%. 
+  // For this mock, we'll simulate it based on ratio of 'Completed' to 'In Review'
+  const inReviewCount = teamTasks.filter(t => t.status === 'In Review').length;
+  const approvalEfficiency = (teamCompletedCount / (teamCompletedCount + inReviewCount || 1)) * 100;
 
-    const finalScore = (
-        (teamCompletionRate * 0.35) +
-        (lowReworkRate * 0.30) +
-        (approvalEfficiency * 0.20) +
-        (teamStability * 0.15)
-    );
+  // 4. Team Stability (15%)
+  // Hard to measure without turnover data. We'll set a baseline high score for now 
+  // or base it on active employees vs total team size.
+  const teamStability = 95; // Placeholder
 
-    return parseFloat(finalScore.toFixed(2));
+  const finalScore = (
+    (teamCompletionRate * 0.35) +
+    (lowReworkRate * 0.30) +
+    (approvalEfficiency * 0.20) +
+    (teamStability * 0.15)
+  );
+
+  return parseFloat(finalScore.toFixed(2));
 };
