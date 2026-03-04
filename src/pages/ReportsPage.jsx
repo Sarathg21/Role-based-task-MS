@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { TASKS, USERS, DEPARTMENTS } from '../data/mockData';
+import api from '../services/api';
 import { getEmployeeRankings } from '../utils/rankingEngine';
 import ChartPanel from '../components/Charts/ChartPanel';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
@@ -16,189 +16,127 @@ const ReportsPage = () => {
         year: new Date().getFullYear().toString()
     });
 
-    const { deptScores, topList, performanceData, topDept, underperformingDept, workloadData, empWorkloadData, empPerformanceData } = useMemo(() => {
-        // Manager sees only their department; CFO and Admin see all
-        const scopeDepts = user?.role === 'Manager' ? [user.department] : DEPARTMENTS;
-        const scopeUserIds = user?.role === 'Manager'
-            ? USERS.filter(u => u.department === user.department).map(u => u.id)
-            : null;
+    const [reportData, setReportData] = useState(null);
+    const [loading, setLoading] = useState(false);
 
-        // Department Performance Analysis (scoped for Manager)
-        const deptPerformance = scopeDepts.filter(d => USERS.some(u => u.department === d)).map(dept => {
-            const deptUsers = USERS.filter(u => u.department === dept && u.role === 'Employee');
-            const deptParams = deptUsers.map(u => ({
-                id: u.id,
-                tasks: TASKS.filter(t => t.employeeId === u.id && (!scopeUserIds || scopeUserIds.includes(t.employeeId)))
+    const fetchReportData = async () => {
+        setLoading(true);
+        try {
+            // Use role-appropriate dashboard endpoint
+            const endpoint = (user?.role === 'CFO' || user?.role === 'Admin')
+                ? '/dashboard/cfo'
+                : '/dashboard/manager';
+            const response = await api.get(endpoint);
+            // Both endpoints return tasks stats; normalize to an array for the table
+            const raw = response.data;
+            // Build a flat array from department_stats (CFO) or manager_stats (Manager)
+            const stats = raw.department_stats || raw.manager_stats || [];
+            setReportData(stats);
+        } catch (err) {
+            console.error("Failed to fetch reports", err);
+            setReportData([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchReportData();
+    }, [filters]);
+
+    const { topList, performanceData, deptScores, topDept, underperformingDept, workloadData, empWorkloadData, empPerformanceData } = useMemo(() => {
+        const empty = {
+            topList: [], performanceData: [], deptScores: [],
+            topDept: null, underperformingDept: null,
+            workloadData: [], empWorkloadData: [], empPerformanceData: []
+        };
+        if (!reportData) return empty;
+
+        const arr = Array.isArray(reportData) ? reportData : [];
+        if (arr.length === 0) return empty;
+
+        // department_stats shape: { department_id, total_tasks, approved_tasks, pending_tasks }
+        // manager_stats shape: { emp_id, name, role, tasks_assigned, tasks_completed }
+        const isDeptShape = ('department_id' in arr[0]);
+
+        const mapped = isDeptShape
+            ? arr.map(d => ({
+                id: d.department_id,
+                name: d.department_id,
+                role: 'Department',
+                department: d.department_id,
+                total: d.total_tasks || 0,
+                completed: d.approved_tasks || 0,
+                pending: d.pending_tasks || 0,
+                onTimePct: d.total_tasks > 0 ? Math.round((d.approved_tasks / d.total_tasks) * 100) : 0,
+                avgReworks: 0,
+            }))
+            : arr.map(u => ({
+                id: u.emp_id,
+                name: u.name,
+                role: u.role,
+                department: u.department || '',
+                total: u.tasks_assigned || 0,
+                completed: u.tasks_completed || 0,
+                pending: (u.tasks_assigned || 0) - (u.tasks_completed || 0),
+                onTimePct: u.tasks_assigned > 0 ? Math.round((u.tasks_completed / u.tasks_assigned) * 100) : 0,
+                avgReworks: 0,
             }));
 
-            // Average completion rate
-            let totalTasks = 0;
-            let completedTasks = 0;
-
-            deptParams.forEach(p => {
-                totalTasks += p.tasks.length;
-                completedTasks += p.tasks.filter(t => t.status === 'APPROVED').length;
-            });
-
-            const score = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-
-            return {
-                name: dept,
-                Performance: Math.round(score),
-                Tasks: totalTasks
-            };
-        });
-
-        // Top 10 Employees (scoped for Manager; all for CFO/Admin)
-        const allEmployees = USERS.filter(u => u.role === 'Employee' && (user?.role === 'Manager' ? u.department === user.department : true));
-        const ranking = getEmployeeRankings(allEmployees, TASKS);
-
-        // Detailed Performance Data (scoped for Manager)
-        let filteredTasks = scopeUserIds ? TASKS.filter(t => scopeUserIds.includes(t.employeeId)) : TASKS;
-
-        if (filters.employeeId) {
-            filteredTasks = filteredTasks.filter(t => t.employeeId === filters.employeeId);
-        }
-
-        if (filters.month) {
-            filteredTasks = filteredTasks.filter(t => {
-                const date = new Date(t.assignedDate);
-                return date.getMonth() === parseInt(filters.month); // Month is 0-indexed
-            });
-        }
-
-        if (filters.year) {
-            filteredTasks = filteredTasks.filter(t => {
-                const date = new Date(t.assignedDate);
-                // Handle date parsing safely or assuming standard format YYYY-MM-DD
-                return date.getFullYear().toString() === filters.year;
-            });
-        }
-
-        // Aggregate by Employee for the table
-        // Should list ALL employees matching the filter, or if specific employee selected, just that one.
-        // If no filters, list all employees with their metrics.
-        let reportEmployees = allEmployees;
-        if (filters.employeeId) {
-            reportEmployees = allEmployees.filter(u => u.id === filters.employeeId);
-        }
-
-        const reportData = reportEmployees.map(emp => {
-            const empTasks = filteredTasks.filter(t => t.employeeId === emp.id);
-            const total = empTasks.length;
-            const completed = empTasks.filter(t => t.status === 'APPROVED').length;
-            const pending = total - completed;
-            const onTime = empTasks.filter(t => t.status === 'APPROVED' && t.completedDate && t.completedDate <= t.dueDate).length;
-            const onTimePct = completed > 0 ? Math.round((onTime / completed) * 100) : 0;
-            const reworks = empTasks.reduce((sum, t) => sum + (t.reworkCount || 0), 0);
-            const avgReworks = total > 0 ? (reworks / total).toFixed(1) : 0;
-
-            return {
-                id: emp.id,
-                name: emp.name,
-                department: emp.department,
-                total,
-                completed,
-                pending,
-                onTimePct,
-                avgReworks
-            };
-        }).filter(row => row.total > 0 || !filters.month); // Optional: hide rows with no tasks if filtering by specific month? Or show zeros. Let's show all.
-
-        // Top & underperforming departments (CFO only)
-        const sortedDepts = [...deptPerformance].sort((a, b) => b.Performance - a.Performance);
-        const topDept = sortedDepts[0];
-        const underperformingDept = sortedDepts.filter(d => d.Tasks > 0).pop();
-
-        // Workload distribution (tasks per department)
-        const workloadData = scopeDepts.filter(d => USERS.some(u => u.department === d)).map(dept => {
-            const deptUserIds = USERS.filter(u => u.department === dept).map(u => u.id);
-            const tasks = (scopeUserIds ? TASKS.filter(t => scopeUserIds.includes(t.employeeId)) : TASKS)
-                .filter(t => deptUserIds.includes(t.employeeId));
-            const total = tasks.length;
-            const completed = tasks.filter(t => t.status === 'APPROVED').length;
-            return { name: dept, Total: total, Completed: completed, Pending: total - completed };
-        });
-
-        // ── Employee-wise data (for Manager charts) ──────────────────────
-        const empWorkloadData = allEmployees.map(emp => {
-            const empTasks = (scopeUserIds ? TASKS.filter(t => scopeUserIds.includes(t.employeeId)) : TASKS)
-                .filter(t => t.employeeId === emp.id);
-            const total = empTasks.length;
-            const completed = empTasks.filter(t => ['APPROVED'].includes(t.status)).length;
-            return { name: emp.name.split(' ')[0], Total: total, Completed: completed, Pending: total - completed };
-        });
-
-        const empPerformanceData = allEmployees.map(emp => {
-            const empTasks = (scopeUserIds ? TASKS.filter(t => scopeUserIds.includes(t.employeeId)) : TASKS)
-                .filter(t => t.employeeId === emp.id);
-            const total = empTasks.length;
-            const completed = empTasks.filter(t => ['APPROVED'].includes(t.status)).length;
-            const perf = total > 0 ? Math.round((completed / total) * 100) : 0;
-            return { name: emp.name.split(' ')[0], Performance: perf };
-        });
+        const sorted = [...mapped].sort((a, b) => b.onTimePct - a.onTimePct);
 
         return {
-            deptScores: deptPerformance,
-            topList: ranking.slice(0, 10),
-            performanceData: reportData,
-            topDept,
-            underperformingDept,
-            workloadData,
-            empWorkloadData,
-            empPerformanceData,
+            performanceData: mapped,
+            topList: sorted.slice(0, 5),
+            deptScores: isDeptShape ? mapped.map(d => ({ name: d.name, Performance: d.onTimePct })) : [],
+            topDept: isDeptShape && sorted[0] ? { name: sorted[0].name, Performance: sorted[0].onTimePct, Tasks: sorted[0].total } : null,
+            underperformingDept: isDeptShape && sorted.length > 1 ? { name: sorted[sorted.length - 1].name, Performance: sorted[sorted.length - 1].onTimePct, Tasks: sorted[sorted.length - 1].total } : null,
+            workloadData: isDeptShape ? mapped.map(d => ({ name: d.name, Total: d.total, Completed: d.completed, Pending: d.pending })) : [],
+            empWorkloadData: !isDeptShape ? mapped.map(u => ({ name: u.name, Completed: u.completed, Pending: u.pending })) : [],
+            empPerformanceData: !isDeptShape ? mapped.map(u => ({ name: u.name, Performance: u.onTimePct })) : [],
         };
-    }, [filters, user?.role, user?.department]);
+    }, [reportData]);
 
-    const handleDownloadPDF = () => {
-        const doc = new jsPDF();
 
-        doc.setFontSize(18);
-        doc.text('Employee Performance Report', 14, 22);
+    const downloadFile = async (format) => {
+        try {
+            const params = new URLSearchParams({
+                from_date: filters.year + '-01-01',
+                to_date: filters.year + '-12-31'
+            });
+            if (filters.department_id) params.append('department_id', filters.department_id);
+            if (filters.employeeId) params.append('employee_id', filters.employeeId);
 
-        doc.setFontSize(11);
-        doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
-        if (filters.year) doc.text(`Year: ${filters.year}`, 80, 30);
-        if (filters.month) doc.text(`Month: ${new Date(0, filters.month).toLocaleString('default', { month: 'long' })}`, 120, 30);
+            const url = `${api.defaults.baseURL}/reports/performance.${format}?${params.toString()}`;
 
-        const tableColumn = ["Employee", "Department", "Total Tasks", "Completed", "Pending", "On-Time %", "Avg Reworks"];
-        const tableRows = [];
+            // Use JWT Bearer token (not legacy X-EMP-ID)
+            const token = localStorage.getItem('pms_token');
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : ''
+                }
+            });
 
-        performanceData.forEach(row => {
-            const rowData = [
-                row.name,
-                row.department,
-                row.total,
-                row.completed,
-                row.pending,
-                `${row.onTimePct}%`,
-                row.avgReworks
-            ];
-            tableRows.push(rowData);
-        });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        autoTable(doc, {
-            head: [tableColumn],
-            body: tableRows,
-            startY: 40,
-            theme: 'grid',
-            headStyles: { fillColor: [139, 92, 246] } // Violet color
-        });
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `performance_report_${filters.year}.${format}`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(blobUrl);
 
-        doc.save('performance_report.pdf');
+        } catch (err) {
+            console.error(`Failed to download ${format}`, err);
+            alert(`Failed to download ${format} report`);
+        }
     };
 
-    const handleDownloadExcel = () => {
-        const headers = ['Employee', 'Department', 'Total Tasks', 'Completed', 'Pending', 'On-Time %', 'Avg Reworks'];
-        const rows = performanceData.map(r => [r.name, r.department, r.total, r.completed, r.pending, `${r.onTimePct}%`, r.avgReworks]);
-        const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `performance_report_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-        URL.revokeObjectURL(link.href);
-    };
+    const handleDownloadPDF = () => downloadFile('pdf');
+    const handleDownloadExcel = () => downloadFile('csv'); // Backend uses .csv for Excel button in mock, adjusting to .csv/xlsx
 
     const trendData = [
         { name: 'Jan', Sales: 65, Engineering: 70, HR: 80 },
@@ -208,6 +146,10 @@ const ReportsPage = () => {
         { name: 'May', Sales: 85, Engineering: 82, HR: 88 },
         { name: 'Jun', Sales: 90, Engineering: 88, HR: 90 },
     ];
+
+    if (loading && !reportData) {
+        return <div className="p-8 text-center text-slate-500">Loading reports...</div>;
+    }
 
     return (
         <div className="space-y-6">
@@ -268,8 +210,8 @@ const ReportsPage = () => {
                             onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
                         >
                             <option value="">All Employees</option>
-                            {USERS.filter(u => u.role === 'Employee').map(u => (
-                                <option key={u.id} value={u.id}>{u.name}</option>
+                            {reportData?.employees?.map(u => (
+                                <option key={u.emp_id} value={u.emp_id}>{u.name}</option>
                             ))}
                         </select>
                         <select

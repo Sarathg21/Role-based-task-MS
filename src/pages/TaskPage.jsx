@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { TASKS, USERS, DEPARTMENTS } from "../data/mockData";
+import api from "../services/api";
 import Badge from "../components/UI/Badge";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Loader2, History, Paperclip, ChevronDown, ChevronRight } from "lucide-react";
 import ReassignTaskModal from "../components/Modals/ReassignTaskModal";
+import TaskDetailModal from "../components/Modals/TaskDetailModal";
 
 // Convert status keys to Title Case labels
 // e.g. "IN_PROGRESS" → "In Progress", "APPROVED" → "Approved"
@@ -18,7 +19,7 @@ const formatStatus = (status) =>
 /*  CFO Task Table — uses the full column schema requested   */
 /* ========================================================= */
 
-const CFOTaskTable = ({ tasks, onStatusChange, onAssign, onApprove, onRework, onReassign, onCancel }) => {
+const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRework, onReassign, onCancel, onViewDetails }) => {
   if (!tasks || tasks.length === 0) {
     return (
       <div className="p-8 text-center text-slate-500 bg-white rounded-xl border border-slate-200">
@@ -27,7 +28,7 @@ const CFOTaskTable = ({ tasks, onStatusChange, onAssign, onApprove, onRework, on
     );
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
 
   return (
     <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-slate-200">
@@ -47,12 +48,13 @@ const CFOTaskTable = ({ tasks, onStatusChange, onAssign, onApprove, onRework, on
         </thead>
         <tbody className="divide-y divide-slate-100 text-slate-700">
           {tasks.map((task, idx) => {
-            const isOverdue = task.dueDate < today && !['APPROVED', 'CANCELLED'].includes(task.status);
+            const isOverdue = task.due_date < today && !['APPROVED', 'CANCELLED'].includes(task.status);
             const displayStatus = isOverdue ? 'Overdue' : task.status;
-            const assignee = USERS.find(u => u.id === (task.employee_id || task.employeeId));
+            const assigneeId = task.employee_id;
+            const assignee = users?.find(u => u.id === assigneeId);
 
             return (
-              <tr key={task.id} className="hover:bg-slate-50">
+              <tr key={task.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => onViewDetails(task)}>
                 <td className="p-3 text-slate-400 font-medium">{idx + 1}</td>
 
                 {/* Employee */}
@@ -61,14 +63,14 @@ const CFOTaskTable = ({ tasks, onStatusChange, onAssign, onApprove, onRework, on
                     <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
                       {assignee?.name?.charAt(0) || '?'}
                     </div>
-                    <span className="truncate font-medium">{assignee?.name || task.employeeId}</span>
+                    <span className="truncate font-medium">{assignee?.name || task.employee_id}</span>
                   </div>
                 </td>
 
                 {/* Role */}
                 <td className="p-3">
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${assignee?.role === 'Manager' ? 'bg-indigo-100 text-indigo-700' :
-                    assignee?.role === 'Employee' ? 'bg-slate-100 text-slate-600' :
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${assignee?.role === 'MANAGER' ? 'bg-indigo-100 text-indigo-700' :
+                    assignee?.role === 'EMPLOYEE' ? 'bg-slate-100 text-slate-600' :
                       'bg-violet-100 text-violet-700'
                     }`}>
                     {assignee?.role || '—'}
@@ -87,11 +89,11 @@ const CFOTaskTable = ({ tasks, onStatusChange, onAssign, onApprove, onRework, on
                 </td>
 
                 {/* Date Assigned */}
-                <td className="p-3 text-slate-500 whitespace-nowrap">{task.assignedDate}</td>
+                <td className="p-3 text-slate-500 whitespace-nowrap">{task.assigned_date}</td>
 
                 {/* Due Date */}
                 <td className={`p-3 whitespace-nowrap font-medium ${isOverdue ? 'text-red-600' : 'text-slate-600'}`}>
-                  {task.dueDate}
+                  {task.due_date}
                 </td>
 
                 {/* Status */}
@@ -107,13 +109,13 @@ const CFOTaskTable = ({ tasks, onStatusChange, onAssign, onApprove, onRework, on
                     {task.status === 'SUBMITTED' && (
                       <>
                         <button
-                          onClick={() => onApprove(task.id)}
+                          onClick={(e) => { e.stopPropagation(); onApprove(task.id); }}
                           className="px-2.5 py-1 text-[11px] font-semibold rounded bg-green-600 text-white hover:bg-green-700 transition"
                         >
                           Approve
                         </button>
                         <button
-                          onClick={() => onRework(task.id)}
+                          onClick={(e) => { e.stopPropagation(); onRework(task.id); }}
                           className="px-2.5 py-1 text-[11px] font-semibold rounded bg-orange-500 text-white hover:bg-orange-600 transition"
                         >
                           Rework
@@ -124,7 +126,7 @@ const CFOTaskTable = ({ tasks, onStatusChange, onAssign, onApprove, onRework, on
                     {/* Reassign (NEW, IN_PROGRESS, SUBMITTED, REWORK) */}
                     {!['APPROVED', 'CANCELLED'].includes(task.status) && (
                       <button
-                        onClick={() => onReassign(task)}
+                        onClick={(e) => { e.stopPropagation(); onReassign(task); }}
                         className="px-2.5 py-1 text-[11px] font-semibold rounded bg-blue-500 text-white hover:bg-blue-600 transition"
                       >
                         Reassign
@@ -134,7 +136,7 @@ const CFOTaskTable = ({ tasks, onStatusChange, onAssign, onApprove, onRework, on
                     {/* Cancel: NEW / IN_PROGRESS / SUBMITTED / REWORK */}
                     {!['APPROVED', 'CANCELLED'].includes(task.status) && (
                       <button
-                        onClick={() => onCancel(task.id)}
+                        onClick={(e) => { e.stopPropagation(); onCancel(task.id); }}
                         className="px-2.5 py-1 text-[11px] font-semibold rounded bg-red-500 text-white hover:bg-red-600 transition"
                       >
                         Cancel
@@ -162,10 +164,12 @@ const CFOTaskTable = ({ tasks, onStatusChange, onAssign, onApprove, onRework, on
 
 const ActionTaskTable = ({
   tasks,
+  users,
   user,
   onStatusChange,
   onReassign,
   onCancel,
+  onViewDetails,
   viewMode = "team",
 }) => {
   if (!tasks || tasks.length === 0) {
@@ -193,18 +197,19 @@ const ActionTaskTable = ({
 
         <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
           {tasks.map((task) => {
-            const today = new Date().toISOString().split('T')[0];
-            const isOverdue = task.dueDate < today && !['APPROVED', 'CANCELLED'].includes(task.status);
+            const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+            const isOverdue = task.due_date < today && !['APPROVED', 'CANCELLED'].includes(task.status);
             const displayStatus = isOverdue ? 'Overdue' : task.status;
 
-            const assigneeName =
-              USERS.find((u) => u.id === task.employeeId)?.name || task.employeeId;
+            const assigneeId = task.employee_id;
+            const assignee = users.find(u => u.id === assigneeId);
+            const assigner = users.find(u => u.id === task.assigned_by);
 
-            const assignerName =
-              USERS.find((u) => u.id === task.assignedBy)?.name || task.assignedBy || "System";
+            const assigneeName = assignee?.name || assigneeId;
+            const assignerName = assigner?.name || task.assigned_by || "System";
 
             return (
-              <tr key={task.id} className="hover:bg-slate-50">
+              <tr key={task.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => onViewDetails(task)}>
                 <td className="p-4 min-w-0">
                   <div className="truncate">{task.title}</div>
                   <div className="text-xs text-slate-500">
@@ -227,7 +232,7 @@ const ActionTaskTable = ({
                   </Badge>
                 </td>
 
-                <td className="p-4 text-slate-500">{task.dueDate}</td>
+                <td className="p-4 text-slate-500">{task.due_date}</td>
 
                 {/* ================= Actions ================= */}
                 <td className="p-4 text-right">
@@ -238,9 +243,10 @@ const ActionTaskTable = ({
                       <>
                         {task.status === "NEW" && (
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               if (window.confirm("Are you sure you want to START this task?")) {
-                                onStatusChange(task.id, "IN_PROGRESS");
+                                onStatusChange(task.id, "START");
                               }
                             }}
                             className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-indigo-500 hover:bg-indigo-600 transition shadow-sm whitespace-nowrap"
@@ -251,9 +257,10 @@ const ActionTaskTable = ({
 
                         {task.status === "IN_PROGRESS" && (
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               if (window.confirm("Are you sure you want to SUBMIT this task for approval?")) {
-                                onStatusChange(task.id, "SUBMITTED");
+                                onStatusChange(task.id, "SUBMIT");
                               }
                             }}
                             className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-amber-400 hover:bg-amber-500 transition shadow-sm whitespace-nowrap"
@@ -264,9 +271,10 @@ const ActionTaskTable = ({
 
                         {task.status === "REWORK" && (
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               if (window.confirm("Are you sure you want to RESTART this task?")) {
-                                onStatusChange(task.id, "IN_PROGRESS");
+                                onStatusChange(task.id, "RESTART");
                               }
                             }}
                             className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-indigo-500 hover:bg-indigo-600 transition shadow-sm whitespace-nowrap"
@@ -283,9 +291,10 @@ const ActionTaskTable = ({
                         {task.status === "SUBMITTED" && (
                           <>
                             <button
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 if (window.confirm("Are you sure you want to APPROVE this task?")) {
-                                  onStatusChange(task.id, "APPROVED");
+                                  onStatusChange(task.id, "APPROVE");
                                 }
                               }}
                               className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-green-600 hover:bg-green-700 transition shadow-sm whitespace-nowrap"
@@ -294,9 +303,11 @@ const ActionTaskTable = ({
                             </button>
 
                             <button
-                              onClick={() => {
-                                if (window.confirm("Send this task back for REWORK?")) {
-                                  onStatusChange(task.id, "REWORK");
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const reason = window.prompt("Reason for rework:");
+                                if (reason !== null) {
+                                  onStatusChange(task.id, "REWORK", reason);
                                 }
                               }}
                               className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-orange-600 hover:bg-orange-700 transition shadow-sm whitespace-nowrap"
@@ -310,7 +321,7 @@ const ActionTaskTable = ({
                         {!['APPROVED', 'CANCELLED'].includes(task.status) &&
                           task.department === user.department && (
                             <button
-                              onClick={() => onReassign(task)}
+                              onClick={(e) => { e.stopPropagation(); onReassign(task); }}
                               className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-blue-500 hover:bg-blue-600 transition shadow-sm whitespace-nowrap"
                             >
                               Reassign
@@ -319,7 +330,7 @@ const ActionTaskTable = ({
 
                         {!["APPROVED", "CANCELLED"].includes(task.status) && (
                           <button
-                            onClick={() => onCancel(task.id)}
+                            onClick={(e) => { e.stopPropagation(); onCancel(task.id); }}
                             className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-red-600 hover:bg-red-700 transition shadow-sm whitespace-nowrap"
                           >
                             Cancel
@@ -345,7 +356,10 @@ const ActionTaskTable = ({
 const TaskPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [tasks, setTasks] = useState(TASKS);
+  const [tasks, setTasks] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({
     status: "All",
     severity: "All",
@@ -353,60 +367,101 @@ const TaskPage = () => {
     search: "",
   });
   const [viewMode, setViewMode] = useState(
-    user.role === 'CFO' ? 'all' : 'personal'
+    user.role === 'CFO' ? 'all' : (user.role === 'Manager' ? 'team' : 'personal')
   );
 
   const [reassignModalOpen, setReassignModalOpen] = useState(false);
   const [taskToReassign, setTaskToReassign] = useState(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        const usersRes = await api.get('/users');
+        setUsers(usersRes.data);
+        // Using same hardcoded list as AdminPage for consistency
+        setDepartments([
+          "Administration", "Finance", "Engineering", "Sales",
+          "Accounts Receivables", "Accounts Payables", "Fixed Assets",
+          "Treasury and Trade Finance", "MIS Report and Internal Audit",
+          "Cash Management Team"
+        ]);
+      } catch (err) {
+        console.error("Failed to fetch support data", err);
+      }
+    };
+    fetchInitialData();
+  }, []);
+
+  const fetchTasks = async () => {
+    setLoading(true);
+    try {
+      // Use scope parameter: 'mine' for personal, 'department' for team/manager, 'org' for CFO/Admin
+      // Default to what's appropriate for the current viewMode
+      let scopeParam = 'mine';
+      if (isCFO) scopeParam = 'org';
+      else if (viewMode === 'team') scopeParam = 'department';
+
+      const response = await api.get('/tasks', {
+        params: { scope: scopeParam, limit: 50, offset: 0 }
+      });
+      setTasks(response.data);
+    } catch (err) {
+      console.error("Failed to fetch tasks", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, [user, viewMode]);
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      const empId = task.employeeId;
-      const mgrId = task.managerId;
-      const dueDate = task.dueDate;
+    return tasks.filter(task => {
+      const matchesSearch = !filter.search ||
+        task.title.toLowerCase().includes(filter.search.toLowerCase()) ||
+        task.description?.toLowerCase().includes(filter.search.toLowerCase());
 
-      if (user.role === "Employee" && empId !== user.id) return false;
+      const matchesSeverity = filter.severity === "All" || task.severity === filter.severity;
+      const matchesDept = filter.department === "All" || task.department === filter.department;
 
-      if (user.role === "Manager") {
-        if (viewMode === "team" && mgrId !== user.id) return false;
-        if (viewMode === "personal" && empId !== user.id) return false;
+      let matchesStatus = filter.status === "All" || task.status === filter.status;
+      if (filter.status === "Overdue") {
+        const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+        matchesStatus = task.due_date < today && !['APPROVED', 'CANCELLED'].includes(task.status);
       }
 
-
-      if (filter.status !== "All") {
-        const today = new Date().toISOString().split('T')[0];
-        const isOverdue = dueDate < today && !['APPROVED', 'CANCELLED'].includes(task.status);
-        if (filter.status === 'Overdue') return isOverdue;
-        if (task.status !== filter.status) return false;
-      }
-
-      if (filter.severity !== "All" && task.severity !== filter.severity) return false;
-      if (filter.department !== "All" && task.department !== filter.department) return false;
-      if (filter.search && !task.title.toLowerCase().includes(filter.search.toLowerCase())) return false;
-
-      return true;
+      return matchesSearch && matchesSeverity && matchesDept && matchesStatus;
     });
-  }, [tasks, user, filter, viewMode]);
+  }, [tasks, filter]);
 
-  const handleStatusChange = (taskId, newStatus) => {
-    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: newStatus } : t));
+  const handleStatusChange = async (taskId, action) => {
+    try {
+      await api.post(`/tasks/${taskId}/transition`, { action, comment: "" });
+      fetchTasks();
+    } catch (err) {
+      console.error("Failed to update task status", err);
+      // Toast handled by global interceptor if it's a 400/409
+    }
   };
 
   const handleCancel = (taskId) => {
     if (window.confirm("Are you sure you want to CANCEL this task?")) {
-      handleStatusChange(taskId, "CANCELLED");
+      handleStatusChange(taskId, "CANCEL");
     }
   };
 
   const handleAssign = (taskId) => {
     if (window.confirm("Mark this task as assigned and start it?")) {
-      handleStatusChange(taskId, "IN_PROGRESS");
+      handleStatusChange(taskId, "START");
     }
   };
 
   const handleApprove = (taskId) => {
     if (window.confirm("Are you sure you want to APPROVE this task?")) {
-      handleStatusChange(taskId, "APPROVED");
+      handleStatusChange(taskId, "APPROVE");
     }
   };
 
@@ -421,32 +476,27 @@ const TaskPage = () => {
     setReassignModalOpen(true);
   };
 
-  const handleReassign = ({ employeeId: newAssigneeId, newDueDate, reason }) => {
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== taskToReassign.id) return t;
-        const newStatus = t.status === 'SUBMITTED' ? 'IN_PROGRESS' : t.status;
-        return {
-          ...t,
-          employeeId: newAssigneeId,
-          assignedBy: user.id,
-          dueDate: newDueDate || t.dueDate,
-          status: newStatus,
-          reassignmentHistory: [...(t.reassignmentHistory ?? []), {
-            employeeId: t.employeeId,
-            reassignedAt: new Date().toISOString(),
-            reassignedBy: user.id,
-            statusAtReassign: t.status,
-            reason: reason || null,
-          }],
-        };
-      })
-    );
-    setReassignModalOpen(false);
+  const handleReassign = async ({ employeeId: newAssigneeId, newDueDate }) => {
+    try {
+      await api.patch(`/tasks/${taskToReassign.id}/reassign`, {
+        employee_id: newAssigneeId,
+        new_due_date: newDueDate
+      });
+      setReassignModalOpen(false);
+      fetchTasks();
+    } catch (err) {
+      console.error("Failed to reassign task", err);
+      alert("Failed to reassign: " + (err.response?.data?.detail || "Error"));
+    }
+  };
+
+  const openDetailModal = (task) => {
+    setSelectedTask(task);
+    setDetailModalOpen(true);
   };
 
 
-  const isCFO = user.role === 'CFO';
+  const isCFO = user.role === 'CFO' || user.role === 'Admin';
   const pendingCount = filteredTasks.filter(t => !['APPROVED', 'CANCELLED'].includes(t.status)).length;
 
   return (
@@ -455,8 +505,15 @@ const TaskPage = () => {
         isOpen={reassignModalOpen}
         onClose={() => setReassignModalOpen(false)}
         onReassign={handleReassign}
-        employees={USERS}
+        employees={users}
         currentTask={taskToReassign}
+        currentUser={user}
+      />
+
+      <TaskDetailModal
+        isOpen={detailModalOpen}
+        onClose={() => setDetailModalOpen(false)}
+        task={selectedTask}
         currentUser={user}
       />
 
@@ -473,7 +530,7 @@ const TaskPage = () => {
           </p>
         </div>
 
-        {(user.role === "Admin" || isCFO || (user.role === "Manager" && viewMode === "team")) && (
+        {(isCFO || (user.role === "Manager" && viewMode === "team")) && (
           <button
             onClick={() => navigate("/tasks/assign")}
             className="px-4 py-2 text-sm rounded-lg bg-violet-500 text-white hover:bg-violet-600 transition flex items-center"
@@ -545,9 +602,9 @@ const TaskPage = () => {
           onChange={(e) => setFilter({ ...filter, severity: e.target.value })}
         >
           <option value="All">Severity: All</option>
-          <option value="High">High</option>
-          <option value="Medium">Medium</option>
-          <option value="Low">Low</option>
+          <option value="HIGH">High</option>
+          <option value="MEDIUM">Medium</option>
+          <option value="LOW">Low</option>
         </select>
 
         {/* Department filter – especially useful for CFO */}
@@ -557,32 +614,45 @@ const TaskPage = () => {
           onChange={(e) => setFilter({ ...filter, department: e.target.value })}
         >
           <option value="All">Department: All</option>
-          {DEPARTMENTS.map((dept) => (
-            <option key={dept} value={dept}>{dept}</option>
+          {departments.map((dept) => (
+            <option key={dept.id || dept} value={dept.id || dept}>{dept.name || dept}</option>
           ))}
         </select>
       </div>
 
-      {/* Task Table */}
-      {isCFO ? (
-        <CFOTaskTable
-          tasks={filteredTasks}
-          onAssign={handleAssign}
-          onApprove={handleApprove}
-          onRework={handleRework}
-          onReassign={openReassignModal}
-          onCancel={handleCancel}
-          onStatusChange={handleStatusChange}
-        />
+      {loading ? (
+        <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border border-slate-200 shadow-sm">
+          <Loader2 className="w-8 h-8 text-violet-500 animate-spin mb-2" />
+          <p className="text-slate-500">Loading tasks...</p>
+        </div>
       ) : (
-        <ActionTaskTable
-          tasks={filteredTasks}
-          user={user}
-          onStatusChange={handleStatusChange}
-          onReassign={openReassignModal}
-          onCancel={handleCancel}
-          viewMode={viewMode}
-        />
+        <>
+          {/* Task Table */}
+          {isCFO ? (
+            <CFOTaskTable
+              tasks={filteredTasks}
+              users={users}
+              onAssign={handleAssign}
+              onApprove={handleApprove}
+              onRework={handleRework}
+              onReassign={openReassignModal}
+              onCancel={handleCancel}
+              onViewDetails={openDetailModal}
+              onStatusChange={(id, action) => handleStatusChange(id, action)}
+            />
+          ) : (
+            <ActionTaskTable
+              tasks={filteredTasks}
+              users={users}
+              user={user}
+              onStatusChange={(id, action) => handleStatusChange(id, action)}
+              onReassign={openReassignModal}
+              onCancel={handleCancel}
+              onViewDetails={openDetailModal}
+              viewMode={viewMode}
+            />
+          )}
+        </>
       )}
     </div>
   );

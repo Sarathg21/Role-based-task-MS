@@ -1,9 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from typing import List
 
-from database import engine
+from routers import auth, users, tasks, dashboard, notifications, reports
 import models
-from routers import auth, users, tasks
+from database import engine, get_db
+from fastapi import Depends
 
 # Create all tables on startup
 models.Base.metadata.create_all(bind=engine)
@@ -20,6 +23,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -30,6 +35,16 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(tasks.router)
+app.include_router(dashboard.router)
+app.include_router(notifications.router)
+app.include_router(reports.router)
+
+
+@app.get("/departments", response_model=List[str])
+def get_departments(db: Session = Depends(get_db)):
+    # Return unique departments
+    depts = db.query(models.User.department).distinct().all()
+    return [d[0] for d in depts]
 
 
 @app.get("/")

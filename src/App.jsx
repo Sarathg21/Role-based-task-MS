@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/Layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import { Toaster } from 'react-hot-toast';
 
 // Pages
 // Pages
@@ -12,11 +13,13 @@ import AssignTaskPage from './pages/AssignTaskPage';
 import AdminPage from './pages/AdminPage';
 import ReportsPage from './pages/ReportsPage';
 import ProfilePage from './pages/ProfilePage';
+import AccessDeniedPage from './pages/AccessDeniedPage';
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
 
@@ -26,7 +29,7 @@ function App() {
             <Route
               path="dashboard"
               element={
-                <ProtectedRoute allowedRoles={['Employee', 'Manager', 'CFO']}>
+                <ProtectedRoute allowedRoles={['Employee', 'Manager', 'CFO', 'Admin']}>
                   <DashboardPage />
                 </ProtectedRoute>
               }
@@ -78,6 +81,7 @@ function App() {
             />
           </Route>
 
+          <Route path="/access-denied" element={<AccessDeniedPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>

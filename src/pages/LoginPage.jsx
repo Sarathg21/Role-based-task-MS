@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { User, Lock, Shield } from 'lucide-react';
+import { User, Lock, Shield, Eye, EyeOff } from 'lucide-react';
 
 const LoginPage = () => {
     // view: 'login' | 'forgot' | 'reset'
@@ -11,6 +11,7 @@ const LoginPage = () => {
     const [error, setError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -25,9 +26,9 @@ const LoginPage = () => {
         setError('');
     };
 
-    const handleLoginSubmit = (e) => {
+    const handleLoginSubmit = async (e) => {
         e.preventDefault();
-        const result = login(formData.id, formData.password);
+        const result = await login(formData.id, formData.password);
         if (result.success) {
             navigate('/dashboard');
         } else {
@@ -171,17 +172,27 @@ const LoginPage = () => {
 
                             <div className="form-group">
                                 <label className="form-label">Password</label>
-                                <div className="input-wrapper">
+                                <div className="input-wrapper" style={{ position: 'relative' }}>
                                     <Lock className="input-icon" size={18} />
                                     <input
-                                        type="password"
+                                        type={showPassword ? 'text' : 'password'}
                                         name="password"
                                         placeholder="••••••••"
                                         className="form-input"
+                                        style={{ paddingRight: '2.5rem' }}
                                         value={formData.password}
                                         onChange={handleChange}
                                         required
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(prev => !prev)}
+                                        style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, display: 'flex', alignItems: 'center' }}
+                                        tabIndex={-1}
+                                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                    >
+                                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
                                 </div>
                             </div>
 
@@ -304,12 +315,12 @@ const LoginPage = () => {
 
                     {view === 'login' && (
                         <div className="mt-4 p-4 bg-slate-50 rounded-lg text-xs text-slate-500">
-                            <p className="font-semibold mb-1">Demo Credentials:</p>
-                            <div className="grid grid-cols-2 gap-2">
-                                <span>Admin: ADMIN001 / password123</span>
-                                <span>Manager: MGR001 / password123</span>
-                                <span>Employee: EMP001 / password123</span>
-                                <span>  CFO: CFO001    / password123</span>
+                            <p className="font-semibold mb-2">Demo Credentials <span className="font-normal">(password: Perfmetric@123)</span>:</p>
+                            <div className="grid grid-cols-2 gap-1">
+                                <span>👤 Admin: ADMIN001</span>
+                                <span>👤 Manager: MGR001</span>
+                                <span>👤 Employee: EMP001</span>
+                                <span>👤 CFO: CFO001</span>
                             </div>
                         </div>
                     )}

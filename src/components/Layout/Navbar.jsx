@@ -1,31 +1,61 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Bell, Search, User, CheckCircle, AlertCircle } from 'lucide-react';
+import { Bell, Search, User, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import api from '../../services/api';
 
-const MOCK_NOTIFICATIONS = [
-    { id: 1, title: 'Task Approved', message: 'Fix Login Bug has been approved.', time: '2 min ago', read: false, type: 'success' },
-    { id: 2, title: 'New Task Assigned', message: 'You have been assigned "API Integration".', time: '1 hour ago', read: false, type: 'info' },
-    { id: 3, title: 'Rework Required', message: 'Dashboard Layout needs revisions.', time: '3 hours ago', read: true, type: 'warning' },
-];
+// Mock data removed in favor of backend API
 
 const Navbar = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const [notifications, setNotifications] = useState([]);
     const [showNotifications, setShowNotifications] = useState(false);
+    const [loading, setLoading] = useState(false);
     const notifRef = useRef(null);
 
+    const fetchNotifications = async () => {
+        try {
+            const res = await api.get('/notifications');
+            setNotifications(res.data);
+        } catch (err) {
+            console.error("Failed to fetch notifications", err);
+        }
+    };
+
     useEffect(() => {
+        fetchNotifications();
+
         const handleClickOutside = (e) => {
             if (notifRef.current && !notifRef.current.contains(e.target)) {
                 setShowNotifications(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
     }, []);
 
-    const unreadCount = MOCK_NOTIFICATIONS.filter(n => !n.read).length;
+    const markAsRead = async (id) => {
+        try {
+            await api.post(`/notifications/${id}/read`);
+            setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        } catch (err) {
+            console.error("Failed to mark notification as read", err);
+        }
+    };
+
+    const markAllRead = async () => {
+        try {
+            await api.post('/notifications/read-all');
+            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        } catch (err) {
+            console.error("Failed to mark all as read", err);
+        }
+    };
+
+    const unreadCount = notifications.filter(n => !n.read).length;
 
     return (
         <header className="navbar">
@@ -60,34 +90,40 @@ const Navbar = () => {
                                 <p className="text-xs text-slate-500">{unreadCount} unread</p>
                             </div>
                             <div className="overflow-y-auto flex-1">
-                                {MOCK_NOTIFICATIONS.length === 0 ? (
+                                {notifications.length === 0 ? (
                                     <p className="px-4 py-6 text-sm text-slate-500 text-center">No notifications</p>
                                 ) : (
-                                    MOCK_NOTIFICATIONS.map((n) => (
+                                    notifications.map((n) => (
                                         <div
                                             key={n.id}
-                                            className={`px-4 py-3 hover:bg-slate-50 cursor-pointer border-l-2 ${n.read ? 'border-transparent' : 'border-violet-500 bg-violet-50/50'}`}
+                                            onClick={() => !n.read && markAsRead(n.id)}
+                                            className={`px-4 py-3 hover:bg-slate-50 cursor-pointer border-l-2 ${n.read ? 'border-transparent opacity-60' : 'border-violet-500 bg-violet-50/50'}`}
                                         >
                                             <div className="flex gap-2">
-                                                {n.type === 'success' ? (
+                                                {n.type === 'SUCCESS' ? (
                                                     <CheckCircle size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                ) : (
+                                                ) : n.type === 'WARNING' ? (
                                                     <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                                                ) : (
+                                                    <Bell size={16} className="text-blue-500 shrink-0 mt-0.5" />
                                                 )}
                                                 <div>
                                                     <p className="text-sm font-medium text-slate-800">{n.title}</p>
-                                                    <p className="text-xs text-slate-600 truncate">{n.message}</p>
-                                                    <p className="text-[10px] text-slate-400 mt-0.5">{n.time}</p>
+                                                    <p className="text-xs text-slate-600 line-clamp-2">{n.message}</p>
+                                                    <p className="text-[10px] text-slate-400 mt-0.5">{new Date(n.created_at).toLocaleString()}</p>
                                                 </div>
                                             </div>
                                         </div>
                                     ))
                                 )}
                             </div>
-                            {MOCK_NOTIFICATIONS.length > 0 && (
-                                <div className="px-4 py-2 border-t border-slate-200">
-                                    <button className="text-xs text-violet-600 hover:text-violet-800 font-medium">
-                                        View all
+                            {notifications.length > 0 && (
+                                <div className="px-4 py-2 border-t border-slate-200 flex justify-between items-center">
+                                    <button
+                                        onClick={markAllRead}
+                                        className="text-[10px] text-violet-600 hover:text-violet-800 font-bold uppercase tracking-wider"
+                                    >
+                                        Mark all as read
                                     </button>
                                 </div>
                             )}

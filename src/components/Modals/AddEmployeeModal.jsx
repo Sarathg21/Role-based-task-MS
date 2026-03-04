@@ -45,11 +45,12 @@ const Section = ({ icon: Icon, headerBg, iconBg, iconColor, titleColor, title, b
 const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
   const [formData, setFormData] = useState({
     name: "",
-    role: "Employee",
+    role: "EMPLOYEE",
     department: departments[0] || "Engineering",
     managerId: "",
-    email: "",
+    id: "",
   });
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const set = (key) => (e) => setFormData((prev) => ({ ...prev, [key]: e.target.value }));
@@ -59,27 +60,33 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
     focus:ring-2 focus:ring-indigo-500 focus:border-transparent
     transition-all duration-200 hover:border-slate-400`;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.email) {
+    if (!formData.name || !formData.id) {
       alert("Name and Employee ID are required");
       return;
     }
-    const newId = formData.email.includes("EMP") ? formData.email : `EMP-${Math.floor(Math.random() * 1000)}`;
-    onAdd({
-      id: newId,
-      name: formData.name,
-      role: formData.role,
-      department: formData.department,
-      managerId: formData.managerId || null,
-      active: true,
-      password: "password123",
-    });
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      onClose();
-    }, 1500);
+
+    setSubmitting(true);
+    try {
+      await onAdd({
+        name: formData.name,
+        id: formData.id,
+        role: formData.role,
+        department: formData.department,
+        manager_id: formData.managerId || null,
+        password: "password123",
+      });
+      setSubmitted(true);
+      setTimeout(() => {
+        setSubmitted(false);
+        onClose();
+      }, 1500);
+    } catch (err) {
+      console.error("Failed to add employee", err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   /* ── Success state ── */
@@ -153,7 +160,7 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
             <div>
               <FieldLabel icon={Hash} color="text-indigo-500" textColor="text-indigo-700">Employee ID</FieldLabel>
               <input type="text" className={inputCls} placeholder="e.g. EMP001"
-                value={formData.email} onChange={set("email")} required />
+                value={formData.id} onChange={set("id")} required />
             </div>
           </div>
         </Section>
@@ -169,9 +176,9 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
             <div>
               <FieldLabel icon={Briefcase} color="text-violet-500" textColor="text-violet-700">Role</FieldLabel>
               <StyledSelect value={formData.role} onChange={set("role")} ring="focus:ring-violet-500">
-                <option value="Employee">Employee</option>
-                <option value="Manager">Manager</option>
-                <option value="Admin">Admin</option>
+                <option value="EMPLOYEE">Employee</option>
+                <option value="MANAGER">Manager</option>
+                <option value="ADMIN">Admin</option>
               </StyledSelect>
             </div>
             <div>
@@ -195,7 +202,9 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
             <StyledSelect value={formData.managerId} onChange={set("managerId")} ring="focus:ring-sky-500">
               <option value="">— No Manager Assigned —</option>
               {managers.map((m) => (
-                <option key={m.id} value={m.id}>{m.name} · {m.department}</option>
+                <option key={m.id} value={m.id}>
+                  {m.name} · {m.department}
+                </option>
               ))}
             </StyledSelect>
           </div>

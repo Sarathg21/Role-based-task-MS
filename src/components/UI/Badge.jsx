@@ -24,9 +24,9 @@ const Badge = ({ children, variant = 'default', className = '' }) => {
         Overdue: 'bg-rose-600 text-white border-rose-600',
 
         // ── Severity badges ──
-        High: 'bg-red-600 text-white border-red-600',
-        Medium: 'bg-amber-500 text-white border-amber-500',
-        Low: 'bg-emerald-500 text-white border-emerald-500',
+        HIGH: 'bg-red-600 text-white border-red-600',
+        MEDIUM: 'bg-amber-500 text-white border-amber-500',
+        LOW: 'bg-emerald-500 text-white border-emerald-500',
     };
 
     return (

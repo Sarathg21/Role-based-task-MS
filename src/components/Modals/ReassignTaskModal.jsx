@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { X, User, CalendarDays, FileText, Clock, AlertTriangle, RotateCcw } from 'lucide-react';
 import Badge from "../UI/Badge";
-import { USERS } from '../../data/mockData';
 
 /* ── status label map ── */
 const STATUS_LABEL = {
@@ -31,34 +30,32 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
     /* Candidate employees:
        - Manager: only their own department (excluding current assignee)
        - CFO: all employees (excluding current assignee) */
+    /* Candidate employees:
+       - Manager: only their own department (excluding current assignee)
+       - CFO: all employees (excluding current assignee) */
     const candidateEmployees = employees.filter(u => {
-        if (u.role !== 'Employee') return false;
-        if (u.id === currentTask.employeeId) return false;           // exclude current
-        if (currentUser?.role === 'Manager') {
+        if (u.role?.toUpperCase() !== 'EMPLOYEE') return false;
+        if (u.id === currentTask.employee_id) return false;           // exclude current
+        if (currentUser?.role?.toUpperCase() === 'MANAGER') {
             return u.department === currentUser.department;          // dept-scoped
         }
         return true;                                                 // CFO sees all
     });
 
-    const currentAssignee = USERS.find(u => u.id === currentTask.employeeId);
+    const currentAssignee = employees.find(u => u.id === currentTask.employee_id);
     const canSave = newAssignee !== '' && newDueDate !== '';
 
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!canSave) return;
-        const msg = currentTask.status === 'SUBMITTED'
-            ? 'This task is currently SUBMITTED. Reassigning will reset it to IN PROGRESS and clear the submission. Confirm?'
-            : 'Confirm reassignment?';
-        if (window.confirm(msg)) {
-            onReassign({ employeeId: newAssignee, newDueDate, reason });
-            setNewAssignee('');
-            setNewDueDate('');
-            setReason('');
-            onClose();
-        }
+        // onReassign is async in the parent; it will close the modal on success.
+        onReassign({ employeeId: newAssignee, newDueDate, reason });
+        setNewAssignee('');
+        setNewDueDate('');
+        setReason('');
     };
 
-    const history = currentTask.reassignmentHistory ?? [];
+    const history = []; // Reassignment history not yet supported by current backend models
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -121,49 +118,21 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
                                 <p className="text-slate-600">{currentTask.department}</p>
                             </div>
                             <div>
-                                <p className="text-xs text-slate-400 font-medium mb-0.5">Priority / Severity</p>
+                                <p className="text-xs text-slate-400 font-medium mb-0.5">Severity</p>
                                 <Badge variant={currentTask.severity}>
                                     {currentTask.severity}
                                 </Badge>
                             </div>
                             <div>
                                 <p className="text-xs text-slate-400 font-medium mb-0.5">Current Assignee</p>
-                                <p className="text-slate-600">{currentAssignee?.name ?? currentTask.employeeId}</p>
+                                <p className="text-slate-600">{currentAssignee?.name ?? currentTask.employee_id}</p>
                             </div>
                             <div>
                                 <p className="text-xs text-slate-400 font-medium mb-0.5">Current Due Date</p>
-                                <p className="text-slate-600">{currentTask.dueDate}</p>
+                                <p className="text-slate-600">{currentTask.due_date}</p>
                             </div>
                         </div>
                     </div>
-
-                    {/* ── READ-ONLY: Audit / Reassignment History ── */}
-                    {history.length > 0 && (
-                        <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Reassignment History</p>
-                            <div className="space-y-2">
-                                {history.map((entry, i) => {
-                                    const prevEmp = USERS.find(u => u.id === entry.employeeId);
-                                    const byUser = USERS.find(u => u.id === entry.reassignedBy);
-                                    return (
-                                        <div key={i} className="flex items-start gap-3 text-xs border-l-2 border-violet-200 pl-3">
-                                            <Clock size={12} className="text-violet-400 mt-0.5 flex-shrink-0" />
-                                            <div>
-                                                <p className="text-slate-600">
-                                                    <span className="font-semibold text-slate-700">{prevEmp?.name ?? entry.employeeId}</span>
-                                                    {' '}→ reassigned by <span className="font-semibold text-slate-700">{byUser?.name ?? entry.reassignedBy}</span>
-                                                </p>
-                                                <p className="text-slate-400 mt-0.5">
-                                                    {new Date(entry.reassignedAt).toLocaleString()} · Status was <em>{STATUS_LABEL[entry.statusAtReassign] || entry.statusAtReassign}</em>
-                                                    {entry.reason ? ` · Reason: "${entry.reason}"` : ''}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
 
                     {/* ── EDITABLE FIELDS ── */}
                     <form id="reassign-form" onSubmit={handleSubmit} className="space-y-4">

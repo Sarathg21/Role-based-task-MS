@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { USERS, TASKS } from '../data/mockData';
-import { ArrowLeft } from 'lucide-react';
+import api from '../services/api';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 
 const AssignTaskPage = () => {
     const { user } = useAuth();
@@ -12,49 +12,76 @@ const AssignTaskPage = () => {
         title: '',
         description: '',
         assignee: '',
-        priority: 'Medium',
+        priority: 'MEDIUM',
         dueDate: ''
     });
+    const [attachment, setAttachment] = useState(null);
 
-    // CFO/Admin → any Manager or Employee; Manager → only own dept employees
-    const eligibleAssignees = USERS.filter(u => {
-        if (user.role === 'CFO' || user.role === 'Admin') {
-            return u.role === 'Manager' || u.role === 'Employee';
-        }
-        if (user.role === 'Manager') {
-            return u.role === 'Employee' && u.department === user.department;
-        }
-        return false;
-    });
+    const [eligibleAssignees, setEligibleAssignees] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        const fetchAssignees = async () => {
+            try {
+                // Use the new assignable endpoint
+                const response = await api.get('/users/assignable');
+                setEligibleAssignees(response.data);
+            } catch (err) {
+                console.error("Failed to fetch assignees", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchAssignees();
+    }, []);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        setSubmitting(true);
 
-        const assignee = USERS.find(u => u.id === formData.assignee);
-        const dept = assignee?.department || user.department;
-        const managerId = assignee?.role === 'Manager' ? user.id : (assignee?.managerId || user.id);
-        const newTask = {
-            id: `TSK-${Math.floor(Math.random() * 10000)}`,
-            title: formData.title,
-            description: formData.description,
-            employeeId: formData.assignee,
-            managerId,
-            assignedBy: user.id,
-            department: dept,
-            severity: formData.priority,
-            status: 'NEW',
-            reworkCount: 0,
-            assignedDate: new Date().toISOString().split('T')[0],
-            dueDate: formData.dueDate,
-            completedDate: null
-        };
-        TASKS.push(newTask);
-        alert('Task Assigned Successfully!');
-        navigate('/tasks');
+        try {
+            const payload = {
+                title: formData.title,
+                description: formData.description,
+                priority: formData.priority,
+                assigned_to_emp_id: formData.assignee,
+                due_date: formData.dueDate,
+                parent_task_id: null
+            };
+
+            // Step 1: Create the task
+            const taskRes = await api.post('/tasks', payload);
+            const newTaskId = taskRes.data.id;
+
+            // Step 2: Upload attachment if provided
+            if (attachment && newTaskId) {
+                const formDataUpload = new FormData();
+                formDataUpload.append('file', attachment);
+                try {
+                    await api.post(`/tasks/${newTaskId}/attachments`, formDataUpload, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                } catch (uploadErr) {
+                    console.warn('Task created but attachment upload failed:', uploadErr);
+                    alert('Task assigned, but attachment upload failed. You can attach it from the task detail page.');
+                    navigate('/tasks');
+                    return;
+                }
+            }
+
+            alert('Task Assigned Successfully!');
+            navigate('/tasks');
+        } catch (err) {
+            console.error('Failed to assign task', err);
+            alert('Failed to assign task: ' + (err.response?.data?.detail || 'Unknown error'));
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
@@ -106,6 +133,7 @@ const AssignTaskPage = () => {
                         <input
                             type="file"
                             name="attachment"
+                            onChange={(e) => setAttachment(e.target.files[0])}
                             className="block w-full text-sm text-slate-500
                                 file:mr-4 file:py-2 file:px-4
                                 file:rounded-lg file:border-0
@@ -142,9 +170,9 @@ const AssignTaskPage = () => {
                                 value={formData.priority}
                                 onChange={handleChange}
                             >
-                                <option value="Low">Low</option>
-                                <option value="Medium">Medium</option>
-                                <option value="High">High</option>
+                                <option value="LOW">Low</option>
+                                <option value="MEDIUM">Medium</option>
+                                <option value="HIGH">High</option>
                                 <option value="Critical">Critical</option>
                             </select>
                         </div>

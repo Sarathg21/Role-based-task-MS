@@ -1,13 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { TASKS } from '../../data/mockData';
+import api from '../../services/api';
 import { calculateEmployeeScore } from '../../utils/performanceEngine';
 import Badge from '../UI/Badge';
 import ChartPanel from '../Charts/ChartPanel';
 import {
     TrendingUp, CheckCircle, Clock, AlertCircle,
-    ThumbsUp, Calendar, ArrowRight, ChevronRight, CalendarCheck
+    ThumbsUp, Calendar, ArrowRight, ChevronRight, CalendarCheck, Loader2
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -69,69 +69,84 @@ const EmployeeDashboard = () => {
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
 
-    /* Derived metrics */
-    const { score, stats, pendingTasks, performanceTrend, statusDistribution, todayTasks } = useMemo(() => {
-        let myTasks = TASKS.filter(t => t.employeeId === user.id);
+    const [dashboardData, setDashboardData] = useState(null);
+    const [todayTasks, setTodayTasks] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-        /* Apply date range to assigned date */
-        if (fromDate) myTasks = myTasks.filter(t => t.assignedDate >= fromDate);
-        if (toDate) myTasks = myTasks.filter(t => t.assignedDate <= toDate);
+    const fetchDashboardData = async () => {
+        setLoading(true);
+        try {
+            const [dataRes, todayRes] = await Promise.all([
+                api.get('/dashboard/employee'),
+                api.get('/dashboard/employee/today')
+            ]);
+            setDashboardData(dataRes.data);
+            setTodayTasks(todayRes.data.map(t => ({
+                ...t,
+                id: t.task_id,
+                severity: t.priority,
+            })));
+        } catch (err) {
+            console.error("Failed to fetch dashboard data", err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-        const currentScore = calculateEmployeeScore(TASKS, user.id);
-        const approved = myTasks.filter(t => t.status === 'APPROVED').length;
-        const completedOrSub = myTasks.filter(t => ['APPROVED', 'SUBMITTED'].includes(t.status)).length;
-        const pending = myTasks.filter(t => !TERMINAL.includes(t.status) && t.status !== 'SUBMITTED').length;
+    useEffect(() => {
+        fetchDashboardData();
+    }, [user.id]);
 
-        /* Pending tasks list (exclude terminal + submitted) */
-        const pendingTasks = myTasks
-            .filter(t => !TERMINAL.includes(t.status) && t.status !== 'SUBMITTED')
-            .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+    const metrics = useMemo(() => {
+        if (!dashboardData) return null;
 
-        /* Status distribution pie */
-        const counts = {};
-        myTasks.forEach(t => { counts[t.status] = (counts[t.status] || 0) + 1; });
-        const statusDistribution = Object.entries(counts).map(([status, count]) => ({
-            name: STATUS_LABEL[status] || status,
-            value: count,
-            color: STATUS_COLORS[status] || '#94a3b8',
-        }));
+        const currentScore = dashboardData.performance_index || 0;
 
-        /* Performance trend — simulate monthly points leading to current score */
-        const base = Math.max(currentScore - 15, 0);
-        const performanceTrend = [
-            { name: 'Sep', score: +(base * 0.78).toFixed(1) },
-            { name: 'Oct', score: +(base * 0.85).toFixed(1) },
-            { name: 'Nov', score: +(base * 0.91).toFixed(1) },
-            { name: 'Dec', score: +(base * 0.96).toFixed(1) },
-            { name: 'Jan', score: +(base * 0.98).toFixed(1) },
-            { name: 'Feb', score: currentScore },
+        // Mock status distribution based on dashboard summary if backend doesn't provide full list
+        const statusDistribution = [
+            { name: 'Approved', value: dashboardData.approved_tasks || 0, color: STATUS_COLORS.APPROVED },
+            { name: 'Pending', value: dashboardData.pending_tasks || 0, color: STATUS_COLORS.IN_PROGRESS },
+            { name: 'Overdue', value: dashboardData.overdue_tasks || 0, color: STATUS_COLORS.REWORK },
         ];
 
-        const dateRangeSub = fromDate && toDate
-            ? `${fromDate} to ${toDate}`
-            : fromDate ? `From ${fromDate}` : toDate ? `Until ${toDate}` : 'All time';
-
-        /* Today's tasks — always based on today, not date range */
-        const today = new Date().toISOString().split('T')[0];
-        const todayTasks = TASKS
-            .filter(t => t.employeeId === user.id && t.dueDate === today && !TERMINAL.includes(t.status))
-            .sort((a, b) => a.severity === 'High' ? -1 : 1);
+        const performanceTrend = [
+            { name: 'Target', score: 100 },
+            { name: 'Current', score: currentScore },
+        ];
 
         return {
             score: currentScore,
             stats: {
-                total: myTasks.length,
-                completedOrSub,
-                approved,
-                pending,
-                dateRangeSub,
+                total: dashboardData.total_tasks || 0,
+                completedOrSub: (dashboardData.total_tasks || 0) - (dashboardData.pending_tasks || 0),
+                approved: dashboardData.approved_tasks || 0,
+                pending: dashboardData.pending_tasks || 0,
+                overdue: dashboardData.overdue_tasks || 0,
+                dateRangeSub: 'Monthly Analytics',
             },
-            pendingTasks,
             performanceTrend,
             statusDistribution,
-            todayTasks,
         };
-    }, [user.id, fromDate, toDate]);
+    }, [dashboardData]);
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center p-20 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                <Loader2 className="w-10 h-10 text-violet-500 animate-spin mb-4" />
+                <p className="text-slate-500 font-medium text-lg">Loading your dashboard...</p>
+            </div>
+        );
+    }
+
+    const { score, stats, performanceTrend, statusDistribution } = metrics || {
+        score: 0,
+        stats: { total: 0, completedOrSub: 0, approved: 0, pending: 0, overdue: 0, dateRangeSub: '' },
+        performanceTrend: [],
+        statusDistribution: []
+    };
+
+    // Derive pending tasks list from todayTasks (non-terminal)
+    const pendingTasks = todayTasks.filter(t => !TERMINAL.includes(t.status));
 
     const dateLabel = new Date().toLocaleDateString('en-US', {
         weekday: 'long', month: 'long', day: 'numeric'
@@ -309,21 +324,23 @@ const EmployeeDashboard = () => {
 
                 {/* Chart A — Performance Trend */}
                 <ChartPanel title="Performance Trend">
-                    <BarChart data={performanceTrend} margin={{ top: 4, right: 10, left: -10, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={v => [`${v}`, 'Score']} />
-                        <Bar dataKey="score" fill="#7c3aed" radius={[4, 4, 0, 0]} />
-                    </BarChart>
+                    <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={performanceTrend} margin={{ top: 4, right: 10, left: -10, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                            <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+                            <Tooltip formatter={v => [`${v}`, 'Score']} />
+                            <Bar dataKey="score" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
                 </ChartPanel>
 
                 {/* Chart B — Status Distribution */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
                     <h3 className="font-bold text-slate-800 text-lg mb-6">Task Status Distribution</h3>
-                    <div style={{ width: '100%', height: 240 }}>
+                    <div style={{ width: '100%', height: 240, minWidth: 0 }}>
                         {statusDistribution.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height={220}>
                                 <PieChart>
                                     <Pie
                                         data={statusDistribution}
@@ -384,7 +401,7 @@ const EmployeeDashboard = () => {
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-slate-700">
                                 {pendingTasks.map(task => {
-                                    const isOverdue = task.dueDate < new Date().toISOString().split('T')[0];
+                                    const isOverdue = task.dueDate < new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
                                     return (
                                         <tr key={task.id} className="hover:bg-slate-50">
                                             <td className="py-3 px-5">

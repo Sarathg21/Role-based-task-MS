@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { USERS, DEPARTMENTS } from "../data/mockData";
+import { useState, useEffect } from "react";
+import api from "../services/api";
 import Badge from "../components/UI/Badge";
 import {
   Plus,
@@ -8,19 +8,45 @@ import {
   CheckSquare,
   Network,
   KeyRound,
+  Loader2,
 } from "lucide-react";
 
 import OrgTreeModal from "../components/Modals/OrgTreeModal";
 import AddEmployeeForm from "../components/Modals/AddEmployeeModal";
 
 const AdminPage = () => {
-  const [employees, setEmployees] = useState(USERS);
+  const [employees, setEmployees] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
   const [deptFilter, setDeptFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [showOrgTreeModal, setShowOrgTreeModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const fetchInitialData = async () => {
+    setLoading(true);
+    try {
+      const empRes = await api.get('/users');
+      setEmployees(empRes.data);
+      // Hardcoded departments since backend lacks an endpoint
+      setDepartments([
+        "Administration", "Finance", "Engineering", "Sales",
+        "Accounts Receivables", "Accounts Payables", "Fixed Assets",
+        "Treasury and Trade Finance", "MIS Report and Internal Audit",
+        "Cash Management Team"
+      ]);
+    } catch (err) {
+      console.error("Failed to fetch admin data", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
 
   const filteredEmployees = employees.filter((emp) => {
     const matchesSearch =
@@ -38,29 +64,46 @@ const AdminPage = () => {
     return matchesSearch && matchesRole && matchesDept && matchesStatus;
   });
 
-  const handleToggleStatus = (id) => {
+  const handleToggleStatus = async (id) => {
     const emp = employees.find((e) => e.id === id);
-    const action = emp.active ? "deactivate" : "activate";
-    if (window.confirm(`Are you sure you want to ${action} ${emp.name}?`)) {
-      setEmployees((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, active: !e.active } : e))
-      );
+    if (window.confirm(`Are you sure you want to ${emp.active ? 'deactivate' : 'activate'} ${emp.name}?`)) {
+      try {
+        await api.patch(`/users/${id}/status`, { active: !emp.active });
+        setEmployees(prev => prev.map(e => e.id === id ? { ...e, active: !e.active } : e));
+      } catch (err) {
+        console.error("Failed to toggle status", err);
+        alert("Failed to update status");
+      }
     }
   };
 
-  const handleResetPassword = (id) => {
-    if (window.confirm(`Reset password for user ${id}?`)) {
-      alert(`Password reset for ${id} to 'password123'`);
+  const handleResetPassword = async (id) => {
+    const newPassword = window.prompt(`Enter new password for ${id}:`, "password123");
+    if (newPassword) {
+      try {
+        await api.patch(`/users/${id}/password`, { password: newPassword });
+        alert(`Password for ${id} has been reset.`);
+      } catch (err) {
+        console.error("Failed to reset password", err);
+        alert("Failed to reset password");
+      }
     }
   };
 
-  const handleAddEmployee = (newUser) => {
-    setEmployees((prev) => [...prev, newUser]);
-    alert(`Employee ${newUser.name} added successfully!`);
+  const handleAddEmployee = async (newEmpData) => {
+    try {
+      await api.post('/users', newEmpData);
+      alert(`Employee ${newEmpData.name} added successfully!`);
+      fetchInitialData();
+      setShowAddModal(false);
+    } catch (err) {
+      console.error("Failed to add employee", err);
+      alert("Failed to add employee: " + (err.response?.data?.detail || "Unknown error"));
+    }
   };
 
   const managers = employees.filter(
-    (u) => u.role === "Manager" || u.role === "Admin"
+    (u) => u.role === "Manager" || u.role === "Admin" || u.role === "CFO"
   );
 
   return (
@@ -69,10 +112,9 @@ const AdminPage = () => {
         isOpen={showOrgTreeModal}
         onClose={() => setShowOrgTreeModal(false)}
         users={employees}
-        departments={DEPARTMENTS}
         onAddNode={(parentId, newUser) => {
           const parent = employees.find(u => u.id === parentId);
-          const isParentAdmin = parent?.role === 'Admin';
+          const isParentAdmin = parent?.role === 'ADMIN';
           setEmployees(prev => [
             ...prev,
             {
@@ -90,7 +132,7 @@ const AdminPage = () => {
           onClose={() => setShowAddModal(false)}
           onAdd={handleAddEmployee}
           managers={managers}
-          departments={DEPARTMENTS}
+          departments={departments}
         />
       )}
 
@@ -148,9 +190,9 @@ const AdminPage = () => {
                 >
                   <option value="All">All Roles</option>
                   <option value="CFO">CFO</option>
-                  <option value="Admin">Admin</option>
-                  <option value="Manager">Manager</option>
-                  <option value="Employee">Employee</option>
+                  <option value="ADMIN">Admin</option>
+                  <option value="MANAGER">Manager</option>
+                  <option value="EMPLOYEE">Employee</option>
                 </select>
 
                 <select
@@ -159,7 +201,7 @@ const AdminPage = () => {
                   onChange={(e) => setDeptFilter(e.target.value)}
                 >
                   <option value="All">All Departments</option>
-                  {DEPARTMENTS.map((d) => (
+                  {departments.map((d) => (
                     <option key={d} value={d}>
                       {d}
                     </option>
@@ -215,7 +257,7 @@ const AdminPage = () => {
                     <td className="px-4 py-2 truncate">{emp.role}</td>
                     <td className="px-4 py-2 truncate">{emp.department}</td>
                     <td className="px-4 py-2 truncate">
-                      {emp.managerId || "-"}
+                      {emp.manager_id || "-"}
                     </td>
 
                     <td className="px-4 py-2">

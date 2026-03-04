@@ -1,7 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TASKS, USERS, DEPARTMENTS } from '../../data/mockData';
-import { getEmployeeRankings } from '../../utils/rankingEngine';
+import api from '../../services/api';
 import { calculateManagerScore } from '../../utils/performanceEngine';
 import ChartPanel from '../Charts/ChartPanel';
 import Badge from '../UI/Badge';
@@ -11,7 +10,7 @@ import {
 } from 'recharts';
 import {
     TrendingUp, Users, CheckSquare, AlertTriangle, ArrowRight,
-    BarChart2, Building2, Star, CalendarCheck, Calendar
+    BarChart2, Building2, Star, CalendarCheck, Calendar, Loader2
 } from 'lucide-react';
 
 /* ─── Helpers ──────────────────────────────────────────────────── */
@@ -33,74 +32,77 @@ const CFODashboard = () => {
     const [toDate, setToDate] = useState('');
 
     /* ── Computed metrics ─── */
-    const {
-        workloadData,
-        deptPerformanceData,
-        topPerformersByDept,
-        topManagers,
-        globalStats,
-    } = useMemo(() => {
-        const activeDepts = DEPARTMENTS.filter(d => USERS.some(u => u.department === d));
+    const [dashboardData, setDashboardData] = useState(null);
+    const [todayOrgTasks, setTodayOrgTasks] = useState([]);
+    const [departments, setDepartments] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-        /* Apply date range filter to all tasks */
-        let filteredTasks = TASKS;
-        if (fromDate) filteredTasks = filteredTasks.filter(t => t.assignedDate >= fromDate);
-        if (toDate) filteredTasks = filteredTasks.filter(t => t.assignedDate <= toDate);
+    const fetchDashboardData = async () => {
+        setLoading(true);
+        try {
+            const [dataRes, todayRes, deptsRes] = await Promise.all([
+                api.get('/dashboard/cfo'),
+                api.get('/dashboard/cfo/today'),
+                api.get('/departments')
+            ]);
+            setDashboardData(dataRes.data);
+            setTodayOrgTasks(todayRes.data);
+            setDepartments(deptsRes.data);
+        } catch (err) {
+            console.error("Failed to fetch CFO dashboard data", err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-        /* Workload per department */
-        const workloadData = activeDepts.map((dept, i) => {
-            const deptUserIds = USERS.filter(u => u.department === dept).map(u => u.id);
-            const deptTasks = filteredTasks.filter(t => deptUserIds.includes(t.employeeId));
-            const completed = deptTasks.filter(t => t.status === 'APPROVED').length;
-            return {
-                name: dept.length > 14 ? dept.slice(0, 13) + '…' : dept,
-                fullName: dept,
-                Total: deptTasks.length,
-                Completed: completed,
-                Pending: deptTasks.length - completed,
-                fill: DEPT_COLORS[i % DEPT_COLORS.length],
-            };
-        });
+    useEffect(() => {
+        fetchDashboardData();
+    }, []);
 
-        /* Department performance index */
-        const deptPerformanceData = activeDepts.map(dept => {
-            const empIds = USERS.filter(u => u.department === dept && u.role === 'Employee').map(u => u.id);
-            const deptTasks = filteredTasks.filter(t => empIds.includes(t.employeeId));
-            const completed = deptTasks.filter(t => t.status === 'APPROVED').length;
-            const score = deptTasks.length > 0 ? Math.round((completed / deptTasks.length) * 100) : 0;
-            return { name: dept.length > 14 ? dept.slice(0, 13) + '…' : dept, fullName: dept, Performance: score };
-        });
+    const metrics = useMemo(() => {
+        if (!dashboardData) return null;
 
-        /* Top performer per department — always based on full TASKS for rankings */
-        const topPerformersByDept = activeDepts.map(dept => {
-            const deptEmps = USERS.filter(u => u.department === dept && u.role === 'Employee');
-            const ranked = getEmployeeRankings(deptEmps, TASKS);
-            const top = ranked[0] || null;
-            return { dept, top };
-        }).filter(r => r.top !== null);
+        const workloadData = (dashboardData.department_stats || []).map((d, i) => ({
+            name: d.department_id,
+            fullName: d.department_id,
+            Total: d.total_tasks,
+            Completed: d.approved_tasks,
+            Pending: d.pending_tasks,
+            fill: DEPT_COLORS[i % DEPT_COLORS.length],
+        }));
 
-        /* Top managers by performance score */
-        const managers = USERS.filter(u => u.role === 'Manager');
-        const topManagers = managers.map(mgr => {
-            const teamIds = USERS.filter(u => u.managerId === mgr.id).map(u => u.id);
-            const score = calculateManagerScore(TASKS, mgr.id, teamIds);
-            return { ...mgr, score };
-        }).sort((a, b) => b.score - a.score);
-
-        /* Global stats — filtered by date range */
-        const totalTasks = filteredTasks.length;
-        const completedTasks = filteredTasks.filter(t => t.status === 'APPROVED').length;
-        const pendingTasks = filteredTasks.filter(t => !['APPROVED', 'CANCELLED'].includes(t.status)).length;
-        const overallScore = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+        const deptPerformanceData = (dashboardData.department_stats || []).map(d => ({
+            name: d.department_id,
+            fullName: d.department_id,
+            Performance: d.total_tasks > 0 ? Math.round((d.approved_tasks / d.total_tasks) * 100) : 0,
+        }));
 
         return {
             workloadData,
             deptPerformanceData,
-            topPerformersByDept,
-            topManagers,
-            globalStats: { totalTasks, completedTasks, pendingTasks, overallScore },
+            globalStats: {
+                totalTasks: dashboardData.total_tasks,
+                completedTasks: dashboardData.approved_tasks,
+                pendingTasks: dashboardData.pending_tasks,
+                overallScore: dashboardData.org_performance_index || 0,
+            },
         };
-    }, [fromDate, toDate]);
+    }, [dashboardData]);
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center p-20 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                <Loader2 className="w-10 h-10 text-violet-500 animate-spin mb-4" />
+                <p className="text-slate-500 font-medium text-lg">Loading organization dashboard...</p>
+            </div>
+        );
+    }
+
+    const { workloadData, deptPerformanceData, globalStats } = metrics || {
+        workloadData: [],
+        deptPerformanceData: [],
+        globalStats: { totalTasks: 0, completedTasks: 0, pendingTasks: 0, overallScore: 0 }
+    };
 
     return (
         <div className="space-y-5">
@@ -187,84 +189,33 @@ const CFODashboard = () => {
                 <StatsCard title="Org. Score" value={`${globalStats.overallScore}%`} icon={BarChart2} color="purple" compact />
             </div>
 
-            {/* ══ TOP PERFORMERS PER DEPARTMENT ══ */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                    <Star size={16} className="text-amber-500" />
-                    <h3 className="text-base font-semibold text-slate-800">Top Performers by Department</h3>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
-                            <tr>
-                                <th className="py-2 px-3">Department</th>
-                                <th className="py-2 px-3">Top Employee</th>
-                                <th className="py-2 px-3">Score</th>
-                                <th className="py-2 px-3">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {topPerformersByDept.map(({ dept, top }) => (
-                                <tr key={dept} className="hover:bg-slate-50">
-                                    <td className="py-2 px-3 font-medium text-slate-700 max-w-[160px] truncate">{dept}</td>
-                                    <td className="py-2 px-3 truncate">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                                                {top.name.charAt(0)}
-                                            </div>
-                                            <span className="truncate">{top.name}</span>
-                                        </div>
-                                    </td>
-                                    <td className="py-2 px-3 text-violet-600 font-semibold">{top.score}</td>
-                                    <td className="py-2 px-3">
-                                        <Badge variant={top.score >= 80 ? 'success' : top.score >= 50 ? 'warning' : 'danger'}>
-                                            {top.score >= 80 ? 'Excellent' : top.score >= 50 ? 'Average' : 'Needs Help'}
-                                        </Badge>
-                                    </td>
-                                </tr>
-                            ))}
-                            {topPerformersByDept.length === 0 && (
-                                <tr><td colSpan="4" className="py-6 text-center text-slate-500">No employee data available.</td></tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
             {/* ══ TOP MANAGERS ══ */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
                 <div className="flex items-center gap-2 mb-3">
                     <Users size={16} className="text-violet-500" />
-                    <h3 className="text-base font-semibold text-slate-800">Top Managers by Performance Score</h3>
+                    <h3 className="text-base font-semibold text-slate-800">Department Overview</h3>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
                             <tr>
-                                <th className="py-2 px-3">Rank</th>
-                                <th className="py-2 px-3">Manager</th>
                                 <th className="py-2 px-3">Department</th>
-                                <th className="py-2 px-3">Score</th>
-                                <th className="py-2 px-3">Rating</th>
+                                <th className="py-2 px-3 text-center">Total Tasks</th>
+                                <th className="py-2 px-3 text-center">Approved</th>
+                                <th className="py-2 px-3 text-center">Pending</th>
+                                <th className="py-2 px-3 text-center">Performance Index</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {topManagers.map((mgr, i) => (
-                                <tr key={mgr.id} className="hover:bg-slate-50">
-                                    <td className="py-2 px-3 text-slate-400 font-semibold">#{i + 1}</td>
-                                    <td className="py-2 px-3 truncate">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                                                {mgr.name.charAt(0)}
-                                            </div>
-                                            {mgr.name}
-                                        </div>
-                                    </td>
-                                    <td className="py-2 px-3 text-slate-500 truncate max-w-[140px]">{mgr.department}</td>
-                                    <td className="py-2 px-3 text-violet-600 font-semibold">{mgr.score}</td>
-                                    <td className="py-2 px-3">
-                                        <Badge variant={mgr.score >= 80 ? 'success' : mgr.score >= 50 ? 'warning' : 'danger'}>
-                                            {mgr.score >= 80 ? 'Excellent' : mgr.score >= 50 ? 'Average' : 'Low'}
+                            {(dashboardData.department_stats || []).map((dept) => (
+                                <tr key={dept.department_id} className="hover:bg-slate-50">
+                                    <td className="py-2 px-3 font-semibold text-slate-700">{dept.department_id}</td>
+                                    <td className="py-2 px-3 text-center text-slate-600">{dept.total_tasks}</td>
+                                    <td className="py-2 px-3 text-center text-green-600">{dept.approved_tasks}</td>
+                                    <td className="py-2 px-3 text-center text-amber-600">{dept.pending_tasks}</td>
+                                    <td className="py-2 px-3 text-center">
+                                        <Badge variant={dept.total_tasks > 0 && (dept.approved_tasks / dept.total_tasks) >= 0.8 ? 'success' : 'warning'}>
+                                            {dept.total_tasks > 0 ? Math.round((dept.approved_tasks / dept.total_tasks) * 100) : 0}%
                                         </Badge>
                                     </td>
                                 </tr>

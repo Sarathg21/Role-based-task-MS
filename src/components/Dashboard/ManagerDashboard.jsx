@@ -1,12 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { TASKS, USERS } from '../../data/mockData';
+import api from '../../services/api';
 import { calculateManagerScore } from '../../utils/performanceEngine';
 import Badge from '../UI/Badge';
 import {
     BarChart2, CheckSquare, AlertTriangle, Clock, ArrowRight,
-    Calendar, Users, TrendingUp, Medal, CalendarCheck, CheckCircle
+    Calendar, Users, TrendingUp, Medal, CalendarCheck, CheckCircle, Loader2
 } from 'lucide-react';
 
 const STATUS_LABEL = {
@@ -52,44 +52,68 @@ const ManagerDashboard = () => {
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
 
-    /* ── Derived data ──────────────── */
-    const { stats, rankedTeam, todayTeamTasks } = useMemo(() => {
-        const myTeam = USERS.filter(u => u.managerId === user.id);
-        const teamIds = myTeam.map(u => u.id);
+    const [dashboardData, setDashboardData] = useState(null);
+    const [todayTeamTasks, setTodayTeamTasks] = useState([]);
+    const [reportTeam, setReportTeam] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-        /* Apply date range filter */
-        let teamTasks = TASKS.filter(t => teamIds.includes(t.employeeId));
-        if (fromDate) teamTasks = teamTasks.filter(t => t.assignedDate >= fromDate);
-        if (toDate) teamTasks = teamTasks.filter(t => t.assignedDate <= toDate);
+    const fetchDashboardData = async () => {
+        setLoading(true);
+        try {
+            const [dataRes, todayRes, reportRes] = await Promise.all([
+                api.get('/dashboard/manager'),
+                api.get('/dashboard/manager/today'),
+                api.get('/dashboard/reports/manager')
+            ]);
+            setDashboardData(dataRes.data);
+            setTodayTeamTasks(todayRes.data.map(t => ({
+                ...t,
+                id: t.task_id,
+                severity: t.priority,
+            })));
+            setReportTeam(reportRes.data);
+        } catch (err) {
+            console.error("Failed to fetch manager dashboard data", err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-        const score = calculateManagerScore(TASKS, user.id, teamIds);
-        const completed = teamTasks.filter(t => ['APPROVED'].includes(t.status)).length;
-        const pending = teamTasks.filter(t => !['APPROVED', 'CANCELLED'].includes(t.status)).length;
-        const totalReworks = teamTasks.reduce((s, t) => s + (t.reworkCount || 0), 0);
-        const completionRate = teamTasks.length > 0 ? Math.round((completed / teamTasks.length) * 100) : 0;
+    useEffect(() => {
+        fetchDashboardData();
+    }, [user.id]);
 
-        /* Build ranking table: tasks assigned & completed per employee */
-        const ranked = myTeam.map(emp => {
-            const empTasks = teamTasks.filter(t => t.employeeId === emp.id);
-            const empDone = empTasks.filter(t => ['APPROVED'].includes(t.status)).length;
-            return { ...emp, assigned: empTasks.length, completed: empDone };
-        }).sort((a, b) => b.completed - a.completed || b.assigned - a.assigned)
-            .map((emp, idx) => ({ ...emp, rank: idx + 1 }));
-
-        /* Today's tasks for the team — not affected by date range filter */
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayTeamTasks = TASKS.filter(t =>
-            teamIds.includes(t.employeeId) &&
-            t.dueDate === todayStr &&
-            !['APPROVED', 'CANCELLED'].includes(t.status)
-        ).sort((a, b) => (a.severity === 'High' ? -1 : 1));
-
+    const metrics = useMemo(() => {
+        if (!dashboardData) return null;
         return {
-            stats: { score, completionRate, totalReworks, pending, total: teamTasks.length },
-            rankedTeam: ranked,
-            todayTeamTasks,
+            score: dashboardData.team_performance_index || 0,
+            completionRate: dashboardData.total_tasks > 0
+                ? Math.round((dashboardData.approved_tasks / dashboardData.total_tasks) * 100)
+                : 0,
+            totalReworks: dashboardData.rework_tasks || 0,
+            pending: dashboardData.pending_tasks || 0,
+            total: dashboardData.total_tasks || 0
         };
-    }, [user.id, fromDate, toDate]);
+    }, [dashboardData]);
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center p-20 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                <Loader2 className="w-10 h-10 text-violet-500 animate-spin mb-4" />
+                <p className="text-slate-500 font-medium text-lg">Loading team dashboard...</p>
+            </div>
+        );
+    }
+
+    const { stats } = { stats: metrics || { score: 0, completionRate: 0, totalReworks: 0, pending: 0, total: 0 } };
+    const rankedTeam = reportTeam.map((m, idx) => ({
+        ...m,
+        id: m.emp_id,
+        name: m.name,
+        assigned: m.tasks_assigned,
+        completed: m.tasks_completed,
+        rank: idx + 1
+    }));
 
     const dateLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -137,10 +161,9 @@ const ManagerDashboard = () => {
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                             {todayTeamTasks.map(task => {
-                                const assignee = USERS.find(u => u.id === task.employeeId);
                                 const sevColor =
-                                    task.severity === 'High' ? { pill: 'bg-red-500 text-white', border: 'border-l-red-400' } :
-                                        task.severity === 'Medium' ? { pill: 'bg-amber-500 text-white', border: 'border-l-amber-400' } :
+                                    task.priority === 'HIGH' ? { pill: 'bg-red-500 text-white', border: 'border-l-red-400' } :
+                                        task.priority === 'MEDIUM' ? { pill: 'bg-amber-500 text-white', border: 'border-l-amber-400' } :
                                             { pill: 'bg-emerald-500 text-white', border: 'border-l-emerald-400' };
                                 return (
                                     <div
@@ -158,7 +181,7 @@ const ManagerDashboard = () => {
                                         <p className="text-slate-400 text-xs mb-2 truncate">{task.description}</p>
                                         <div className="flex items-center justify-between gap-2">
                                             <div className="text-[10px] text-slate-500 font-medium truncate">
-                                                Assigned to: <span className="font-semibold text-slate-700">{assignee?.name || task.employeeId}</span>
+                                                Assigned to: <span className="font-semibold text-slate-700">{task.assigned_to_name || task.employeeId}</span>
                                             </div>
                                             <Badge variant={task.status}>
                                                 {STATUS_LABEL[task.status] || task.status.replace(/_/g, ' ')}

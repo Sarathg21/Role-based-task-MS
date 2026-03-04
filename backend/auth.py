@@ -28,13 +28,20 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> models.User:
     token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    # Support both real JWTs and the legacy plain-ID token (for backward compat)
+    if "." in token:
+        # Real JWT — decode and verify
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id: str = payload.get("sub")
+            if user_id is None:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+        except JWTError:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token invalid or expired")
+    else:
+        # Legacy: token is just the user ID string
+        user_id = token
 
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
