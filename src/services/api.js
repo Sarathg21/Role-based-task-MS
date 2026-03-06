@@ -2,14 +2,18 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const api = axios.create({
-    baseURL: 'http://127.0.0.1:8000',
+    baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000',
+    timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS) || 15000,
+    headers: {
+        'ngrok-skip-browser-warning': 'true',
+    },
 });
 
 // Inject JWT Bearer token on every request
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem('pms_token');
     if (token) {
-        config.headers['Authorization'] = `Bearer ${token}`;
+        config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
 });

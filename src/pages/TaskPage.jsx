@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import Badge from "../components/UI/Badge";
+import CustomSelect from "../components/UI/CustomSelect";
 import { Plus, Search, Loader2, History, Paperclip, ChevronDown, ChevronRight } from "lucide-react";
 import ReassignTaskModal from "../components/Modals/ReassignTaskModal";
 import TaskDetailModal from "../components/Modals/TaskDetailModal";
@@ -40,6 +41,7 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
             <th className="p-3">Role</th>
             <th className="p-3">Dept</th>
             <th className="p-3">Job Assignment</th>
+            <th className="p-3">Assigned By</th>
             <th className="p-3">Date Assigned</th>
             <th className="p-3">Due Date</th>
             <th className="p-3">Status</th>
@@ -53,17 +55,20 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
             const assigneeId = task.employee_id;
             const assignee = users?.find(u => u.id === assigneeId);
 
+            // Ensure unique key even if task.id is missing or an object
+            const taskKey = typeof task.id === 'object' ? (task.id.$oid || JSON.stringify(task.id)) : (task.id || `task-${idx}`);
+
             return (
-              <tr key={task.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => onViewDetails(task)}>
+              <tr key={taskKey} className="hover:bg-slate-50 cursor-pointer" onClick={() => onViewDetails(task)}>
                 <td className="p-3 text-slate-400 font-medium">{idx + 1}</td>
 
                 {/* Employee */}
                 <td className="p-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                      {assignee?.name?.charAt(0) || '?'}
+                      {(task.assigneeName || task.employee_id || '?').charAt(0)}
                     </div>
-                    <span className="truncate font-medium">{assignee?.name || task.employee_id}</span>
+                    <span className="truncate font-medium">{task.assigneeName || task.employee_id}</span>
                   </div>
                 </td>
 
@@ -88,8 +93,17 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                   <div className="text-[10px] text-slate-400 truncate">{task.description}</div>
                 </td>
 
+                {/* Assigned By */}
+                <td className="p-3 text-slate-500 truncate">
+                  {task.assignerName || task.assigned_by || 'System'}
+                </td>
+
                 {/* Date Assigned */}
-                <td className="p-3 text-slate-500 whitespace-nowrap">{task.assigned_date}</td>
+                <td className="p-3 text-slate-500 whitespace-nowrap">
+                  {task.assigned_date || task.created_at
+                    ? new Date(task.assigned_date || task.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                    : '—'}
+                </td>
 
                 {/* Due Date */}
                 <td className={`p-3 whitespace-nowrap font-medium ${isOverdue ? 'text-red-600' : 'text-slate-600'}`}>
@@ -110,13 +124,13 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                       <>
                         <button
                           onClick={(e) => { e.stopPropagation(); onApprove(task.id); }}
-                          className="px-2.5 py-1 text-[11px] font-semibold rounded bg-green-600 text-white hover:bg-green-700 transition"
+                          className="px-4 py-2 text-xs font-semibold rounded-xl bg-green-600 text-white hover:bg-green-700 transition shadow-sm active:scale-95"
                         >
                           Approve
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); onRework(task.id); }}
-                          className="px-2.5 py-1 text-[11px] font-semibold rounded bg-orange-500 text-white hover:bg-orange-600 transition"
+                          className="px-4 py-2 text-xs font-semibold rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition shadow-sm active:scale-95"
                         >
                           Rework
                         </button>
@@ -127,7 +141,7 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                     {!['APPROVED', 'CANCELLED'].includes(task.status) && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onReassign(task); }}
-                        className="px-2.5 py-1 text-[11px] font-semibold rounded bg-blue-500 text-white hover:bg-blue-600 transition"
+                        className="px-4 py-2 text-xs font-semibold rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition shadow-sm active:scale-95"
                       >
                         Reassign
                       </button>
@@ -137,7 +151,7 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                     {!['APPROVED', 'CANCELLED'].includes(task.status) && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onCancel(task.id); }}
-                        className="px-2.5 py-1 text-[11px] font-semibold rounded bg-red-500 text-white hover:bg-red-600 transition"
+                        className="px-4 py-2 text-xs font-semibold rounded-xl bg-red-500 text-white hover:bg-red-600 transition shadow-sm active:scale-95"
                       >
                         Cancel
                       </button>
@@ -201,12 +215,8 @@ const ActionTaskTable = ({
             const isOverdue = task.due_date < today && !['APPROVED', 'CANCELLED'].includes(task.status);
             const displayStatus = isOverdue ? 'Overdue' : task.status;
 
-            const assigneeId = task.employee_id;
-            const assignee = users.find(u => u.id === assigneeId);
-            const assigner = users.find(u => u.id === task.assigned_by);
-
-            const assigneeName = assignee?.name || assigneeId;
-            const assignerName = assigner?.name || task.assigned_by || "System";
+            const assigneeName = task.assigneeName || task.employee_id;
+            const assignerName = task.assignerName || task.assigned_by || "System";
 
             return (
               <tr key={task.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => onViewDetails(task)}>
@@ -227,9 +237,14 @@ const ActionTaskTable = ({
                 </td>
 
                 <td className="p-4 max-w-[90px] overflow-hidden">
-                  <Badge variant={task.severity}>
-                    {task.severity}
-                  </Badge>
+                  {(() => {
+                    const sev = (task.priority || task.severity || '').toUpperCase();
+                    return sev ? (
+                      <Badge variant={sev}>{sev}</Badge>
+                    ) : (
+                      <span className="text-slate-400 text-xs">—</span>
+                    );
+                  })()}
                 </td>
 
                 <td className="p-4 text-slate-500">{task.due_date}</td>
@@ -245,11 +260,9 @@ const ActionTaskTable = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (window.confirm("Are you sure you want to START this task?")) {
-                                onStatusChange(task.id, "START");
-                              }
+                              onStatusChange(task.id, "START");
                             }}
-                            className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-indigo-500 hover:bg-indigo-600 transition shadow-sm whitespace-nowrap"
+                            className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-indigo-500 hover:bg-indigo-600 transition shadow-sm whitespace-nowrap"
                           >
                             Start
                           </button>
@@ -259,11 +272,9 @@ const ActionTaskTable = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (window.confirm("Are you sure you want to SUBMIT this task for approval?")) {
-                                onStatusChange(task.id, "SUBMIT");
-                              }
+                              onStatusChange(task.id, "SUBMIT");
                             }}
-                            className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-amber-400 hover:bg-amber-500 transition shadow-sm whitespace-nowrap"
+                            className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-amber-400 hover:bg-amber-500 transition shadow-sm whitespace-nowrap"
                           >
                             Submit
                           </button>
@@ -273,11 +284,9 @@ const ActionTaskTable = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (window.confirm("Are you sure you want to RESTART this task?")) {
-                                onStatusChange(task.id, "RESTART");
-                              }
+                              onStatusChange(task.id, "RESTART");
                             }}
-                            className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-indigo-500 hover:bg-indigo-600 transition shadow-sm whitespace-nowrap"
+                            className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-indigo-500 hover:bg-indigo-600 transition shadow-sm whitespace-nowrap"
                           >
                             Restart
                           </button>
@@ -293,11 +302,9 @@ const ActionTaskTable = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (window.confirm("Are you sure you want to APPROVE this task?")) {
-                                  onStatusChange(task.id, "APPROVE");
-                                }
+                                onStatusChange(task.id, "APPROVE");
                               }}
-                              className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-green-600 hover:bg-green-700 transition shadow-sm whitespace-nowrap"
+                              className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-green-600 hover:bg-green-700 transition shadow-sm whitespace-nowrap"
                             >
                               Approve
                             </button>
@@ -305,12 +312,9 @@ const ActionTaskTable = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const reason = window.prompt("Reason for rework:");
-                                if (reason !== null) {
-                                  onStatusChange(task.id, "REWORK", reason);
-                                }
+                                onStatusChange(task.id, "REWORK");
                               }}
-                              className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-orange-600 hover:bg-orange-700 transition shadow-sm whitespace-nowrap"
+                              className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-orange-600 hover:bg-orange-700 transition shadow-sm whitespace-nowrap"
                             >
                               Rework
                             </button>
@@ -322,7 +326,7 @@ const ActionTaskTable = ({
                           task.department === user.department && (
                             <button
                               onClick={(e) => { e.stopPropagation(); onReassign(task); }}
-                              className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-blue-500 hover:bg-blue-600 transition shadow-sm whitespace-nowrap"
+                              className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-blue-500 hover:bg-blue-600 transition shadow-sm whitespace-nowrap"
                             >
                               Reassign
                             </button>
@@ -331,7 +335,7 @@ const ActionTaskTable = ({
                         {!["APPROVED", "CANCELLED"].includes(task.status) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onCancel(task.id); }}
-                            className="px-4 py-2 text-xs font-semibold rounded-full text-white bg-red-600 hover:bg-red-700 transition shadow-sm whitespace-nowrap"
+                            className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-red-600 hover:bg-red-700 transition shadow-sm whitespace-nowrap"
                           >
                             Cancel
                           </button>
@@ -378,15 +382,12 @@ const TaskPage = () => {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const usersRes = await api.get('/users');
-        setUsers(usersRes.data);
-        // Using same hardcoded list as AdminPage for consistency
-        setDepartments([
-          "Administration", "Finance", "Engineering", "Sales",
-          "Accounts Receivables", "Accounts Payables", "Fixed Assets",
-          "Treasury and Trade Finance", "MIS Report and Internal Audit",
-          "Cash Management Team"
+        const [usersRes, deptsRes] = await Promise.all([
+          api.get('/employees'),
+          api.get('/departments'),
         ]);
+        setUsers(usersRes.data);
+        setDepartments(Array.isArray(deptsRes.data) ? deptsRes.data : []);
       } catch (err) {
         console.error("Failed to fetch support data", err);
       }
@@ -394,19 +395,34 @@ const TaskPage = () => {
     fetchInitialData();
   }, []);
 
-  const fetchTasks = async () => {
+  const fetchTasks = async (forceScope) => {
     setLoading(true);
     try {
-      // Use scope parameter: 'mine' for personal, 'department' for team/manager, 'org' for CFO/Admin
-      // Default to what's appropriate for the current viewMode
-      let scopeParam = 'mine';
-      if (isCFO) scopeParam = 'org';
-      else if (viewMode === 'team') scopeParam = 'department';
+      // Derive scope — accept an explicit override so callers after state changes work correctly
+      const isAdmin = user.role === 'CFO' || user.role === 'Admin';
+      let scopeParam = forceScope ?? (isAdmin ? 'org' : viewMode === 'team' ? 'department' : 'mine');
 
       const response = await api.get('/tasks', {
         params: { scope: scopeParam, limit: 50, offset: 0 }
       });
-      setTasks(response.data);
+
+      // Normalise confirmed API field names → UI expected names
+      // Confirmed API shape: { task_id, title, status, priority, due_date,
+      //   department_id, department_name, assigned_to_emp_id, assigned_to_name,
+      //   assigned_by_emp_id, assigned_by_name, rework_count }
+      const raw = Array.isArray(response.data) ? response.data : [];
+      const normalised = raw.map(t => ({
+        ...t,
+        id: t.task_id || t.id,                          // integer — used in all API URLs
+        employee_id: t.assigned_to_emp_id,       // for assignee lookup
+        assigned_by: t.assigned_by_emp_id,       // for assigner lookup
+        // Pre-resolved names from API — avoid needing users list
+        assigneeName: t.assigned_to_name,
+        assignerName: t.assigned_by_name,
+        severity: (t.priority || '').toUpperCase(),
+        department: t.department_name || t.department_id,
+      }));
+      setTasks(normalised);
     } catch (err) {
       console.error("Failed to fetch tasks", err);
     } finally {
@@ -424,8 +440,9 @@ const TaskPage = () => {
         task.title.toLowerCase().includes(filter.search.toLowerCase()) ||
         task.description?.toLowerCase().includes(filter.search.toLowerCase());
 
-      const matchesSeverity = filter.severity === "All" || task.severity === filter.severity;
-      const matchesDept = filter.department === "All" || task.department === filter.department;
+      // API uses 'priority' not 'severity'
+      const matchesPriority = filter.severity === "All" || task.priority === filter.severity;
+      const matchesDept = filter.department === "All" || task.department_id === filter.department || task.department === filter.department;
 
       let matchesStatus = filter.status === "All" || task.status === filter.status;
       if (filter.status === "Overdue") {
@@ -433,42 +450,41 @@ const TaskPage = () => {
         matchesStatus = task.due_date < today && !['APPROVED', 'CANCELLED'].includes(task.status);
       }
 
-      return matchesSearch && matchesSeverity && matchesDept && matchesStatus;
+      return matchesSearch && matchesPriority && matchesDept && matchesStatus;
     });
   }, [tasks, filter]);
 
   const handleStatusChange = async (taskId, action) => {
+    if (!taskId && taskId !== 0) {
+      console.error('[TaskPage] handleStatusChange called with invalid taskId:', taskId, '| action:', action);
+      return;
+    }
+
+    const confirmed = window.confirm(`Are you sure you want to ${action.toLowerCase()} this task?`);
+    if (!confirmed) return;
+
     try {
       await api.post(`/tasks/${taskId}/transition`, { action, comment: "" });
       fetchTasks();
     } catch (err) {
       console.error("Failed to update task status", err);
-      // Toast handled by global interceptor if it's a 400/409
     }
   };
 
   const handleCancel = (taskId) => {
-    if (window.confirm("Are you sure you want to CANCEL this task?")) {
-      handleStatusChange(taskId, "CANCEL");
-    }
+    handleStatusChange(taskId, "CANCEL");
   };
 
   const handleAssign = (taskId) => {
-    if (window.confirm("Mark this task as assigned and start it?")) {
-      handleStatusChange(taskId, "START");
-    }
+    handleStatusChange(taskId, "START");
   };
 
   const handleApprove = (taskId) => {
-    if (window.confirm("Are you sure you want to APPROVE this task?")) {
-      handleStatusChange(taskId, "APPROVE");
-    }
+    handleStatusChange(taskId, "APPROVE");
   };
 
   const handleRework = (taskId) => {
-    if (window.confirm("Send this task back for REWORK?")) {
-      handleStatusChange(taskId, "REWORK");
-    }
+    handleStatusChange(taskId, "REWORK");
   };
 
   const openReassignModal = (task) => {
@@ -476,17 +492,20 @@ const TaskPage = () => {
     setReassignModalOpen(true);
   };
 
-  const handleReassign = async ({ employeeId: newAssigneeId, newDueDate }) => {
+  const handleReassign = async ({ employeeId: newAssigneeId, newDueDate, reason }) => {
+    const confirmed = window.confirm("Are you sure you want to reassign this task?");
+    if (!confirmed) return;
     try {
-      await api.patch(`/tasks/${taskToReassign.id}/reassign`, {
-        employee_id: newAssigneeId,
-        new_due_date: newDueDate
+      // Correct endpoint: POST (not PATCH), with new_assigned_to_emp_id
+      await api.post(`/tasks/${taskToReassign.id}/reassign`, {
+        new_assigned_to_emp_id: newAssigneeId,
+        new_due_date: newDueDate,
+        reason: reason || ''
       });
       setReassignModalOpen(false);
       fetchTasks();
     } catch (err) {
       console.error("Failed to reassign task", err);
-      alert("Failed to reassign: " + (err.response?.data?.detail || "Error"));
     }
   };
 
@@ -518,12 +537,12 @@ const TaskPage = () => {
       />
 
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-medium text-slate-800">
+          <h1 className="text-xl font-semibold text-slate-800">
             {isCFO ? 'Task Management — All Departments' : 'Task Management'}
           </h1>
-          <p className="text-slate-500">
+          <p className="text-sm text-slate-500 mt-0.5">
             {isCFO
               ? `${filteredTasks.length} tasks shown · ${pendingCount} pending`
               : 'Manage and track project tasks'}
@@ -533,9 +552,9 @@ const TaskPage = () => {
         {(isCFO || (user.role === "Manager" && viewMode === "team")) && (
           <button
             onClick={() => navigate("/tasks/assign")}
-            className="px-4 py-2 text-sm rounded-lg bg-violet-500 text-white hover:bg-violet-600 transition flex items-center"
+            className="px-5 py-2.5 text-sm font-semibold rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition shadow-sm hover:shadow flex items-center gap-2 shrink-0 active:scale-95"
           >
-            <Plus size={20} style={{ marginRight: 8 }} />
+            <Plus size={18} />
             New Task
           </button>
         )}
@@ -546,7 +565,7 @@ const TaskPage = () => {
         <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
           <button
             onClick={() => setViewMode("team")}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === "team"
+            className={`px-5 py-2 text-sm font-semibold rounded-md transition ${viewMode === "team"
               ? "bg-white text-slate-800 shadow-sm"
               : "text-slate-500 hover:text-slate-700"
               }`}
@@ -555,7 +574,7 @@ const TaskPage = () => {
           </button>
           <button
             onClick={() => setViewMode("personal")}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition ${viewMode === "personal"
+            className={`px-5 py-2 text-sm font-semibold rounded-md transition ${viewMode === "personal"
               ? "bg-white text-slate-800 shadow-sm"
               : "text-slate-500 hover:text-slate-700"
               }`}
@@ -566,58 +585,61 @@ const TaskPage = () => {
       )}
 
       {/* Filters & Search */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-row items-center gap-4">
-        <div className="relative w-full">
-          <Search
-            size={18}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-          />
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-row flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-0" style={{ minWidth: '220px' }}>
           <input
             type="text"
             placeholder="Search tasks..."
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+            className="w-full pl-5 pr-12 py-3.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500/20 text-sm transition-all shadow-sm"
             value={filter.search}
             onChange={(e) => setFilter({ ...filter, search: e.target.value })}
           />
+          <Search
+            size={18}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+          />
         </div>
 
-        <select
-          className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 w-36"
+        <CustomSelect
+          options={[
+            { value: 'All', label: 'Status: All' },
+            { value: 'Overdue', label: 'Overdue' },
+            { value: 'NEW', label: 'Not Started' },
+            { value: 'IN_PROGRESS', label: 'In Progress' },
+            { value: 'SUBMITTED', label: 'Submitted' },
+            { value: 'APPROVED', label: 'Approved' },
+            { value: 'REWORK', label: 'Rework' },
+            { value: 'CANCELLED', label: 'Cancelled' },
+          ]}
           value={filter.status}
-          onChange={(e) => setFilter({ ...filter, status: e.target.value })}
-        >
-          <option value="All">Status: All</option>
-          <option value="Overdue">Overdue</option>
-          <option value="NEW">Not Started</option>
-          <option value="IN_PROGRESS">In Progress</option>
-          <option value="SUBMITTED">Submitted</option>
-          <option value="APPROVED">Approved</option>
-          <option value="REWORK">Rework</option>
-          <option value="CANCELLED">Cancelled</option>
-        </select>
+          onChange={(val) => setFilter({ ...filter, status: val })}
+          style={{ minWidth: '160px' }}
+        />
 
-        <select
-          className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 w-36"
+        <CustomSelect
+          options={[
+            { value: 'All', label: 'Severity: All' },
+            { value: 'HIGH', label: 'High' },
+            { value: 'MEDIUM', label: 'Medium' },
+            { value: 'LOW', label: 'Low' },
+          ]}
           value={filter.severity}
-          onChange={(e) => setFilter({ ...filter, severity: e.target.value })}
-        >
-          <option value="All">Severity: All</option>
-          <option value="HIGH">High</option>
-          <option value="MEDIUM">Medium</option>
-          <option value="LOW">Low</option>
-        </select>
+          onChange={(val) => setFilter({ ...filter, severity: val })}
+          style={{ minWidth: '140px' }}
+        />
 
-        {/* Department filter – especially useful for CFO */}
-        <select
-          className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 w-44"
+        <CustomSelect
+          options={[
+            { value: 'All', label: 'Dept: All' },
+            ...departments.map(dept => ({
+              value: typeof dept === 'string' ? dept : (dept.id || dept),
+              label: typeof dept === 'string' ? dept : (dept.name || dept)
+            }))
+          ]}
           value={filter.department}
-          onChange={(e) => setFilter({ ...filter, department: e.target.value })}
-        >
-          <option value="All">Department: All</option>
-          {departments.map((dept) => (
-            <option key={dept.id || dept} value={dept.id || dept}>{dept.name || dept}</option>
-          ))}
-        </select>
+          onChange={(val) => setFilter({ ...filter, department: val })}
+          style={{ minWidth: '160px' }}
+        />
       </div>
 
       {loading ? (

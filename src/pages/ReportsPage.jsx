@@ -154,8 +154,8 @@ const ReportsPage = () => {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-slate-800">Analytics & Reports</h1>
-                <p className="text-slate-500">{user?.role === 'Manager' ? 'Department performance metrics' : 'System-wide performance metrics'}</p>
+                <h1 className="text-xl font-semibold text-slate-800">Analytics &amp; Reports</h1>
+                <p className="text-sm text-slate-500 mt-0.5">{user?.role === 'Manager' ? 'Department performance metrics' : 'System-wide performance metrics'}</p>
             </div>
 
             {/* Top / Underperforming Departments & Workload (CFO & Admin) */}
@@ -198,54 +198,56 @@ const ReportsPage = () => {
             )}
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                     <div>
-                        <h3 className="text-lg font-medium text-slate-800">Detailed Performance Report</h3>
-                        <p className="text-sm text-slate-500">Filter and download performance metrics</p>
+                        <h3 className="text-base font-semibold text-slate-800">Detailed Performance Report</h3>
+                        <p className="text-sm text-slate-500 mt-0.5">Filter and download performance metrics</p>
                     </div>
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-wrap gap-3 shrink-0">
                         <select
-                            className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500"
+                            className="custom-select px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-slate-50 hover:bg-white transition-colors"
                             value={filters.employeeId}
                             onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
                         >
-                            <option value="">All Employees</option>
+                            <option key="placeholder" value="">All Employees</option>
                             {reportData?.employees?.map(u => (
                                 <option key={u.emp_id} value={u.emp_id}>{u.name}</option>
                             ))}
                         </select>
                         <select
-                            className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500"
+                            className="custom-select px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-slate-50 hover:bg-white transition-colors"
                             value={filters.month}
                             onChange={(e) => setFilters({ ...filters, month: e.target.value })}
                         >
-                            <option value="">All Months</option>
+                            <option key="placeholder" value="">All Months</option>
                             {Array.from({ length: 12 }, (_, i) => (
                                 <option key={i} value={i}>{new Date(0, i).toLocaleString('default', { month: 'long' })}</option>
                             ))}
                         </select>
                         <select
-                            className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500"
+                            className="custom-select px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-slate-50 hover:bg-white transition-colors"
                             value={filters.year}
                             onChange={(e) => setFilters({ ...filters, year: e.target.value })}
                         >
-                            <option value="">All Years</option>
+                            <option key="placeholder" value="">All Years</option>
                             {[2023, 2024, 2025, 2026].map(year => (
                                 <option key={year} value={year}>{year}</option>
                             ))}
                         </select>
-                        <button
-                            onClick={handleDownloadPDF}
-                            className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors"
-                        >
-                            <Download size={16} /> Export PDF
-                        </button>
-                        <button
-                            onClick={handleDownloadExcel}
-                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
-                        >
-                            <FileSpreadsheet size={16} /> Export Excel (CSV)
-                        </button>
+                        <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                            <button
+                                onClick={handleDownloadPDF}
+                                className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-5 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 transition shadow-sm hover:shadow active:transform active:scale-95 whitespace-nowrap"
+                            >
+                                <Download size={16} /> Export PDF
+                            </button>
+                            <button
+                                onClick={handleDownloadExcel}
+                                className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition shadow-sm hover:shadow active:transform active:scale-95 whitespace-nowrap"
+                            >
+                                <FileSpreadsheet size={16} /> Export CSV
+                            </button>
+                        </div>
                     </div>
                 </div>
 

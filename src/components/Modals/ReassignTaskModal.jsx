@@ -34,15 +34,16 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
        - Manager: only their own department (excluding current assignee)
        - CFO: all employees (excluding current assignee) */
     const candidateEmployees = employees.filter(u => {
+        const uId = u.emp_id || u.id;
         if (u.role?.toUpperCase() !== 'EMPLOYEE') return false;
-        if (u.id === currentTask.employee_id) return false;           // exclude current
+        if (uId === currentTask.employee_id) return false;           // exclude current
         if (currentUser?.role?.toUpperCase() === 'MANAGER') {
             return u.department === currentUser.department;          // dept-scoped
         }
         return true;                                                 // CFO sees all
     });
 
-    const currentAssignee = employees.find(u => u.id === currentTask.employee_id);
+    const currentAssignee = employees.find(u => (u.emp_id || u.id) === currentTask.employee_id);
     const canSave = newAssignee !== '' && newDueDate !== '';
 
     const handleSubmit = (e) => {
@@ -149,14 +150,17 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
                                     required
                                     value={newAssignee}
                                     onChange={e => setNewAssignee(e.target.value)}
-                                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white text-sm"
+                                    className="custom-select w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 bg-slate-50 hover:bg-white transition-colors text-sm"
                                 >
-                                    <option value="">— Select employee —</option>
-                                    {candidateEmployees.map(emp => (
-                                        <option key={emp.id} value={emp.id}>
-                                            {emp.name} ({emp.department})
-                                        </option>
-                                    ))}
+                                    <option key="placeholder" value="">— Select employee —</option>
+                                    {candidateEmployees.map(emp => {
+                                        const eId = emp.emp_id || emp.id;
+                                        return (
+                                            <option key={eId} value={eId}>
+                                                {emp.name} ({emp.department})
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </div>
                             {candidateEmployees.length === 0 && (
@@ -177,7 +181,7 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
                                     value={newDueDate}
                                     min={new Date().toISOString().split('T')[0]}
                                     onChange={e => setNewDueDate(e.target.value)}
-                                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white text-sm"
+                                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 bg-slate-50 hover:bg-white transition-colors text-sm"
                                 />
                             </div>
                         </div>
@@ -194,7 +198,7 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
                                     onChange={e => setReason(e.target.value)}
                                     rows={2}
                                     placeholder="Why is this task being reassigned?"
-                                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white text-sm resize-none"
+                                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 bg-slate-50 hover:bg-white transition-colors text-sm resize-none"
                                 />
                             </div>
                         </div>

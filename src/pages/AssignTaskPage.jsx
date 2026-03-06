@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import toast from 'react-hot-toast';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 
 const AssignTaskPage = () => {
@@ -24,11 +25,12 @@ const AssignTaskPage = () => {
     useEffect(() => {
         const fetchAssignees = async () => {
             try {
-                // Use the new assignable endpoint
-                const response = await api.get('/users/assignable');
+                // Correct endpoint: /employees/assignable
+                const response = await api.get('/employees/assignable');
                 setEligibleAssignees(response.data);
             } catch (err) {
                 console.error("Failed to fetch assignees", err);
+                toast.error('Failed to load assignable employees');
             } finally {
                 setLoading(false);
             }
@@ -42,6 +44,8 @@ const AssignTaskPage = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        const confirmed = window.confirm("Are you sure you want to assign this task?");
+        if (!confirmed) return;
         setSubmitting(true);
 
         try {
@@ -56,7 +60,7 @@ const AssignTaskPage = () => {
 
             // Step 1: Create the task
             const taskRes = await api.post('/tasks', payload);
-            const newTaskId = taskRes.data.id;
+            const newTaskId = taskRes.data.id || taskRes.data.task_id;
 
             // Step 2: Upload attachment if provided
             if (attachment && newTaskId) {
@@ -68,17 +72,19 @@ const AssignTaskPage = () => {
                     });
                 } catch (uploadErr) {
                     console.warn('Task created but attachment upload failed:', uploadErr);
-                    alert('Task assigned, but attachment upload failed. You can attach it from the task detail page.');
+                    toast.success('Task assigned! (Attachment upload had an issue)');
                     navigate('/tasks');
                     return;
                 }
             }
 
-            alert('Task Assigned Successfully!');
+            toast.success('Task assigned successfully!');
             navigate('/tasks');
         } catch (err) {
             console.error('Failed to assign task', err);
-            alert('Failed to assign task: ' + (err.response?.data?.detail || 'Unknown error'));
+            if (!err.response || err.response.status !== 422) {
+                toast.error('Failed to assign task: ' + (err.response?.data?.detail || 'Unknown error'));
+            }
         } finally {
             setSubmitting(false);
         }
@@ -155,10 +161,17 @@ const AssignTaskPage = () => {
                                 value={formData.assignee}
                                 onChange={handleChange}
                             >
-                                <option value="">Select Assignee</option>
-                                {eligibleAssignees.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name} ({p.role}) - {p.department}</option>
-                                ))}
+                                <option key="placeholder" value="">Select Assignee</option>
+                                {loading ? (
+                                    <option key="loading" disabled>Loading...</option>
+                                ) : (
+                                    eligibleAssignees.map(p => (
+                                        // API returns emp_id, not id
+                                        <option key={p.emp_id} value={p.emp_id}>
+                                            {p.name} ({p.role}) - {p.department_id || p.department}
+                                        </option>
+                                    ))
+                                )}
                             </select>
                         </div>
 
@@ -170,10 +183,9 @@ const AssignTaskPage = () => {
                                 value={formData.priority}
                                 onChange={handleChange}
                             >
-                                <option value="LOW">Low</option>
-                                <option value="MEDIUM">Medium</option>
-                                <option value="HIGH">High</option>
-                                <option value="Critical">Critical</option>
+                                <option key="low" value="LOW">Low</option>
+                                <option key="medium" value="MEDIUM">Medium</option>
+                                <option key="high" value="HIGH">High</option>
                             </select>
                         </div>
                     </div>
@@ -193,31 +205,29 @@ const AssignTaskPage = () => {
                     </div>
 
                     <div className="pt-4 flex justify-end gap-3">
-                        <div className="pt-4 flex justify-end gap-3">
-                            <button
-                                type="button"
-                                onClick={() => navigate('/tasks')}
-                                className="inline-flex items-center justify-center font-semibold rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-xs bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus:ring-slate-500 whitespace-nowrap shadow-sm"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                className="px-4 py-2 text-xs font-semibold rounded-full text-white transition-colors duration-200 whitespace-nowrap shadow-sm"
-                                style={{
-                                    backgroundColor: 'var(--primary-color)'
-                                }}
-                                onMouseOver={(e) =>
-                                    (e.currentTarget.style.backgroundColor = 'var(--primary-dark)')
-                                }
-                                onMouseOut={(e) =>
-                                    (e.currentTarget.style.backgroundColor = 'var(--primary-color)')
-                                }
-                            >
-                                Assign Task
-                            </button>
-
-                        </div>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/tasks')}
+                            className="inline-flex items-center justify-center font-bold rounded-lg transition-colors px-6 py-2.5 text-sm bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 shadow-sm active:scale-95"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={submitting}
+                            className="px-8 py-2.5 text-sm font-bold rounded-lg text-white transition-all duration-200 shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                            style={{
+                                backgroundColor: 'var(--primary-color)'
+                            }}
+                            onMouseOver={(e) =>
+                                (e.currentTarget.style.backgroundColor = 'var(--primary-dark)')
+                            }
+                            onMouseOut={(e) =>
+                                (e.currentTarget.style.backgroundColor = 'var(--primary-color)')
+                            }
+                        >
+                            {submitting ? <Loader2 size={18} className="animate-spin" /> : 'Assign Task'}
+                        </button>
                     </div>
                 </form>
             </div>

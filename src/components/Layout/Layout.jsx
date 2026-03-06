@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
@@ -5,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const Layout = () => {
     const { user } = useAuth();
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     if (!user) {
         // If not logged in, just show Outlet (likely Login page)
@@ -15,9 +17,12 @@ const Layout = () => {
 
     return (
         <div className="app-container">
-            <Sidebar />
+            <Sidebar
+                isCollapsed={isSidebarCollapsed}
+                toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            />
             {/* Right-side column: Navbar on top, content below */}
-            <div className="content-column">
+            <div className={`content-column ${isSidebarCollapsed ? 'collapsed' : ''}`}>
                 <Navbar />
                 <main className="main-layout fade-in">
                     <div className="page-container">

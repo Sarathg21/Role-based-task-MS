@@ -60,18 +60,35 @@ const ManagerDashboard = () => {
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
-            const [dataRes, todayRes, reportRes] = await Promise.all([
+            const [dataRes, todayRes] = await Promise.all([
                 api.get('/dashboard/manager'),
                 api.get('/dashboard/manager/today'),
-                api.get('/dashboard/reports/manager')
             ]);
             setDashboardData(dataRes.data);
-            setTodayTeamTasks(todayRes.data.map(t => ({
+            const todayTasks = Array.isArray(todayRes.data) ? todayRes.data : [];
+            const mappedTasks = todayTasks.map(t => ({
                 ...t,
-                id: t.task_id,
-                severity: t.priority,
-            })));
-            setReportTeam(reportRes.data);
+                id: t.task_id || t.id,                          // integer — used in all API URLs
+                employee_id: t.assigned_to_emp_id,       // for assignee lookup
+                assigned_by: t.assigned_by_emp_id,       // for assigner lookup
+                assigneeName: t.assigned_to_name,
+                assignerName: t.assigned_by_name,
+                severity: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
+                department: t.department_name || t.department_id,
+            }));
+            console.log("ManagerDashboard - Mapped Today Team Tasks:", mappedTasks);
+            setTodayTeamTasks(mappedTasks);
+
+            // Fetch manager reports separately — /manager/reports (correct endpoint)
+            try {
+                const reportRes = await api.get('/manager/reports');
+                // API returns { manager_stats: [...] } or array
+                const stats = reportRes.data?.manager_stats || reportRes.data || [];
+                setReportTeam(Array.isArray(stats) ? stats : []);
+            } catch (reportErr) {
+                console.warn("Manager reports not available:", reportErr);
+                setReportTeam([]);
+            }
         } catch (err) {
             console.error("Failed to fetch manager dashboard data", err);
         } finally {
@@ -79,9 +96,30 @@ const ManagerDashboard = () => {
         }
     };
 
+    const handleStatusChange = async (taskId, action) => {
+        console.log("ManagerDashboard - handleStatusChange triggered with:", { taskId, action });
+        if (!taskId && taskId !== 0) {
+            console.error("ManagerDashboard - handleStatusChange: taskId is undefined or invalid!");
+            return;
+        }
+        const confirmed = window.confirm(`Are you sure you want to ${action.toLowerCase()} this task?`);
+        if (!confirmed) return;
+
+        try {
+            console.log("ManagerDashboard - Submitting transition API request...");
+            await api.post(`/tasks/${taskId}/transition`, { action, comment: "" });
+            console.log("ManagerDashboard - Transition successful, refreshing dashboard...");
+            fetchDashboardData(); // Refresh dashboard
+        } catch (err) {
+            console.error("ManagerDashboard - Failed to update task status:", err);
+        }
+    };
+
     useEffect(() => {
-        fetchDashboardData();
-    }, [user.id]);
+        if (user?.id) {
+            fetchDashboardData();
+        }
+    }, [user?.id]);
 
     const metrics = useMemo(() => {
         if (!dashboardData) return null;
@@ -105,7 +143,9 @@ const ManagerDashboard = () => {
         );
     }
 
-    const { stats } = { stats: metrics || { score: 0, completionRate: 0, totalReworks: 0, pending: 0, total: 0 } };
+    const resolvedMetrics = metrics || { score: 0, completionRate: 0, totalReworks: 0, pending: 0, total: 0 };
+    const stats = resolvedMetrics;
+
     const rankedTeam = reportTeam.map((m, idx) => ({
         ...m,
         id: m.emp_id,
@@ -142,7 +182,7 @@ const ManagerDashboard = () => {
                         </div>
                         <button
                             onClick={() => navigate('/tasks')}
-                            className="flex items-center gap-2 bg-white text-violet-700 hover:bg-violet-50 hover:scale-105 transition-all text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg"
+                            className="flex items-center gap-2 bg-white text-violet-700 hover:bg-violet-50 hover:scale-105 transition-all text-sm font-bold px-5 py-2.5 rounded-xl shadow-lg active:scale-95"
                         >
                             View All <ArrowRight size={15} />
                         </button>
@@ -169,19 +209,48 @@ const ManagerDashboard = () => {
                                     <div
                                         key={task.id}
                                         onClick={() => navigate('/tasks')}
-                                        className={`bg-white rounded-xl p-4 shadow-lg cursor-pointer hover:scale-[1.03] hover:shadow-xl transition-all border-l-4 ${sevColor.border}`}
+                                        className={`bg-white rounded-xl p-4 shadow-lg cursor-pointer hover:scale-[1.03] hover:shadow-xl transition-all border-l-4 ${sevColor.border} flex flex-col justify-between`}
                                     >
-                                        <div className="flex items-center justify-between mb-2">
-                                            <Badge variant={task.severity}>
-                                                {task.severity}
-                                            </Badge>
-                                            <span className="text-[10px] text-slate-400 font-semibold">{task.id}</span>
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <Badge variant={task.severity}>
+                                                    {task.severity}
+                                                </Badge>
+                                                <span className="text-[10px] text-slate-400 font-semibold">{task.id}</span>
+                                            </div>
+                                            <h4 className="font-bold text-slate-800 text-sm leading-snug mb-0.5 truncate">{task.title}</h4>
+                                            <p className="text-slate-400 text-xs mb-2 truncate">{task.description}</p>
+                                            <div className="text-[10px] text-slate-500 font-medium truncate mb-3">
+                                                Assigned to: <span className="font-semibold text-slate-700">{task.assigneeName || task.employee_id}</span>
+                                            </div>
                                         </div>
-                                        <h4 className="font-bold text-slate-800 text-sm leading-snug mb-0.5 truncate">{task.title}</h4>
-                                        <p className="text-slate-400 text-xs mb-2 truncate">{task.description}</p>
-                                        <div className="flex items-center justify-between gap-2">
-                                            <div className="text-[10px] text-slate-500 font-medium truncate">
-                                                Assigned to: <span className="font-semibold text-slate-700">{task.assigned_to_name || task.employeeId}</span>
+
+                                        <div className="flex items-center justify-between gap-2 mt-auto pt-3 border-t border-slate-50">
+                                            <div className="flex gap-1.5">
+                                                {task.status === 'SUBMITTED' && (
+                                                    <>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, 'APPROVE'); }}
+                                                            className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-emerald-500 hover:bg-emerald-600 transition shadow-sm active:scale-95"
+                                                        >
+                                                            Approve
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, 'REWORK'); }}
+                                                            className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-orange-500 hover:bg-orange-600 transition shadow-sm active:scale-95"
+                                                        >
+                                                            Rework
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {task.status === 'NEW' && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, 'CANCEL'); }}
+                                                        className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-rose-500 hover:bg-rose-600 transition shadow-sm active:scale-95"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                )}
                                             </div>
                                             <Badge variant={task.status}>
                                                 {STATUS_LABEL[task.status] || task.status.replace(/_/g, ' ')}
@@ -284,7 +353,7 @@ const ManagerDashboard = () => {
             <div className="flex justify-end">
                 <button
                     onClick={() => navigate('/tasks')}
-                    className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition shadow-sm"
+                    className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition shadow-sm hover:shadow active:scale-95"
                 >
                     View All Team Tasks <ArrowRight size={16} />
                 </button>
@@ -337,9 +406,9 @@ const ManagerDashboard = () => {
                                         <td className="py-3 px-5">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                                    {member.name.charAt(0)}
+                                                    {(member.name || 'U').charAt(0)}
                                                 </div>
-                                                <span className="font-medium truncate">{member.name}</span>
+                                                <span className="font-medium truncate">{member.name || 'Unknown'}</span>
                                             </div>
                                         </td>
                                         <td className="py-3 px-5 text-slate-500">{member.role}</td>

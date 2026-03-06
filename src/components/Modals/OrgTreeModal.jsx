@@ -3,16 +3,22 @@ import {
     X, User, Shield, Briefcase, Network,
     ChevronDown, ChevronRight, PlusCircle, Check, XCircle, Loader2
 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 
 // ─── Inline Add-Node Form ────────────────────────────────────────────────────
 const AddNodeForm = ({ parentRole, departments, onAdd, onCancel }) => {
-    const childRole = (parentRole === "Admin" || parentRole === "CFO") ? "Manager" : "Employee";
+    const childRole = (parentRole === "Admin" || parentRole === "CFO" || parentRole === "ADMIN") ? "Manager" : "Employee";
+
+    // Normalise departments: API may return objects {dept_id, name, active} or plain strings
+    const deptStrings = departments.map(d =>
+        typeof d === 'string' ? d : (d.name || d.dept_id || d.department_id || String(d))
+    );
 
     const [form, setForm] = useState({
         name: "",
         id: "",
-        department: departments[0] || "",
+        department: deptStrings[0] || "",
         password: "password123",
     });
     const [error, setError] = useState("");
@@ -52,7 +58,7 @@ const AddNodeForm = ({ parentRole, departments, onAdd, onCancel }) => {
                     onChange={e => set("department", e.target.value)}
                     className="w-full text-xs px-2 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400"
                 >
-                    {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                    {deptStrings.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
                 <input
                     placeholder="Password"
@@ -107,22 +113,35 @@ const ROLE_ADD_BTN = {
 
 // ─── Single Org Node ─────────────────────────────────────────────────────────
 const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
-    const { user, children } = node;
+    const { user } = useAuth();
+    const children = node?.children || [];
+    // Handle both { user: {...}, children: [] } and { emp_id, name, role, children: [] } structures
+    const u = node?.user || node || {};
     const [collapsed, setCollapsed] = useState(false);
     const [showAddForm, setShowAddForm] = useState(false);
 
-    const canAddChild = user.role !== "Employee";
-    const hasChildren = children && children.length > 0;
+    const emp_id = u.id || u.emp_id || 'Unknown';
+    const role = (u.role || 'EMPLOYEE').toUpperCase();
+    const name = u.name || 'Unknown User';
+    const dept = u.department || u.department_id || (isRoot ? "Management" : "");
+
+    const canAddChild = role !== "EMPLOYEE";
+    const hasChildren = children.length > 0;
 
     const handleAdd = (newUser) => {
-        onAddNode(user.id, newUser);
+        onAddNode(emp_id, newUser);
         setShowAddForm(false);
     };
+
+    const cardStyle = ROLE_CARD[role] || ROLE_CARD.EMPLOYEE;
+    const iconCls = ROLE_ICON_BG[role] || ROLE_ICON_BG.EMPLOYEE;
+    const badgeCls = ROLE_BADGE[role] || ROLE_BADGE.EMPLOYEE;
+    const addBtnCls = ROLE_ADD_BTN[role] || ROLE_ADD_BTN.EMPLOYEE || 'border-slate-300 text-slate-600 hover:bg-slate-100';
 
     return (
         <div className="flex flex-col items-center">
             {/* ── Node Card ── */}
-            <div className={`relative flex flex-col items-center p-4 rounded-xl border-2 shadow-sm hover:shadow-lg transition-all w-48 z-10 ${ROLE_CARD[user.role] || ROLE_CARD.EMPLOYEE}`}>
+            <div className={`relative flex flex-col items-center p-4 rounded-xl border-2 shadow-sm hover:shadow-lg transition-all w-48 z-10 ${cardStyle}`}>
                 {/* Collapse/Expand toggle */}
                 {hasChildren && (
                     <button
@@ -138,32 +157,34 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
                 )}
 
                 {/* Icon */}
-                <div className={`p-3 rounded-full mb-2 ${ROLE_ICON_BG[user.role] || ROLE_ICON_BG.EMPLOYEE}`}>
-                    {(user.role === "ADMIN" || user.role === "CFO") && <Shield size={22} />}
-                    {user.role === "MANAGER" && <Briefcase size={22} />}
-                    {user.role === "EMPLOYEE" && <User size={22} />}
+                <div className={`p-3 rounded-full mb-2 ${iconCls}`}>
+                    {(role === "ADMIN" || role === "CFO") && <Shield size={22} />}
+                    {role === "MANAGER" && <Briefcase size={22} />}
+                    {role === "EMPLOYEE" && <User size={22} />}
                 </div>
 
                 {/* Name */}
-                <h3 className="font-bold text-slate-800 text-sm text-center leading-tight mb-1">{user.name}</h3>
-                <span className="text-[10px] text-slate-400 font-mono mb-1">{user.id}</span>
+                <h3 className="font-bold text-slate-800 text-sm text-center leading-tight mb-1 truncate w-full px-2" title={name}>{name}</h3>
+                <span className="text-[10px] text-slate-400 font-mono mb-1">{emp_id}</span>
 
                 {/* Role badge */}
-                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${ROLE_BADGE[user.role] || ROLE_BADGE.EMPLOYEE}`}>
-                    {user.role}
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${badgeCls}`}>
+                    {role}
                 </span>
-                <span className="text-[10px] text-slate-500 mt-1 bg-white/70 px-2 py-0.5 rounded-md">
-                    {user.department || "Management"}
-                </span>
+                {dept && (
+                    <span className="text-[10px] text-slate-500 mt-1 bg-white/70 px-2 py-0.5 rounded-md truncate max-w-full">
+                        {dept}
+                    </span>
+                )}
 
                 {/* Add child button */}
                 {canAddChild && (
                     <button
                         onClick={() => setShowAddForm(v => !v)}
-                        className={`mt-3 w-full flex items-center justify-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg border transition-colors ${ROLE_ADD_BTN[user.role]}`}
+                        className={`mt-3 w-full flex items-center justify-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg border transition-colors ${addBtnCls}`}
                     >
                         <PlusCircle size={12} />
-                        Add {user.role === "ADMIN" || user.role === "CFO" ? "Manager" : "Employee"}
+                        Add {role === "ADMIN" || role === "CFO" ? "Manager" : "Employee"}
                     </button>
                 )}
             </div>
@@ -193,7 +214,7 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
                         )}
                         <div className="flex gap-8 pt-0">
                             {children.map(child => (
-                                <div key={child.id} className="flex flex-col items-center relative">
+                                <div key={child.emp_id || child.user?.id || child.id || Math.random()} className="flex flex-col items-center relative">
                                     {/* Stub line up to horizontal bar */}
                                     <div className="w-px h-8 bg-slate-300 absolute -top-8" />
                                     <OrgNode
@@ -220,7 +241,9 @@ const OrgTreeModal = ({ isOpen, onClose, onAddNode, users = [] }) => {
     const fetchTree = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/users/tree');
+            const res = await api.get('/org/tree');
+            // Backend returns { root: { ... }, total_employees: X, ... } or { cfo: { ... } }
+            // Let's be compatible with both
             setTreeData(res.data);
 
             // Still need to fetch departments for the add form
@@ -242,6 +265,40 @@ const OrgTreeModal = ({ isOpen, onClose, onAddNode, users = [] }) => {
     if (!isOpen) return null;
 
     const depts = departments?.length ? departments : ["Engineering", "Sales", "HR", "Administration"];
+
+    // Dynamically calculate counts if backend doesn't provide them accurately
+    const getOrgStats = (node) => {
+        if (!node) return { total: 0, managers: 0, employees: 0 };
+
+        let stats = { total: 1, managers: 0, employees: 0 };
+        const role = (node.user?.role || node.role || '').toUpperCase();
+
+        if (role === 'MANAGER') stats.managers += 1;
+        if (role === 'EMPLOYEE') stats.employees += 1;
+
+        (node.children || []).forEach(child => {
+            const childStats = getOrgStats(child);
+            stats.total += childStats.total;
+            stats.managers += childStats.managers;
+            stats.employees += childStats.employees;
+        });
+
+        return stats;
+    };
+
+    let calculatedManagers = treeData?.total_managers || 0;
+    let calculatedEmployees = treeData?.total_employees || 0;
+
+    if (treeData && (treeData.root || treeData.cfo) && (!treeData.total_managers && !treeData.total_employees)) {
+        const stats = getOrgStats(treeData.root || treeData.cfo);
+
+        // Add orphans to stats
+        if (treeData.orphan_managers) stats.managers += treeData.orphan_managers.length;
+        if (treeData.orphan_employees) stats.employees += treeData.orphan_employees.length;
+
+        calculatedManagers = stats.managers;
+        calculatedEmployees = stats.employees;
+    }
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -277,10 +334,10 @@ const OrgTreeModal = ({ isOpen, onClose, onAddNode, users = [] }) => {
                         <div className="min-w-max pb-12 pt-4">
                             {/* ── CFO Node (Root) ── */}
                             <div className="flex gap-16 justify-center">
-                                {treeData?.cfo && (
+                                {(treeData?.root || treeData?.cfo) && (
                                     <OrgNode
-                                        key={treeData.cfo.user.id}
-                                        node={treeData.cfo}
+                                        key={(treeData.root || treeData.cfo).emp_id || (treeData.root || treeData.cfo).user?.id || 'root'}
+                                        node={treeData.root || treeData.cfo}
                                         departments={depts}
                                         onAddNode={onAddNode}
                                         isRoot
@@ -295,7 +352,7 @@ const OrgTreeModal = ({ isOpen, onClose, onAddNode, users = [] }) => {
                                     <div className="flex gap-8 justify-center flex-wrap">
                                         {treeData.orphan_managers.map(node => (
                                             <OrgNode
-                                                key={node.user.id}
+                                                key={node.emp_id || node.user?.id || node.id || Math.random()}
                                                 node={node}
                                                 departments={depts}
                                                 onAddNode={onAddNode}
@@ -312,7 +369,7 @@ const OrgTreeModal = ({ isOpen, onClose, onAddNode, users = [] }) => {
                                     <div className="flex gap-4 justify-center flex-wrap">
                                         {treeData.orphan_employees.map(node => (
                                             <OrgNode
-                                                key={node.user.id}
+                                                key={node.emp_id || node.user?.id || node.id || Math.random()}
                                                 node={node}
                                                 departments={depts}
                                                 onAddNode={onAddNode}
@@ -333,8 +390,8 @@ const OrgTreeModal = ({ isOpen, onClose, onAddNode, users = [] }) => {
                         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-emerald-200 inline-block" /> Employee</span>
                     </div>
                     <div className="flex gap-4 items-center">
-                        <span className="text-slate-500">Managers: <strong className="text-slate-800">{treeData?.total_managers || 0}</strong></span>
-                        <span className="text-slate-500">Employees: <strong className="text-slate-800">{treeData?.total_employees || 0}</strong></span>
+                        <span className="text-slate-500">Managers: <strong className="text-slate-800">{calculatedManagers}</strong></span>
+                        <span className="text-slate-500">Employees: <strong className="text-slate-800">{calculatedEmployees}</strong></span>
                         <div className="w-px h-4 bg-slate-200" />
                         <span className="text-slate-400 font-semibold uppercase tracking-tighter">Total Staff: {users.length}</span>
                     </div>

@@ -81,10 +81,16 @@ const EmployeeDashboard = () => {
                 api.get('/dashboard/employee/today')
             ]);
             setDashboardData(dataRes.data);
-            setTodayTasks(todayRes.data.map(t => ({
+            const todayT = Array.isArray(todayRes.data) ? todayRes.data : [];
+            setTodayTasks(todayT.map(t => ({
                 ...t,
-                id: t.task_id,
-                severity: t.priority,
+                id: t.task_id || t.id,                          // integer — used in all API URLs
+                employee_id: t.assigned_to_emp_id,       // for assignee lookup
+                assigned_by: t.assigned_by_emp_id,       // for assigner lookup
+                assigneeName: t.assigned_to_name,
+                assignerName: t.assigned_by_name,
+                severity: (t.priority || t.severity || 'LOW').toUpperCase(),
+                department: t.department_name || t.department_id,
             })));
         } catch (err) {
             console.error("Failed to fetch dashboard data", err);
@@ -93,9 +99,24 @@ const EmployeeDashboard = () => {
         }
     };
 
+    const handleStatusChange = async (taskId, action) => {
+        if (!taskId && taskId !== 0) return;
+        const confirmed = window.confirm(`Are you sure you want to ${action.toLowerCase()} this task?`);
+        if (!confirmed) return;
+
+        try {
+            await api.post(`/tasks/${taskId}/transition`, { action, comment: "" });
+            fetchDashboardData(); // Refresh dashboard
+        } catch (err) {
+            console.error("Failed to update task status", err);
+        }
+    };
+
     useEffect(() => {
-        fetchDashboardData();
-    }, [user.id]);
+        if (user?.id) {
+            fetchDashboardData();
+        }
+    }, [user?.id]);
 
     const metrics = useMemo(() => {
         if (!dashboardData) return null;
@@ -178,7 +199,7 @@ const EmployeeDashboard = () => {
                         </div>
                         <button
                             onClick={() => navigate('/tasks')}
-                            className="flex items-center gap-2 bg-white text-orange-600 hover:bg-orange-50 hover:scale-105 transition-all text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg"
+                            className="flex items-center gap-2 bg-white text-orange-600 hover:bg-orange-50 hover:scale-105 transition-all text-sm font-bold px-5 py-2.5 rounded-xl shadow-lg active:scale-95"
                         >
                             View All <ArrowRight size={15} />
                         </button>
@@ -198,9 +219,10 @@ const EmployeeDashboard = () => {
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                             {todayTasks.map(task => {
+                                const sev = (task.severity || 'LOW').toUpperCase();
                                 const sevColor =
-                                    task.severity === 'High' ? { pill: 'bg-red-500 text-white', border: 'border-l-red-400' } :
-                                        task.severity === 'Medium' ? { pill: 'bg-amber-500 text-white', border: 'border-l-amber-400' } :
+                                    sev === 'HIGH' ? { pill: 'bg-red-500 text-white', border: 'border-l-red-400' } :
+                                        sev === 'MEDIUM' ? { pill: 'bg-amber-500 text-white', border: 'border-l-amber-400' } :
                                             { pill: 'bg-emerald-500 text-white', border: 'border-l-emerald-400' };
                                 const statusCls = STATUS_COLORS[task.status]
                                     ? `bg-[${STATUS_COLORS[task.status]}]` : 'bg-slate-100 text-slate-600';
@@ -374,7 +396,7 @@ const EmployeeDashboard = () => {
                     <h3 className="text-base font-semibold text-slate-800">Pending Tasks</h3>
                     <button
                         onClick={() => navigate('/tasks')}
-                        className="flex items-center gap-1 text-sm text-violet-600 hover:text-violet-800 font-medium transition"
+                        className="flex items-center gap-1.5 text-sm font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 px-4 py-1.5 rounded-lg transition"
                     >
                         View All <ChevronRight size={15} />
                     </button>
@@ -396,7 +418,7 @@ const EmployeeDashboard = () => {
                                     <th className="py-3 px-5">Severity</th>
                                     <th className="py-3 px-5">Assigned</th>
                                     <th className="py-3 px-5">Due Date</th>
-                                    <th className="py-3 px-5 text-right"></th>
+                                    <th className="py-3 px-5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -418,20 +440,52 @@ const EmployeeDashboard = () => {
                                                     {task.severity}
                                                 </Badge>
                                             </td>
-                                            <td className="py-3 px-5 text-slate-500 text-xs">{task.assignedDate}</td>
+                                            <td className="py-3 px-5 text-slate-500 text-xs">
+                                                {task.assigned_date || task.created_at
+                                                    ? new Date(task.assigned_date || task.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                                                    : '—'}
+                                            </td>
                                             <td className="py-3 px-5">
                                                 <span className={`text-xs font-semibold ${isOverdue ? 'text-rose-600' : 'text-slate-600'}`}>
-                                                    {task.dueDate} {isOverdue && '⚠️'}
+                                                    {task.due_date} {isOverdue && '⚠️'}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-5 text-right">
-                                                <button
-                                                    onClick={() => navigate('/tasks')}
-                                                    className="text-violet-600 hover:text-violet-800 transition"
-                                                    title="Go to task"
-                                                >
-                                                    <ArrowRight size={16} />
-                                                </button>
+                                                <div className="flex justify-end gap-2">
+                                                    {task.status === "NEW" && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleStatusChange(task.id, "START");
+                                                            }}
+                                                            className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-indigo-500 hover:bg-indigo-600 transition shadow-sm active:scale-95 whitespace-nowrap"
+                                                        >
+                                                            Start
+                                                        </button>
+                                                    )}
+                                                    {task.status === "IN_PROGRESS" && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleStatusChange(task.id, "SUBMIT");
+                                                            }}
+                                                            className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-amber-500 hover:bg-amber-600 transition shadow-sm active:scale-95 whitespace-nowrap"
+                                                        >
+                                                            Submit
+                                                        </button>
+                                                    )}
+                                                    {task.status === "REWORK" && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleStatusChange(task.id, "RESTART");
+                                                            }}
+                                                            className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-indigo-500 hover:bg-indigo-600 transition shadow-sm active:scale-95 whitespace-nowrap"
+                                                        >
+                                                            Restart
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );

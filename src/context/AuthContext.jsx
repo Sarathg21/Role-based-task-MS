@@ -15,11 +15,12 @@ export const AuthProvider = ({ children }) => {
     };
 
     const normalizeUser = (u) => ({
-        id: u.id,
+        id: u.emp_id || u.id,           // backend uses emp_id
         name: u.name,
+        email: u.email || '',
         role: normalizeRole(u.role),
-        department: u.department,
-        manager_id: u.manager_id,
+        department: u.department_id || u.department || '',
+        manager_id: u.manager_emp_id || u.manager_id || null,
         active: u.active,
     });
 
@@ -52,16 +53,24 @@ export const AuthProvider = ({ children }) => {
                 password,
             });
 
-            const { access_token, user: userFromApi } = res.data;
-            const normalizedUser = normalizeUser(userFromApi);
+            const { access_token } = res.data;
 
-            // Persist token and user profile
+            // Store token first so subsequent requests are authenticated
             localStorage.setItem('pms_token', access_token);
+
+            // The login endpoint only returns {access_token, token_type} — fetch profile via /auth/me
+            const meRes = await api.get('/auth/me');
+            const normalizedUser = normalizeUser(meRes.data);
+
+            // Persist user profile
             localStorage.setItem('pms_user', JSON.stringify(normalizedUser));
             setUser(normalizedUser);
 
             return { success: true };
         } catch (err) {
+            // Clean up token if /auth/me failed after storing it
+            localStorage.removeItem('pms_token');
+            localStorage.removeItem('pms_user');
             const message =
                 err.response?.data?.detail || 'Login failed. Check your credentials.';
             return { success: false, message };
@@ -81,4 +90,10 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+};

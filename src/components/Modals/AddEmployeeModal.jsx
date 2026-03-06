@@ -1,8 +1,9 @@
 import { useState } from "react";
 import {
   User, Briefcase, Building2, Users, Hash, UserPlus,
-  ChevronDown, ArrowLeft, CheckCircle
+  ChevronDown, ArrowLeft, CheckCircle, Loader2
 } from "lucide-react";
+import CustomSelect from "../UI/CustomSelect";
 
 /* ─── Reusable styled field label ─── */
 const FieldLabel = ({ icon: Icon, color = "text-indigo-600", textColor = "text-indigo-700", children }) => (
@@ -43,12 +44,17 @@ const Section = ({ icon: Icon, headerBg, iconBg, iconColor, titleColor, title, b
 
 /* ─── Main Component ─── */
 const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
+  const firstDept = Array.isArray(departments) && departments.length > 0
+    ? (typeof departments[0] === 'string' ? departments[0] : departments[0].id || departments[0])
+    : '';
+
   const [formData, setFormData] = useState({
     name: "",
+    email: "",
     role: "EMPLOYEE",
-    department: departments[0] || "Engineering",
-    managerId: "",
-    id: "",
+    department_id: firstDept,
+    manager_emp_id: "",
+    emp_id: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -62,20 +68,21 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.id) {
-      alert("Name and Employee ID are required");
+    if (!formData.name || !formData.emp_id || !formData.email) {
+      alert("Name, Employee ID, and Email are required");
       return;
     }
 
     setSubmitting(true);
     try {
+      // Match EmployeeCreate schema exactly
       await onAdd({
+        emp_id: formData.emp_id,
         name: formData.name,
-        id: formData.id,
+        email: formData.email,
         role: formData.role,
-        department: formData.department,
-        manager_id: formData.managerId || null,
-        password: "password123",
+        department_id: formData.department_id,
+        manager_emp_id: formData.manager_emp_id || null,
       });
       setSubmitted(true);
       setTimeout(() => {
@@ -160,7 +167,12 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
             <div>
               <FieldLabel icon={Hash} color="text-indigo-500" textColor="text-indigo-700">Employee ID</FieldLabel>
               <input type="text" className={inputCls} placeholder="e.g. EMP001"
-                value={formData.id} onChange={set("id")} required />
+                value={formData.emp_id} onChange={set("emp_id")} required />
+            </div>
+            <div className="sm:col-span-2">
+              <FieldLabel icon={User} color="text-indigo-500" textColor="text-indigo-700">Email Address</FieldLabel>
+              <input type="email" className={inputCls} placeholder="e.g. jane@company.com"
+                value={formData.email} onChange={set("email")} required />
             </div>
           </div>
         </Section>
@@ -175,17 +187,29 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
               <FieldLabel icon={Briefcase} color="text-violet-500" textColor="text-violet-700">Role</FieldLabel>
-              <StyledSelect value={formData.role} onChange={set("role")} ring="focus:ring-violet-500">
-                <option value="EMPLOYEE">Employee</option>
-                <option value="MANAGER">Manager</option>
-                <option value="ADMIN">Admin</option>
-              </StyledSelect>
+              <CustomSelect
+                options={[
+                  { value: 'EMPLOYEE', label: 'Employee' },
+                  { value: 'MANAGER', label: 'Manager' },
+                  { value: 'ADMIN', label: 'Admin' },
+                ]}
+                value={formData.role}
+                onChange={(val) => setFormData(p => ({ ...p, role: val }))}
+                className="w-full"
+              />
             </div>
             <div>
               <FieldLabel icon={Building2} color="text-violet-500" textColor="text-violet-700">Department</FieldLabel>
-              <StyledSelect value={formData.department} onChange={set("department")} ring="focus:ring-violet-500">
-                {departments.map((d) => <option key={d} value={d}>{d}</option>)}
-              </StyledSelect>
+              <CustomSelect
+                options={departments.map((d, idx) => {
+                  const val = typeof d === 'string' ? d : (d.id || d.department_id || `dept-${idx}`);
+                  const label = typeof d === 'string' ? d : (d.name || d.department_id || 'Unknown');
+                  return { value: val, label };
+                })}
+                value={formData.department_id}
+                onChange={(val) => setFormData(p => ({ ...p, department_id: val }))}
+                className="w-full"
+              />
             </div>
           </div>
         </Section>
@@ -199,14 +223,18 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
         >
           <div>
             <FieldLabel icon={Users} color="text-sky-500" textColor="text-sky-700">Reporting Manager</FieldLabel>
-            <StyledSelect value={formData.managerId} onChange={set("managerId")} ring="focus:ring-sky-500">
-              <option value="">— No Manager Assigned —</option>
-              {managers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} · {m.department}
-                </option>
-              ))}
-            </StyledSelect>
+            <CustomSelect
+              options={[
+                { value: '', label: '— No Manager Assigned —' },
+                ...managers.map((m, idx) => ({
+                  value: m.emp_id || m.id || `mgr-${idx}`,
+                  label: `${m.name || 'Unknown'} · ${m.department_id || m.department || 'N/A'}`
+                }))
+              ]}
+              value={formData.manager_emp_id}
+              onChange={(val) => setFormData(p => ({ ...p, manager_emp_id: val }))}
+              className="w-full"
+            />
           </div>
         </Section>
 
@@ -229,15 +257,16 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
             </button>
             <button
               type="submit"
+              disabled={submitting}
               className="flex items-center gap-2 px-8 py-3 text-sm font-bold text-white rounded-xl
-                transition-all duration-200 hover:scale-[1.03] active:scale-95"
+                transition-all duration-200 hover:scale-[1.03] active:scale-95 disabled:opacity-70 disabled:hover:scale-100"
               style={{
                 background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
                 boxShadow: "0 4px 16px rgba(79,70,229,0.4)"
               }}
             >
-              <UserPlus size={15} />
-              Add Employee
+              {submitting ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
+              {submitting ? "Adding..." : "Add Employee"}
             </button>
           </div>
         </div>

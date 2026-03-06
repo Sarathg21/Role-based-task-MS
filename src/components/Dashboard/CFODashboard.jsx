@@ -55,6 +55,19 @@ const CFODashboard = () => {
         }
     };
 
+    const handleStatusChange = async (taskId, action) => {
+        if (!taskId && taskId !== 0) return;
+        const confirmed = window.confirm(`Are you sure you want to ${action.toLowerCase()} this task?`);
+        if (!confirmed) return;
+
+        try {
+            await api.post(`/tasks/${taskId}/transition`, { action, comment: "" });
+            fetchDashboardData();
+        } catch (err) {
+            console.error("Failed to update task status", err);
+        }
+    };
+
     useEffect(() => {
         fetchDashboardData();
     }, []);
@@ -127,35 +140,35 @@ const CFODashboard = () => {
                     <div className="flex items-center gap-3 flex-wrap">
 
                         {/* Glassy date range card */}
-                        <div className="flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-2.5 gap-3 shadow-inner">
+                        <div className="flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-3 gap-5 shadow-inner">
                             {/* From */}
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] font-semibold text-violet-200 uppercase tracking-widest flex items-center gap-1">
-                                    <Calendar size={10} /> From
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-bold text-violet-100 uppercase tracking-widest flex items-center gap-1.5 opacity-90">
+                                    <Calendar size={12} /> From
                                 </span>
                                 <input
                                     type="date"
                                     value={fromDate}
                                     onChange={e => setFromDate(e.target.value)}
-                                    className="text-sm font-medium bg-transparent text-white border-none outline-none cursor-pointer [color-scheme:dark] w-36"
+                                    className="text-sm font-semibold bg-transparent text-white border-none outline-none cursor-pointer [color-scheme:dark] w-40 focus:ring-0"
                                 />
                             </div>
 
                             {/* Arrow separator */}
-                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/15">
-                                <ArrowRight size={12} className="text-violet-200" />
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 border border-white/10 shrink-0">
+                                <ArrowRight size={14} className="text-violet-100" />
                             </div>
 
                             {/* To */}
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] font-semibold text-violet-200 uppercase tracking-widest flex items-center gap-1">
-                                    <Calendar size={10} /> To
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-bold text-violet-100 uppercase tracking-widest flex items-center gap-1.5 opacity-90">
+                                    <Calendar size={12} /> To
                                 </span>
                                 <input
                                     type="date"
                                     value={toDate}
                                     onChange={e => setToDate(e.target.value)}
-                                    className="text-sm font-medium bg-transparent text-white border-none outline-none cursor-pointer [color-scheme:dark] w-36"
+                                    className="text-sm font-semibold bg-transparent text-white border-none outline-none cursor-pointer [color-scheme:dark] w-40 focus:ring-0"
                                 />
                             </div>
                         </div>
@@ -164,17 +177,17 @@ const CFODashboard = () => {
                         {(fromDate || toDate) && (
                             <button
                                 onClick={() => { setFromDate(''); setToDate(''); }}
-                                className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 border border-white/30 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-all"
+                                className="flex items-center gap-2 bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all active:scale-95"
                             >
-                                ✕ Clear Filter
+                                ✕ Clear
                             </button>
                         )}
 
                         <button
                             onClick={() => navigate('/tasks')}
-                            className="flex items-center gap-2 bg-white text-violet-700 hover:bg-violet-50 hover:scale-105 transition-all text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg"
+                            className="flex items-center gap-2.5 bg-white text-violet-700 hover:bg-violet-50 hover:scale-[1.02] transition-all text-sm font-extrabold px-6 py-3 rounded-xl shadow-xl active:scale-95 shrink-0"
                         >
-                            All Tasks <ArrowRight size={15} />
+                            All Tasks <ArrowRight size={16} />
                         </button>
 
                     </div>
@@ -226,7 +239,7 @@ const CFODashboard = () => {
             </div>
 
             {/* ══ CHARTS ROW ══ */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
                 {/* Workload Distribution */}
                 <ChartPanel title="Workload Distribution by Department">
                     <BarChart data={workloadData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -256,6 +269,67 @@ const CFODashboard = () => {
                         <Bar dataKey="Performance" fill="#8b5cf6" name="Completion %" radius={[4, 4, 0, 0]} />
                     </BarChart>
                 </ChartPanel>
+            </div>
+
+            {/* ══ RECENT PRIORITY TASKS ══ */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-100 bg-slate-50">
+                    <Star size={18} className="text-amber-500" />
+                    <h3 className="text-base font-semibold text-slate-800">Pending Actions (Org-wide)</h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
+                            <tr>
+                                <th className="py-3 px-5">ID</th>
+                                <th className="py-3 px-5">Task</th>
+                                <th className="py-3 px-5">Dept</th>
+                                <th className="py-3 px-5">Status</th>
+                                <th className="py-3 px-5 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {(!Array.isArray(todayOrgTasks) || todayOrgTasks.length === 0) ? (
+                                <tr>
+                                    <td colSpan="5" className="py-8 text-center text-slate-400 italic">No pending organization-wide tasks found.</td>
+                                </tr>
+                            ) : (
+                                todayOrgTasks.slice(0, 10).map(task => {
+                                    const tId = task.task_id || task.id;
+                                    return (
+                                        <tr key={tId} className="hover:bg-slate-50">
+                                            <td className="py-3 px-5 text-xs font-mono text-slate-400">{tId}</td>
+                                            <td className="py-3 px-5 font-medium text-slate-700">{task.title}</td>
+                                            <td className="py-3 px-5 text-slate-500 text-xs">{task.department_id || task.department}</td>
+                                            <td className="py-3 px-5">
+                                                <Badge variant={task.status}>{task.status}</Badge>
+                                            </td>
+                                            <td className="py-3 px-5 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    {task.status === 'SUBMITTED' && (
+                                                        <button
+                                                            onClick={() => handleStatusChange(tId, 'APPROVE')}
+                                                            className="px-4 py-2 text-xs font-semibold rounded-xl text-white bg-emerald-500 hover:bg-emerald-600 transition shadow-sm active:scale-95"
+                                                        >
+                                                            Approve
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => navigate('/tasks')}
+                                                        className="p-1 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition"
+                                                        title="View Details"
+                                                    >
+                                                        <ArrowRight size={16} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

@@ -143,7 +143,7 @@ const AdminDashboard = () => {
                         value={filters.department}
                         onChange={(e) => setFilters({ ...filters, department: e.target.value })}
                     >
-                        <option value="All">All Departments</option>
+                        <option key="all" value="All">All Departments</option>
                         {DEPARTMENTS.map(d => (
                             <option key={d} value={d}>{d}</option>
                         ))}
@@ -153,9 +153,9 @@ const AdminDashboard = () => {
                         value={filters.role}
                         onChange={(e) => setFilters({ ...filters, role: e.target.value })}
                     >
-                        <option value="All">All Roles</option>
-                        <option value="Manager">Managers Only</option>
-                        <option value="Employee">Employees Only</option>
+                        <option key="all" value="All">All Roles</option>
+                        <option key="mgr" value="Manager">Managers Only</option>
+                        <option key="emp" value="Employee">Employees Only</option>
                     </select>
                     <input
                         type="date"
