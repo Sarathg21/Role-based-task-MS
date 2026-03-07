@@ -31,18 +31,14 @@ const DashboardPage = () => {
   return (
     <div className="space-y-6">
 
-      {/* ===== Header ===== */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-800">Dashboard</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{user?.name}</p>
-        </div>
-        <div className="text-sm font-medium text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm">
-          {new Date().toLocaleDateString("en-US", {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-          })}
+      {/* ===== Slimmed Dashboard Host Header — Premium Feel ===== */}
+      <div className="flex items-center justify-between flex-wrap gap-3 pb-2">
+        <div className="flex items-center gap-3">
+          <div className="w-1 h-10 bg-violet-500 rounded-full shadow-glow"></div>
+          <div>
+            <h1 className="text-sm font-black text-slate-400 uppercase tracking-[0.3em]">Dashboard</h1>
+            <p className="text-xl font-black text-slate-800 tracking-tighter uppercase leading-none mt-1">{user?.name}</p>
+          </div>
         </div>
       </div>
 

@@ -92,16 +92,16 @@ const AssignTaskPage = () => {
 
     return (
         <div className="max-w-2xl mx-auto space-y-6">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
                 <button
                     onClick={() => navigate(-1)}
-                    className="inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus:ring-slate-500 p-2"
+                    className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shrink-0 transition"
                 >
-                    <ArrowLeft size={20} />
+                    <ArrowLeft size={18} />
                 </button>
                 <div>
-                    <h1 className="text-2xl font-medium text-slate-800">Assign New Task</h1>
-                    <p className="text-slate-500">Create and assign a task to your team members</p>
+                    <h1 className="text-xl font-semibold text-slate-800">Assign New Task</h1>
+                    <p className="text-sm text-slate-500 mt-0.5">Create and assign a task to your team members</p>
                 </div>
             </div>
 
@@ -208,23 +208,14 @@ const AssignTaskPage = () => {
                         <button
                             type="button"
                             onClick={() => navigate('/tasks')}
-                            className="inline-flex items-center justify-center font-bold rounded-lg transition-colors px-6 py-2.5 text-sm bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 shadow-sm active:scale-95"
+                            className="btn-secondary px-6 py-2.5"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={submitting}
-                            className="px-8 py-2.5 text-sm font-bold rounded-lg text-white transition-all duration-200 shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                            style={{
-                                backgroundColor: 'var(--primary-color)'
-                            }}
-                            onMouseOver={(e) =>
-                                (e.currentTarget.style.backgroundColor = 'var(--primary-dark)')
-                            }
-                            onMouseOut={(e) =>
-                                (e.currentTarget.style.backgroundColor = 'var(--primary-color)')
-                            }
+                            className="btn-primary px-8 py-2.5 gap-2"
                         >
                             {submitting ? <Loader2 size={18} className="animate-spin" /> : 'Assign Task'}
                         </button>

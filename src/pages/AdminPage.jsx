@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import Badge from "../components/UI/Badge";
 import toast from "react-hot-toast";
@@ -12,29 +13,34 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-import OrgTreeModal from "../components/Modals/OrgTreeModal";
 import AddEmployeeForm from "../components/Modals/AddEmployeeModal";
 import CustomSelect from "../components/UI/CustomSelect";
 
 const AdminPage = () => {
+  const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
   const [deptFilter, setDeptFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("active");
-  const [showOrgTreeModal, setShowOrgTreeModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState(null);
 
-  const fetchInitialData = async () => {
+  // Use a fetch function that explicitly accepts current values (avoids stale closure)
+  const fetchInitialData = async (overrides = {}) => {
     setLoading(true);
+    const currentStatus = overrides.statusFilter ?? statusFilter;
+    const currentRole = overrides.roleFilter ?? roleFilter;
+    const currentDept = overrides.deptFilter ?? deptFilter;
+    const currentSearch = overrides.searchTerm ?? searchTerm;
     try {
       const params = {};
-      if (statusFilter !== "All") params.active = statusFilter === "active";
-      if (roleFilter !== "All") params.role = roleFilter;
-      if (searchTerm) params.search = searchTerm;
+      if (currentStatus !== "All") params.active = currentStatus === "active";
+      if (currentRole !== "All") params.role = currentRole;
+      if (currentDept !== "All") params.department_id = currentDept;
+      if (currentSearch) params.search = currentSearch;
 
       const [empRes, deptRes] = await Promise.all([
         api.get('/employees', { params }),
@@ -58,17 +64,22 @@ const AdminPage = () => {
   const safeEmployees = Array.isArray(employees) ? employees : [];
   const filteredEmployees = safeEmployees.filter((emp) => {
     if (!emp) return false;
-    const name = emp.name || '';
-    const empId = emp.emp_id || '';
-    const query = searchTerm ? searchTerm.toLowerCase() : '';
-    const matchesSearch =
-      name.toLowerCase().includes(query) ||
-      empId.toLowerCase().includes(query);
 
+    // Search Filter
+    const query = (searchTerm || '').toLowerCase();
+    const name = (emp.name || '').toLowerCase();
+    const empId = (emp.emp_id || emp.id || '').toLowerCase();
+    const matchesSearch = !query || name.includes(query) || empId.includes(query);
+
+    // Role Filter
     const matchesRole = roleFilter === "All" || emp.role === roleFilter;
-    const deptId = emp.department_id || emp.department || '';
-    const matchesDept = deptFilter === "All" || deptId === deptFilter;
 
+    // Dept Filter - robust comparison
+    const empDept = String(emp.department_id || emp.department || '');
+    const filterDept = String(deptFilter);
+    const matchesDept = deptFilter === "All" || empDept === filterDept;
+
+    // Status Filter
     const matchesStatus =
       statusFilter === "All" ||
       (statusFilter === "active" ? !!emp.active : !emp.active);
@@ -120,11 +131,6 @@ const AdminPage = () => {
 
   return (
     <div className="space-y-4">
-      <OrgTreeModal
-        isOpen={showOrgTreeModal}
-        onClose={() => setShowOrgTreeModal(false)}
-        users={employees.map(e => ({ ...e, id: e.emp_id, managerId: e.manager_emp_id }))}
-      />
 
       {/* ── Inline Add Employee Form ── */}
       {showAddModal && (
@@ -136,189 +142,258 @@ const AdminPage = () => {
         />
       )}
 
+      {/* ══ ADMIN PREMIUM HERO ══ */}
       {!showAddModal && (
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-800">Employee Management</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Manage system users and access</p>
+        <div
+          className="rounded-[2.5rem] overflow-hidden shadow-2xl relative mb-10 mesh-gradient-premium border border-white/5"
+        >
+          {/* Decorative Premium Blobs */}
+          <div className="absolute -top-20 -right-20 w-80 h-80 bg-white/5 rounded-full blur-3xl animate-blob opacity-50" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-48 bg-violet-500/10 rounded-full blur-[100px] animate-pulse" />
+
+          <div className="relative z-10 px-12 pt-10 pb-6 flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="flex flex-col items-center md:items-start gap-4 max-w-2xl text-center md:text-left">
+              <div className="bg-white/10 backdrop-blur-2xl p-4 rounded-[1.75rem] shadow-2xl border border-white/20 animate-float flex items-center justify-center w-14 h-14">
+                <Network size={28} className="text-white drop-shadow-glow" />
+              </div>
+              <div>
+                <h2 className="text-3xl font-black text-white tracking-tighter drop-shadow-2xl leading-tight">
+                  Personnel <span className="text-violet-300">Archive</span> & <br className="hidden md:block" /> Governance
+                </h2>
+                <p className="text-slate-300 font-bold uppercase tracking-[0.4em] text-[9px] mt-3 opacity-60">
+                  Secure Enterprise Resource Management
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4 w-full md:w-auto">
+              {/* Primary Action - Add Employee */}
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="bg-white text-slate-900 hover:bg-slate-50 hover:scale-[1.02] active:scale-[0.98] transition-all px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.1em] shadow-xl flex items-center justify-center gap-3 group whitespace-nowrap"
+              >
+                <Plus size={22} className="group-hover:rotate-90 transition-transform duration-300" /> Add New Employee
+              </button>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => navigate('/org-tree')}
+                  className="flex-1 bg-white/10 hover:bg-white/20 text-white text-[11px] font-black uppercase tracking-[0.2em] px-10 py-5 rounded-2xl border border-white/20 backdrop-blur-xl transition-all flex items-center justify-center gap-3 group shadow-xl"
+                >
+                  <Network size={22} className="group-hover:rotate-12 transition-transform text-violet-300" />
+                  <span>Org Tree</span>
+                </button>
+
+                <button
+                  onClick={() => fetchInitialData()}
+                  className="bg-white/5 hover:bg-white/10 text-white px-5 py-3.5 rounded-xl border border-white/5 backdrop-blur-md transition-all flex items-center justify-center group"
+                >
+                  <RefreshCw size={14} className="group-hover:rotate-180 transition-all duration-700" />
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={() => fetchInitialData()}
-              className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 flex items-center gap-2 transition shadow-sm whitespace-nowrap"
-            >
-              <RefreshCw size={16} />
-              Refresh
-            </button>
-            <button
-              onClick={() => setShowOrgTreeModal(true)}
-              className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 flex items-center gap-2 transition shadow-sm whitespace-nowrap"
-            >
-              <Network size={16} />
-              Org Tree
-            </button>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 flex items-center gap-2 transition shadow-sm whitespace-nowrap"
-            >
-              <Plus size={16} />
-              Add Employee
-            </button>
+
+          {/* Governance Command Island — Optimized Fit */}
+          <div className="relative z-10 mx-6 mb-8 px-12 py-8 flex flex-wrap items-center justify-around gap-6 bg-white/[0.08] backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl shadow-black/20">
+            <div className="flex flex-col gap-1.5 items-center md:items-start">
+              <span className="text-[9px] font-black text-violet-200 uppercase tracking-[0.3em] opacity-80">Personnel Registry</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-black text-white tabular-nums leading-none leading-[0.8]">{employees.length}</span>
+                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Units</span>
+              </div>
+            </div>
+            <div className="hidden lg:block w-px h-12 bg-white/10 self-center" />
+            <div className="flex flex-col gap-1.5 items-center md:items-start">
+              <span className="text-[9px] font-black text-violet-200 uppercase tracking-[0.3em] opacity-80">Strategic Assets</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-black text-emerald-400 tabular-nums leading-none leading-[0.8]">{employees.filter(e => e.status === 'active').length}</span>
+                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Active</span>
+              </div>
+            </div>
+            <div className="hidden lg:block w-px h-12 bg-white/10 self-center" />
+            <div className="flex flex-col gap-1.5 items-center md:items-start">
+              <span className="text-[9px] font-black text-violet-200 uppercase tracking-[0.3em] opacity-80">Core Stability</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-black text-violet-300 tabular-nums leading-none leading-[0.8]">99.8%</span>
+                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Index</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* Employee Directory Table */}
       {!showAddModal && (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden animate-fade-in-up">
 
-          {/* Filters */}
-          <div className="px-4 py-3 border-b border-slate-200 space-y-3">
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="relative flex-1">
+          {/* ══ EXECUTIVE FILTER SUITE ══ */}
+          <div className="px-10 py-8 bg-slate-50/30 border-b border-slate-100 space-y-6">
+            <div className="flex flex-col gap-6">
+              {/* Primary Search Bar */}
+              <div className="relative group">
+                <Search
+                  className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-violet-500 transition-colors pointer-events-none"
+                  size={20}
+                />
                 <input
                   type="text"
                   placeholder="Search by name or ID..."
-                  className="w-full pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500 text-sm transition-all"
+                  className="w-full pl-14 pr-6 py-4 rounded-2xl border border-slate-200 bg-white hover:border-violet-300 focus:outline-none focus:ring-4 focus:ring-violet-500/10 focus:border-violet-400 text-sm font-bold transition-all placeholder:text-slate-300 shadow-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                <Search
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={16}
+                  onKeyDown={(e) => e.key === 'Enter' && fetchInitialData({ searchTerm: e.target.value })}
                 />
               </div>
 
-              <div className="flex gap-3 flex-wrap flex-1 sm:flex-none">
-                <CustomSelect
-                  options={[
-                    { value: 'All', label: 'All Roles' },
-                    { value: 'CFO', label: 'CFO' },
-                    { value: 'ADMIN', label: 'Admin' },
-                    { value: 'MANAGER', label: 'Manager' },
-                    { value: 'EMPLOYEE', label: 'Employee' },
-                  ]}
-                  value={roleFilter}
-                  onChange={(val) => setRoleFilter(val)}
-                  style={{ minWidth: '140px' }}
-                />
+              {/* Advanced Filter Row */}
+              <div className="flex flex-wrap items-end gap-5">
+                <div className="flex-1 min-w-[140px]">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Access Role</p>
+                  <CustomSelect
+                    options={[
+                      { value: 'All', label: 'All Roles' },
+                      { value: 'CFO', label: 'CFO' },
+                      { value: 'ADMIN', label: 'Admin' },
+                      { value: 'MANAGER', label: 'Manager' },
+                      { value: 'EMPLOYEE', label: 'Employee' },
+                    ]}
+                    value={roleFilter}
+                    onChange={(val) => { setRoleFilter(val); fetchInitialData({ roleFilter: val }); }}
+                    className="w-full"
+                  />
+                </div>
 
-                <CustomSelect
-                  options={[
-                    { value: 'All', label: 'All Departments' },
-                    ...deptOptions.map((d, idx) => {
-                      const val = typeof d === 'string' ? d : (d.department_id || d.id || d.name || `dept-${idx}`);
-                      const label = typeof d === 'string' ? d : (d.name || d.department_id || d.id || 'Unknown');
-                      return { value: String(val), label: String(label) };
-                    })
-                  ]}
-                  value={deptFilter}
-                  onChange={(val) => setDeptFilter(val)}
-                  style={{ minWidth: '180px' }}
-                />
+                <div className="flex-[1.5] min-w-[200px]">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Department</p>
+                  <CustomSelect
+                    options={[
+                      { value: 'All', label: 'All Departments' },
+                      ...deptOptions.map((d, idx) => {
+                        const val = typeof d === 'string' ? d : (d.department_id || d.id || d.name || `dept-${idx}`);
+                        const label = typeof d === 'string' ? d : (d.name || d.department_id || d.id || 'Unknown');
+                        return { value: String(val), label: String(label) };
+                      })
+                    ]}
+                    value={deptFilter}
+                    onChange={(val) => { setDeptFilter(val); }}
+                    className="w-full"
+                  />
+                </div>
 
-                <CustomSelect
-                  options={[
-                    { value: 'All', label: 'All Status' },
-                    { value: 'active', label: 'Active' },
-                    { value: 'inactive', label: 'Inactive' },
-                  ]}
-                  value={statusFilter}
-                  onChange={(val) => setStatusFilter(val)}
-                  style={{ minWidth: '130px' }}
-                />
+                <div className="flex-1 min-w-[130px]">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Status</p>
+                  <CustomSelect
+                    options={[
+                      { value: 'All', label: 'All Status' },
+                      { value: 'active', label: 'Active' },
+                      { value: 'inactive', label: 'Inactive' },
+                    ]}
+                    value={statusFilter}
+                    onChange={(val) => { setStatusFilter(val); }}
+                    className="w-full"
+                  />
+                </div>
 
                 <button
-                  onClick={fetchInitialData}
-                  className="flex-1 sm:flex-none px-8 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 transition shadow-sm hover:shadow active:transform active:scale-95 whitespace-nowrap"
-                  style={{ minWidth: '110px' }}
+                  onClick={() => fetchInitialData({
+                    searchTerm,
+                    roleFilter,
+                    deptFilter,
+                    statusFilter
+                  })}
+                  className="px-10 py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-700 text-white text-xs font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-violet-200/50 flex items-center justify-center gap-2 min-w-[140px]"
                 >
-                  Apply
+                  <RefreshCw size={14} /> Apply Filters
                 </button>
               </div>
             </div>
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto" style={{ maxHeight: 'calc(100vh - 320px)', overflowY: 'auto' }}>
+          <div className="overflow-x-auto" style={{ maxHeight: 'calc(100vh - 400px)', overflowY: 'auto' }}>
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="animate-spin text-violet-500 mr-2" size={20} />
-                <span className="text-slate-500 text-sm">Loading employees...</span>
+              <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <Loader2 className="animate-spin text-violet-500" size={32} />
+                <span className="text-slate-400 text-xs font-black uppercase tracking-[0.2em]">Synchronizing Records</span>
               </div>
             ) : (
               <table className="w-full text-left text-xs text-slate-700 table-fixed">
-                <thead className="bg-slate-50 uppercase text-[11px] text-slate-500">
+                <thead className="bg-slate-50/50 uppercase text-[10px] font-black tracking-widest text-slate-400 border-b border-slate-100">
                   <tr>
-                    <th className="px-4 py-2">User</th>
-                    <th className="px-4 py-2">Role</th>
-                    <th className="px-4 py-2">Department</th>
-                    <th className="px-4 py-2">Manager</th>
-                    <th className="px-4 py-2">Status</th>
-                    <th className="px-4 py-2 text-right">Actions</th>
+                    <th className="px-6 py-4">Employee Identity</th>
+                    <th className="px-6 py-4 w-32">Security Role</th>
+                    <th className="px-6 py-4">Department</th>
+                    <th className="px-6 py-4">Reporting To</th>
+                    <th className="px-6 py-4 w-28">Status</th>
+                    <th className="px-6 py-4 text-right">Operations</th>
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-50">
                   {filteredEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-slate-400 text-sm">
-                        No employees found matching your filters.
+                      <td colSpan={6} className="py-20 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-200">
+                            <Search size={32} />
+                          </div>
+                          <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">No personnel records found</p>
+                          <p className="text-slate-300 text-[10px] max-w-[200px] mx-auto">Try adjusting your executive filters to see more results.</p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
                     filteredEmployees.map((emp) => (
-                      <tr key={emp.emp_id} className="hover:bg-slate-50">
-                        <td className="px-4 py-2 truncate">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                      <tr key={emp.emp_id} className="hover:bg-slate-50/80 transition-colors group">
+                        <td className="px-6 py-3 truncate">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-100 to-indigo-100 text-violet-600 flex items-center justify-center text-xs font-black shadow-sm group-hover:scale-110 transition-transform">
                               {(emp.name || '?').charAt(0)}
                             </div>
                             <div className="min-w-0">
-                              <div className="text-xs truncate font-medium">{emp.name}</div>
-                              <div className="text-[10px] text-slate-500 truncate">{emp.emp_id}</div>
+                              <div className="text-xs truncate font-black text-slate-800">{emp.name}</div>
+                              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{emp.emp_id}</div>
                             </div>
                           </div>
                         </td>
 
-                        <td className="px-4 py-2 truncate">
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${emp.role === 'CFO' || emp.role === 'ADMIN' ? 'bg-violet-100 text-violet-700' :
-                            emp.role === 'MANAGER' ? 'bg-blue-100 text-blue-700' :
-                              'bg-slate-100 text-slate-600'
+                        <td className="px-6 py-3 truncate">
+                          <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${emp.role === 'CFO' || emp.role === 'ADMIN' ? 'bg-violet-100 text-violet-700 shadow-sm border border-violet-200' :
+                            emp.role === 'MANAGER' ? 'bg-blue-100 text-blue-700 shadow-sm border border-blue-200' :
+                              'bg-slate-100 text-slate-600 border border-slate-200'
                             }`}>
                             {emp.role}
                           </span>
                         </td>
-                        <td className="px-4 py-2 truncate text-slate-500">{emp.department_id || emp.department || '—'}</td>
-                        <td className="px-4 py-2 truncate text-slate-500">
-                          {emp.manager_emp_id || '—'}
+                        <td className="px-6 py-3 truncate text-slate-500 font-bold text-[10px] uppercase">{emp.department_id || emp.department || '—'}</td>
+                        <td className="px-6 py-3 truncate text-slate-400 text-[10px] font-medium tabular-nums">
+                          {emp.manager_emp_id || 'Global Parent'}
                         </td>
 
-                        <td className="px-4 py-2">
-                          <Badge
-                            variant={emp.active ? "success" : "danger"}
-                            className="text-[10px] px-2 py-0.5 whitespace-nowrap"
-                          >
+                        <td className="px-6 py-3">
+                          <div className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${emp.active ? 'text-emerald-500' : 'text-slate-400'}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${emp.active ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
                             {emp.active ? "Active" : "Inactive"}
-                          </Badge>
+                          </div>
                         </td>
 
-                        <td className="px-4 py-2 text-right">
-                          <div className="flex justify-end gap-1">
+                        <td className="px-6 py-3 text-right">
+                          <div className="flex justify-end gap-1 translate-x-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
                             <button
                               onClick={() => handleToggleStatus(emp)}
                               disabled={togglingId === emp.emp_id}
-                              className={`px-4 py-2 rounded-lg text-white flex items-center gap-2 text-xs font-bold transition shadow-sm active:scale-95 ${emp.active
-                                ? "bg-red-500 hover:bg-red-600 ring-red-100"
-                                : "bg-green-600 hover:bg-green-700 ring-green-100"
-                                } disabled:opacity-50 hover:shadow-md`}
+                              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-2 ${emp.active
+                                ? "bg-white text-rose-500 hover:bg-rose-50 border border-rose-100"
+                                : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-100"
+                                }`}
                             >
                               {togglingId === emp.emp_id ? (
-                                <Loader2 size={16} className="animate-spin" />
+                                <Loader2 size={12} className="animate-spin" />
                               ) : emp.active ? (
-                                <><XCircle size={16} /> Deactivate</>
+                                <><XCircle size={12} /> Disable</>
                               ) : (
-                                <><CheckSquare size={16} /> Activate</>
+                                <><CheckSquare size={12} /> Enable</>
                               )}
                             </button>
                           </div>
@@ -332,8 +407,8 @@ const AdminPage = () => {
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2 border-t border-slate-200 text-xs text-slate-500 flex justify-between items-center">
-            <span>Showing {filteredEmployees.length} of {employees.length} employees</span>
+          <div className="px-10 py-5 bg-slate-50/50 border-t border-slate-100 text-[10px] text-slate-400 font-black uppercase tracking-widest flex justify-between items-center">
+            <span>Verified Registry: {filteredEmployees.length} Units in View</span>
           </div>
         </div>
       )}

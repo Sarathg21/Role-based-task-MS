@@ -6,6 +6,35 @@ import {
 import api from '../../services/api';
 import Badge from '../UI/Badge';
 
+const getHistoryLabel = (entry) => {
+    const oldStatus = entry.old_status;
+    const newStatus = entry.new_status;
+    const comment = (entry.comment || '').toLowerCase();
+
+    // Specific Mappings from User Request
+    if (oldStatus === 'NEW' && newStatus === 'NEW') {
+        if (comment.includes('task created')) return 'Task Created';
+        if (comment.includes('reassigned from')) return 'Task Reassigned';
+    }
+    if (oldStatus === 'IN_PROGRESS' && newStatus === 'SUBMITTED') return 'Task Submitted';
+    if (oldStatus === 'SUBMITTED' && newStatus === 'APPROVED') return 'Task Approved';
+    if (oldStatus === 'SUBMITTED' && newStatus === 'REWORK') return 'Rework Requested';
+
+    // Fallbacks for other transitions
+    if (oldStatus && newStatus && oldStatus !== newStatus) {
+        if (newStatus === 'IN_PROGRESS' && oldStatus === 'NEW') return 'Task Started';
+        if (newStatus === 'REWORK') return 'Rework Requested';
+        if (newStatus === 'APPROVED') return 'Task Approved';
+        if (newStatus === 'CANCELLED') return 'Task Cancelled';
+
+        return `${oldStatus.replace(/_/g, ' ')} \u2192 ${newStatus.replace(/_/g, ' ')}`;
+    }
+
+    if (newStatus && !oldStatus) return 'Task Initialized';
+
+    return entry.action || entry.status || 'Update';
+};
+
 const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
     const [activeTab, setActiveTab] = useState('history'); // 'history', 'attachments', 'subtasks'
     const [history, setHistory] = useState([]);
@@ -233,24 +262,63 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
                                     </div>
                                 ) : (
                                     history.map((entry, i) => (
-                                        <div key={i} className="flex gap-3 items-start">
-                                            <div className="w-2 h-2 rounded-full bg-violet-400 mt-2 flex-shrink-0" />
-                                            <div className="flex-1 bg-slate-50 rounded-xl border border-slate-100 px-4 py-3">
-                                                <div className="flex justify-between items-center mb-0.5">
-                                                    <span className="text-xs font-bold text-violet-600 uppercase tracking-wide">
-                                                        {entry.action || entry.status || 'Update'}
-                                                    </span>
-                                                    <span className="text-[10px] text-slate-400">
-                                                        {entry.timestamp || entry.changed_at
-                                                            ? new Date(entry.timestamp || entry.changed_at).toLocaleString()
-                                                            : ''}
-                                                    </span>
+                                        <div key={i} className="flex gap-4 items-start relative pb-6 last:pb-0">
+                                            {/* Timeline Line */}
+                                            {i !== history.length - 1 && (
+                                                <div className="absolute left-[7px] top-6 bottom-0 w-0.5 bg-slate-100" />
+                                            )}
+
+                                            {/* Timeline Dot */}
+                                            <div className="w-4 h-4 rounded-full border-2 border-white bg-violet-500 shadow-sm mt-1 z-10 flex-shrink-0" />
+
+                                            <div className="flex-1 bg-white rounded-xl border border-slate-100 p-4 shadow-sm hover:border-violet-100 transition-colors">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div>
+                                                        <span className="text-sm font-bold text-slate-800">
+                                                            {getHistoryLabel(entry)}
+                                                        </span>
+                                                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mt-1">
+                                                            {entry.changed_at || entry.timestamp
+                                                                ? new Date(entry.changed_at || entry.timestamp).toLocaleString(undefined, {
+                                                                    dateStyle: 'medium',
+                                                                    timeStyle: 'short'
+                                                                })
+                                                                : ''}
+                                                        </p>
+                                                    </div>
+                                                    {(entry.changed_by_emp_id || entry.changed_by) && (
+                                                        <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded-lg border border-slate-100">
+                                                            <User size={10} className="text-slate-400" />
+                                                            <span className="text-[10px] font-bold text-slate-600">
+                                                                {entry.changed_by_emp_id || entry.changed_by}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                {entry.comment && (
-                                                    <p className="text-xs text-slate-600 italic mt-1">"{entry.comment}"</p>
+
+                                                {/* Status Transition Badges */}
+                                                {(entry.old_status || entry.new_status) && entry.old_status !== entry.new_status && (
+                                                    <div className="flex items-center gap-2 mb-3">
+                                                        {entry.old_status ? (
+                                                            <Badge variant={entry.old_status} className="!px-2 !py-0.5 !text-[9px] opacity-70">
+                                                                {entry.old_status.replace(/_/g, ' ')}
+                                                            </Badge>
+                                                        ) : (
+                                                            <span className="text-[9px] text-slate-400 italic">None</span>
+                                                        )}
+                                                        <ChevronRight size={12} className="text-slate-300" />
+                                                        <Badge variant={entry.new_status} className="!px-2 !py-0.5 !text-[9px]">
+                                                            {entry.new_status.replace(/_/g, ' ')}
+                                                        </Badge>
+                                                    </div>
                                                 )}
-                                                {entry.changed_by && (
-                                                    <p className="text-[10px] text-slate-400 mt-0.5">by {entry.changed_by}</p>
+
+                                                {entry.comment && (
+                                                    <div className="relative pl-3 border-l-2 border-violet-100">
+                                                        <p className="text-xs text-slate-600 leading-relaxed italic">
+                                                            "{entry.comment}"
+                                                        </p>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>

@@ -31,14 +31,14 @@ const StyledSelect = ({ value, onChange, children, ring = "focus:ring-indigo-500
 
 /* ─── Section card with colored left accent ─── */
 const Section = ({ icon: Icon, headerBg, iconBg, iconColor, titleColor, title, borderColor, children }) => (
-  <div className={`bg-white rounded-2xl border-2 ${borderColor} shadow-sm overflow-hidden`}>
-    <div className={`flex items-center gap-3 px-6 py-4 border-b-2 ${borderColor} ${headerBg}`}>
-      <div className={`w-8 h-8 rounded-xl ${iconBg} flex items-center justify-center shadow-sm`}>
-        <Icon size={16} className={iconColor} />
+  <div className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden animate-fade-in-up`}>
+    <div className={`flex items-center gap-4 px-10 py-6 border-b border-slate-100 ${headerBg}/30 backdrop-blur-sm`}>
+      <div className={`w-10 h-10 rounded-2xl ${iconBg} flex items-center justify-center shadow-lg shadow-indigo-100`}>
+        <Icon size={20} className={iconColor} />
       </div>
-      <span className={`text-sm font-extrabold ${titleColor} uppercase tracking-widest`}>{title}</span>
+      <span className={`text-base font-black ${titleColor} uppercase tracking-[0.2em]`}>{title}</span>
     </div>
-    <div className="px-6 py-5">{children}</div>
+    <div className="px-10 py-8 bg-white/50">{children}</div>
   </div>
 );
 
@@ -114,7 +114,7 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
 
       {/* ── Page Header ── */}
       <div
-        className="relative rounded-2xl overflow-hidden px-8 py-7 flex items-center justify-between"
+        className="relative rounded-[2rem] overflow-hidden px-12 py-12 flex items-center justify-between shadow-2xl"
         style={{ background: "linear-gradient(135deg, #0f0c29 0%, #302b63 40%, #4f46e5 75%, #818cf8 100%)" }}
       >
         {/* Decorative blobs */}
@@ -239,9 +239,9 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
         </Section>
 
         {/* Action Footer */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-6 py-5 flex items-center justify-between gap-4">
-          <p className="text-xs text-slate-400 hidden sm:block">
-            Default password: <span className="font-mono font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg">password123</span>
+        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl px-10 py-8 flex items-center justify-between gap-4">
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest hidden sm:block">
+            Default credentials: <span className="font-mono font-bold text-violet-600 bg-violet-50 px-3 py-1 rounded-lg border border-violet-100 ml-2">password123</span>
           </p>
 
           <div className="flex items-center gap-3 ml-auto">

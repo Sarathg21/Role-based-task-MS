@@ -2,11 +2,16 @@ import { ResponsiveContainer } from 'recharts';
 
 const ChartPanel = ({ title, children, height = 300, compact = false }) => {
     return (
-        <div className={`bg-white rounded-xl shadow-sm border border-slate-100 ${compact ? 'p-4' : 'p-6'}`}>
-            <h3 className={`font-bold text-slate-800 ${compact ? 'text-base mb-3' : 'text-lg mb-6'}`}>{title}</h3>
-            <ResponsiveContainer width="100%" height={height} minHeight={height}>
-                {children}
-            </ResponsiveContainer>
+        <div className={`bg-white rounded-3xl shadow-lg border border-slate-200/50 mesh-gradient relative overflow-hidden card-gloss ${compact ? 'p-4' : 'p-6'}`}>
+            {/* Top glass accent */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent opacity-40" />
+
+            <h3 className={`font-black tracking-tight text-slate-800 uppercase ${compact ? 'text-xs mb-3' : 'text-sm mb-6'}`}>{title}</h3>
+            <div className="relative z-10">
+                <ResponsiveContainer width="100%" height={height} minHeight={height}>
+                    {children}
+                </ResponsiveContainer>
+            </div>
         </div>
     );
 };

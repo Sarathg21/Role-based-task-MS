@@ -13,6 +13,7 @@ import AssignTaskPage from './pages/AssignTaskPage';
 import AdminPage from './pages/AdminPage';
 import ReportsPage from './pages/ReportsPage';
 import ProfilePage from './pages/ProfilePage';
+import OrgTreePage from './pages/OrgTreePage';
 import AccessDeniedPage from './pages/AccessDeniedPage';
 
 function App() {
@@ -66,6 +67,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['Admin', 'CFO']}>
                 <AdminPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="org-tree"
+            element={
+              <ProtectedRoute allowedRoles={['Admin', 'CFO']}>
+                <OrgTreePage />
               </ProtectedRoute>
             }
           />

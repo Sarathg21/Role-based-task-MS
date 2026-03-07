@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import {
     X, User, Shield, Briefcase, Network,
-    ChevronDown, ChevronRight, PlusCircle, Check, XCircle, Loader2
+    ChevronDown, ChevronRight, PlusCircle, Check, XCircle, Loader2, ArrowLeft
 } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
-import api from "../../services/api";
+import { useAuth } from "../context/AuthContext";
+import api from "../services/api";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 // ─── Inline Add-Node Form ────────────────────────────────────────────────────
 const AddNodeForm = ({ parentRole, departments, onAdd, onCancel }) => {
@@ -115,7 +117,6 @@ const ROLE_ADD_BTN = {
 const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
     const { user } = useAuth();
     const children = node?.children || [];
-    // Handle both { user: {...}, children: [] } and { emp_id, name, role, children: [] } structures
     const u = node?.user || node || {};
     const [collapsed, setCollapsed] = useState(false);
     const [showAddForm, setShowAddForm] = useState(false);
@@ -141,7 +142,7 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
     return (
         <div className="flex flex-col items-center">
             {/* ── Node Card ── */}
-            <div className={`relative flex flex-col items-center p-3 rounded-lg border-2 shadow-sm hover:shadow-lg transition-all w-40 z-10 ${cardStyle}`}>
+            <div className={`relative flex flex-col items-center p-2 rounded-lg border-2 shadow-sm hover:shadow-lg transition-all w-32 z-10 ${cardStyle}`}>
                 {/* Collapse/Expand toggle */}
                 {hasChildren && (
                     <button
@@ -157,22 +158,22 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
                 )}
 
                 {/* Icon */}
-                <div className={`p-2 rounded-full mb-1.5 ${iconCls}`}>
-                    {(role === "ADMIN" || role === "CFO") && <Shield size={18} />}
-                    {role === "MANAGER" && <Briefcase size={18} />}
-                    {role === "EMPLOYEE" && <User size={18} />}
+                <div className={`p-1.5 rounded-full mb-1 ${iconCls}`}>
+                    {(role === "ADMIN" || role === "CFO") && <Shield size={14} />}
+                    {role === "MANAGER" && <Briefcase size={14} />}
+                    {role === "EMPLOYEE" && <User size={14} />}
                 </div>
 
                 {/* Name */}
-                <h3 className="font-bold text-slate-800 text-sm text-center leading-tight mb-1 truncate w-full px-2" title={name}>{name}</h3>
-                <span className="text-[10px] text-slate-400 font-mono mb-1">{emp_id}</span>
+                <h3 className="font-bold text-slate-800 text-[11px] text-center leading-tight mb-1 truncate w-full px-1" title={name}>{name}</h3>
+                <span className="text-[9px] text-slate-400 font-mono mb-1">{emp_id}</span>
 
                 {/* Role badge */}
-                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${badgeCls}`}>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold border ${badgeCls}`}>
                     {role}
                 </span>
                 {dept && (
-                    <span className="text-[10px] text-slate-500 mt-1 bg-white/70 px-2 py-0.5 rounded-md truncate max-w-full">
+                    <span className="text-[8px] text-slate-500 mt-1 bg-white/70 px-1.5 py-0.5 rounded-md truncate max-w-full">
                         {dept}
                     </span>
                 )}
@@ -181,9 +182,9 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
                 {canAddChild && (
                     <button
                         onClick={() => setShowAddForm(v => !v)}
-                        className={`mt-3 w-full flex items-center justify-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg border transition-colors ${addBtnCls}`}
+                        className={`mt-2 w-full flex items-center justify-center gap-1 text-[9px] font-semibold px-1 py-1 rounded-lg border transition-colors ${addBtnCls}`}
                     >
-                        <PlusCircle size={12} />
+                        <PlusCircle size={10} />
                         Add {role === "ADMIN" || role === "CFO" ? "Manager" : "Employee"}
                     </button>
                 )}
@@ -203,20 +204,24 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
             {hasChildren && !collapsed && (
                 <div className="flex flex-col items-center">
                     {/* Connector line down */}
-                    <div className="w-px h-8 bg-slate-300" />
+                    <div className="w-px h-6 bg-slate-300" />
 
                     <div className="relative flex justify-center">
                         {/* Horizontal bar across children */}
                         {children.length > 1 && (
-                            <div className="absolute top-0 left-[calc(50%-var(--half,0px))] w-[calc(100%-12rem)] h-px bg-slate-300"
-                                style={{ left: '6rem', width: `calc(100% - 12rem)` }}
+                            <div className="absolute top-0 h-px bg-slate-300"
+                                style={{
+                                    left: '4rem',
+                                    right: '4rem',
+                                    width: 'auto'
+                                }}
                             />
                         )}
                         <div className="flex gap-4 pt-0">
                             {children.map(child => (
                                 <div key={child.emp_id || child.user?.id || child.id || Math.random()} className="flex flex-col items-center relative">
                                     {/* Stub line up to horizontal bar */}
-                                    <div className="w-px h-8 bg-slate-300 absolute -top-8" />
+                                    <div className="w-px h-6 bg-slate-300 absolute -top-6" />
                                     <OrgNode
                                         node={child}
                                         departments={departments}
@@ -232,57 +237,72 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
     );
 };
 
-// ─── Modal Shell ─────────────────────────────────────────────────────────────
-const OrgTreeModal = ({ isOpen, onClose, onAddNode, users = [] }) => {
+// ─── Main Page Component ─────────────────────────────────────────────────────
+const OrgTreePage = () => {
+    const navigate = useNavigate();
+    const { user } = useAuth();
     const [treeData, setTreeData] = useState(null);
-    const [loading, setLoading] = useState(false);
     const [departments, setDepartments] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [totalEmployees, setTotalEmployees] = useState(0);
+    const [zoom, setZoom] = useState(0.85);
 
     const fetchTree = async () => {
         setLoading(true);
         try {
             const res = await api.get('/org/tree');
-            // Backend returns { root: { ... }, total_employees: X, ... } or { cfo: { ... } }
-            // Let's be compatible with both
             setTreeData(res.data);
 
             // Still need to fetch departments for the add form
             const deptRes = await api.get('/departments');
             setDepartments(deptRes.data);
+
+            // Fetch total count for footer
+            const empRes = await api.get('/employees');
+            setTotalEmployees(Array.isArray(empRes.data) ? empRes.data.length : 0);
         } catch (err) {
             console.error("Failed to build org tree", err);
+            toast.error("Failed to load organization hierarchy");
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        if (isOpen) {
-            fetchTree();
+    const handleAddNode = async (managerId, newEmpData) => {
+        try {
+            const payload = {
+                ...newEmpData,
+                manager_emp_id: managerId,
+                active: true
+            };
+            await api.post('/employees', payload);
+            toast.success(`${newEmpData.name} added successfully!`);
+            fetchTree(); // Refresh the tree
+        } catch (err) {
+            console.error("Failed to add employee via tree", err);
+            toast.error("Failed to add employee");
         }
-    }, [isOpen]);
+    };
 
-    if (!isOpen) return null;
+    useEffect(() => {
+        fetchTree();
+    }, []);
 
     const depts = departments?.length ? departments : ["Engineering", "Sales", "HR", "Administration"];
 
-    // Dynamically calculate counts if backend doesn't provide them accurately
+    // Dynamically calculate counts
     const getOrgStats = (node) => {
         if (!node) return { total: 0, managers: 0, employees: 0 };
-
         let stats = { total: 1, managers: 0, employees: 0 };
         const role = (node.user?.role || node.role || '').toUpperCase();
-
         if (role === 'MANAGER') stats.managers += 1;
         if (role === 'EMPLOYEE') stats.employees += 1;
-
         (node.children || []).forEach(child => {
             const childStats = getOrgStats(child);
             stats.total += childStats.total;
             stats.managers += childStats.managers;
             stats.employees += childStats.employees;
         });
-
         return stats;
     };
 
@@ -291,115 +311,147 @@ const OrgTreeModal = ({ isOpen, onClose, onAddNode, users = [] }) => {
 
     if (treeData && (treeData.root || treeData.cfo) && (!treeData.total_managers && !treeData.total_employees)) {
         const stats = getOrgStats(treeData.root || treeData.cfo);
-
-        // Add orphans to stats
         if (treeData.orphan_managers) stats.managers += treeData.orphan_managers.length;
         if (treeData.orphan_employees) stats.employees += treeData.orphan_employees.length;
-
         calculatedManagers = stats.managers;
         calculatedEmployees = stats.employees;
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-slate-50 rounded-xl shadow-2xl w-full max-w-6xl" style={{ maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-                {/* Header */}
-                <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center shadow-sm z-20">
+        <div className="space-y-6 h-[calc(100vh-120px)] flex flex-col">
+            {/* Header */}
+            <div className="flex justify-between items-start flex-wrap gap-3">
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/admin')}
+                        className="p-2 hover:bg-white rounded-xl text-slate-400 hover:text-slate-800 transition-all border border-transparent hover:border-slate-200 hover:shadow-sm"
+                        title="Back to Directory"
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
                             <Network size={22} className="text-violet-600" />
                             Organization Hierarchy
-                        </h2>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                            Click <strong>▶ / ▼</strong> to collapse/expand · Click <strong>+ Add</strong> on a node to add a branch
+                        </h1>
+                        <p className="text-sm text-slate-500 mt-0.5">
+                            Manage your team structure and branch relationships
                         </p>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500 hover:text-red-500"
-                    >
-                        <X size={22} />
-                    </button>
                 </div>
 
-                {/* Tree Canvas */}
-                <div className="flex-1 overflow-auto p-8 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px] bg-slate-50 flex justify-center">
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center h-full">
-                            <Loader2 size={32} className="text-violet-600 animate-spin mb-2" />
-                            <p className="text-sm text-slate-500 font-medium">Loading organization structure...</p>
+                <div className="flex gap-4 items-center bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="text-center">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Managers</p>
+                        <p className="text-sm font-extrabold text-slate-800 tabular-nums">{calculatedManagers}</p>
+                    </div>
+                    <div className="w-px h-8 bg-slate-100" />
+                    <div className="text-center">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Employees</p>
+                        <p className="text-sm font-extrabold text-slate-800 tabular-nums">{calculatedEmployees}</p>
+                    </div>
+                    <div className="w-px h-8 bg-slate-100" />
+                    <div className="text-center">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Total Staff</p>
+                        <p className="text-sm font-extrabold text-violet-600 tabular-nums">{totalEmployees}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Tree Canvas */}
+            <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-auto p-4 bg-[radial-gradient(#cbd5e1_0.5px,transparent_0.5px)] [background-size:20px_20px] relative flex justify-center min-h-0">
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center h-full">
+                        <Loader2 size={32} className="text-violet-600 animate-spin mb-2" />
+                        <p className="text-sm text-slate-500 font-medium">Building tree structure...</p>
+                    </div>
+                ) : (
+                    <div className="pb-12 pt-4 transition-transform duration-300 origin-top" style={{ transform: `scale(${zoom})` }}>
+                        {/* Root Node */}
+                        <div className="flex gap-16 justify-center">
+                            {(treeData?.root || treeData?.cfo) && (
+                                <OrgNode
+                                    key={(treeData.root || treeData.cfo).emp_id || (treeData.root || treeData.cfo).user?.id || 'root'}
+                                    node={treeData.root || treeData.cfo}
+                                    departments={depts}
+                                    onAddNode={handleAddNode}
+                                    isRoot
+                                />
+                            )}
                         </div>
-                    ) : (
-                        <div className="min-w-max pb-12 pt-4">
-                            {/* ── CFO Node (Root) ── */}
-                            <div className="flex gap-16 justify-center">
-                                {(treeData?.root || treeData?.cfo) && (
-                                    <OrgNode
-                                        key={(treeData.root || treeData.cfo).emp_id || (treeData.root || treeData.cfo).user?.id || 'root'}
-                                        node={treeData.root || treeData.cfo}
-                                        departments={depts}
-                                        onAddNode={onAddNode}
-                                        isRoot
-                                    />
-                                )}
+
+                        {/* Orphans */}
+                        {treeData?.orphan_managers?.length > 0 && (
+                            <div className="mt-16">
+                                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider text-center mb-6">Unlinked Departments</p>
+                                <div className="flex gap-12 justify-center flex-wrap">
+                                    {treeData.orphan_managers.map(node => (
+                                        <OrgNode
+                                            key={node.emp_id || node.user?.id || node.id || Math.random()}
+                                            node={node}
+                                            departments={depts}
+                                            onAddNode={handleAddNode}
+                                        />
+                                    ))}
+                                </div>
                             </div>
+                        )}
 
-                            {/* ── Orphan managers (not linked to any root) ── */}
-                            {treeData?.orphan_managers?.length > 0 && (
-                                <div className="mt-12">
-                                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider text-center mb-4">Unlinked Managers</p>
-                                    <div className="flex gap-8 justify-center flex-wrap">
-                                        {treeData.orphan_managers.map(node => (
-                                            <OrgNode
-                                                key={node.emp_id || node.user?.id || node.id || Math.random()}
-                                                node={node}
-                                                departments={depts}
-                                                onAddNode={onAddNode}
-                                            />
-                                        ))}
-                                    </div>
+                        {treeData?.orphan_employees?.length > 0 && (
+                            <div className="mt-16">
+                                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider text-center mb-6">Unassigned Staff</p>
+                                <div className="flex gap-8 justify-center flex-wrap">
+                                    {treeData.orphan_employees.map(node => (
+                                        <OrgNode
+                                            key={node.emp_id || node.user?.id || node.id || Math.random()}
+                                            node={node}
+                                            departments={depts}
+                                            onAddNode={handleAddNode}
+                                        />
+                                    ))}
                                 </div>
-                            )}
-
-                            {/* ── Orphan employees (no manager assigned) ── */}
-                            {treeData?.orphan_employees?.length > 0 && (
-                                <div className="mt-12">
-                                    <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider text-center mb-4">Unassigned Employees</p>
-                                    <div className="flex gap-4 justify-center flex-wrap">
-                                        {treeData.orphan_employees.map(node => (
-                                            <OrgNode
-                                                key={node.emp_id || node.user?.id || node.id || Math.random()}
-                                                node={node}
-                                                departments={depts}
-                                                onAddNode={onAddNode}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Footer Legend */}
-                <div className="p-3 bg-white border-t border-slate-200 flex justify-between items-center text-xs text-slate-600 shadow-[0_-2px_6px_rgba(0,0,0,0.06)]">
-                    <div className="flex gap-5 font-medium flex-wrap">
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-violet-500 ring-2 ring-violet-200 inline-block" /> CFO / Admin</span>
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500 ring-2 ring-blue-200 inline-block" /> Manager</span>
-                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-emerald-200 inline-block" /> Employee</span>
+                            </div>
+                        )}
                     </div>
-                    <div className="flex gap-4 items-center">
-                        <span className="text-slate-500">Managers: <strong className="text-slate-800">{calculatedManagers}</strong></span>
-                        <span className="text-slate-500">Employees: <strong className="text-slate-800">{calculatedEmployees}</strong></span>
-                        <div className="w-px h-4 bg-slate-200" />
-                        <span className="text-slate-400 font-semibold uppercase tracking-tighter">Total Staff: {users.length}</span>
+                )}
+            </div>
+
+            {/* Legend Footer */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center shadow-sm">
+                <div className="flex gap-6 items-center">
+                    <div className="flex items-center gap-4 border-r border-slate-100 pr-6 mr-2">
+                        <span className="text-[10px] font-black uppercase text-slate-400">Zoom</span>
+                        <input
+                            type="range"
+                            min="0.3"
+                            max="1.5"
+                            step="0.05"
+                            value={zoom}
+                            onChange={(e) => setZoom(parseFloat(e.target.value))}
+                            className="w-32 accent-violet-600 cursor-pointer h-1 bg-slate-100 rounded-full"
+                        />
+                        <span className="text-[10px] font-bold text-slate-600 w-8">{Math.round(zoom * 100)}%</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-violet-500 shadow-sm" />
+                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tighter">CFO / Admin</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-blue-500 shadow-sm" />
+                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tighter">Manager</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm" />
+                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tighter">Employee</span>
                     </div>
                 </div>
-
+                <div className="text-[10px] text-slate-400 italic">
+                    Use slider to zoom · Drag canvas to navigate · Click nodes to expand branches
+                </div>
             </div>
         </div>
     );
 };
 
-export default OrgTreeModal;
+export default OrgTreePage;
