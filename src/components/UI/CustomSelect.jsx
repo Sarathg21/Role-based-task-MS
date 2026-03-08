@@ -47,17 +47,17 @@ const CustomSelect = ({
             {isOpen && (
                 <div className="absolute z-[100] mt-2 w-full min-w-[160px] bg-white border border-slate-100 rounded-xl shadow-xl py-1 overflow-hidden animate-in fade-in zoom-in duration-100 origin-top">
                     <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                        {options.map((option) => (
+                        {options.map((option, idx) => (
                             <button
-                                key={option.value}
+                                key={`${option.value}-${idx}`}
                                 type="button"
                                 onClick={() => {
                                     onChange(option.value);
                                     setIsOpen(false);
                                 }}
                                 className={`w-full flex items-center justify-between px-4 py-2 text-sm transition-colors ${value === option.value
-                                        ? 'bg-violet-50 text-violet-700 font-semibold'
-                                        : 'text-slate-600 hover:bg-slate-50'
+                                    ? 'bg-violet-50 text-violet-700 font-semibold'
+                                    : 'text-slate-600 hover:bg-slate-50'
                                     }`}
                             >
                                 <span>{option.label}</span>

@@ -7,7 +7,8 @@ import Badge from '../UI/Badge';
 import ChartPanel from '../Charts/ChartPanel';
 import {
     TrendingUp, CheckCircle, Clock, AlertCircle,
-    ThumbsUp, Calendar, ArrowRight, ChevronRight, CalendarCheck, Loader2
+    ThumbsUp, Calendar, ArrowRight, ChevronRight, CalendarCheck, Loader2,
+    Search as SearchIcon
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -35,32 +36,6 @@ const STATUS_COLORS = {
     CANCELLED: '#94a3b8',  // Grey
 };
 
-const DEMO_TASKS = [
-    {
-        id: "DX-7721",
-        title: "Optimize Database Query Performance for Reporting Module",
-        status: "IN_PROGRESS",
-        severity: "CRITICAL",
-        due_date: "2024-03-10",
-        isDemo: true
-    },
-    {
-        id: "DX-8842",
-        title: "Draft Technical Specifications for Q3 API Integrations",
-        status: "NEW",
-        severity: "HIGH",
-        due_date: "2024-03-15",
-        isDemo: true
-    },
-    {
-        id: "DX-4431",
-        title: "Conduct Peer Code Review for Authentication Service",
-        status: "REWORK",
-        severity: "MEDIUM",
-        due_date: "2024-03-08",
-        isDemo: true
-    }
-];
 
 /* Small stat tile — premium version */
 const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
@@ -118,6 +93,7 @@ const EmployeeDashboard = () => {
     /* Date range state */
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
 
     const [dashboardData, setDashboardData] = useState(null);
     const [todayTasks, setTodayTasks] = useState([]);
@@ -175,10 +151,8 @@ const EmployeeDashboard = () => {
     const metrics = useMemo(() => {
         if (!dashboardData) return null;
 
-        // Detection for empty historical data
-        const isHistEmpty = (dashboardData.total_tasks || 0) === 0;
-
-        const currentScore = isHistEmpty ? 88.5 : (dashboardData.performance_index || 0);
+        // Use real values from dashboardData. If stats are 0, they should show as 0.
+        const currentScore = dashboardData.performance_index || 0;
 
         // Mock status distribution based on dashboard summary
         let statusDistribution = [
@@ -190,35 +164,57 @@ const EmployeeDashboard = () => {
             { name: 'Cancelled', value: dashboardData.cancelled_tasks || 0, color: STATUS_COLORS.CANCELLED },
         ].filter(d => d.value > 0);
 
-        // Fallback for visual charts if no distribution exists
-        if (statusDistribution.length === 0) {
-            statusDistribution = [
-                { name: 'Approved', value: 24, color: STATUS_COLORS.APPROVED },
-                { name: 'In Progress', value: 8, color: STATUS_COLORS.IN_PROGRESS },
-                { name: 'New', value: 4, color: STATUS_COLORS.NEW },
-            ];
-        }
-
         const performanceTrend = [
             { name: 'Target', score: 100, fill: '#f1f5f9' },
             { name: 'My Score', score: currentScore, fill: '#8b5cf6' },
-            { name: 'Dept Avg', score: isHistEmpty ? 82.3 : (dashboardData.dept_avg_score || Math.max(currentScore - 10, 0)), fill: '#10b981' },
+            { name: 'Dept Avg', score: dashboardData.dept_avg_score || 0, fill: '#10b981' },
         ];
+
 
         return {
             score: currentScore,
             stats: {
-                total: isHistEmpty ? 42 : (dashboardData.total_tasks || 0),
-                completedOrSub: isHistEmpty ? 32 : ((dashboardData.approved_tasks || 0) + (dashboardData.submitted_tasks || 0)),
-                approved: isHistEmpty ? 24 : (dashboardData.approved_tasks || 0),
-                pending: isHistEmpty ? 15 : (dashboardData.pending_tasks || 0),
-                overdue: isHistEmpty ? 2 : (dashboardData.overdue_tasks || 0),
+                total: dashboardData.total_tasks || 0,
+                completedOrSub: (dashboardData.approved_tasks || 0) + (dashboardData.submitted_tasks || 0),
+                approved: dashboardData.approved_tasks || 0,
+                pending: dashboardData.pending_tasks || 0,
+                overdue: dashboardData.overdue_tasks || 0,
                 dateRangeSub: 'Global Metrics',
             },
             performanceTrend,
             statusDistribution,
         };
     }, [dashboardData]);
+
+    const { score, stats, performanceTrend, statusDistribution } = metrics || {
+        score: 0,
+        stats: { total: 0, completedOrSub: 0, approved: 0, pending: 0, overdue: 0, dateRangeSub: '' },
+        performanceTrend: [],
+        statusDistribution: []
+    };
+
+    // Derive pending tasks list from todayTasks (non-terminal)
+    const filteredTodayTasks = useMemo(() => {
+        return todayTasks.filter(t => {
+            const isTerminal = TERMINAL.includes(t.status);
+            const matchesSearch = !searchTerm ||
+                t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                String(t.id).toLowerCase().includes(searchTerm.toLowerCase());
+
+            // Client-side date filter for the table as well
+            const taskDate = t.due_date || '';
+            const matchesFrom = !fromDate || taskDate >= fromDate;
+            const matchesTo = !toDate || taskDate <= toDate;
+
+            return !isTerminal && matchesSearch && matchesFrom && matchesTo;
+        });
+    }, [todayTasks, searchTerm, fromDate, toDate]);
+
+    const pendingTasks = filteredTodayTasks;
+
+    const dateLabel = new Date().toLocaleDateString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric'
+    });
 
     if (loading) {
         return (
@@ -230,21 +226,6 @@ const EmployeeDashboard = () => {
             </div>
         );
     }
-
-    const { score, stats, performanceTrend, statusDistribution } = metrics || {
-        score: 0,
-        stats: { total: 0, completedOrSub: 0, approved: 0, pending: 0, overdue: 0, dateRangeSub: '' },
-        performanceTrend: [],
-        statusDistribution: []
-    };
-
-    // Derive pending tasks list from todayTasks (non-terminal)
-    const rawPending = todayTasks.filter(t => !TERMINAL.includes(t.status));
-    const pendingTasks = rawPending.length > 0 ? rawPending : DEMO_TASKS;
-
-    const dateLabel = new Date().toLocaleDateString('en-US', {
-        weekday: 'long', month: 'long', day: 'numeric'
-    });
 
     return (
         <div className="space-y-4">
@@ -263,15 +244,27 @@ const EmployeeDashboard = () => {
                             <h2 className="text-3xl font-black text-white tracking-tight drop-shadow-2xl uppercase leading-none mb-1.5">
                                 My Dashboard
                             </h2>
-                            <p className="text-indigo-100 font-bold uppercase tracking-[0.4em] text-[9px] opacity-80">
+                            <p className="text-indigo-100 font-bold uppercase tracking-[0.4em] text-[9px] opacity-80 flex items-center gap-2">
                                 {dateLabel} · Welcome Back, {user?.name?.split(' ')[0] || 'User'}
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-center gap-3 w-full max-w-3xl">
+                    <div className="flex flex-col lg:flex-row items-center justify-center gap-4 w-full max-w-4xl">
+                        {/* Search Bar — Integrated Premium Style */}
+                        <div className="flex-1 w-full bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-3.5 shadow-inner flex items-center gap-3 group focus-within:bg-white/20 transition-all">
+                            <SearchIcon size={18} className="text-white/60 group-focus-within:text-white" />
+                            <input
+                                type="text"
+                                placeholder="Search tasks by title or ID..."
+                                className="bg-transparent border-none outline-none text-white text-sm font-bold placeholder:text-white/40 w-full"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+
                         {/* Compact Date Range Pill — Premium Executive Style */}
-                        <div className="flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-5 py-2.5 shadow-inner transition-all hover:bg-white/20">
+                        <div className="flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-2 shadow-inner transition-all hover:bg-white/20">
                             <div className="flex flex-col text-left mr-3">
                                 <span className="text-[7px] font-black text-indigo-200 uppercase tracking-widest leading-none mb-0.5">From</span>
                                 <div className="flex items-center gap-1.5">
@@ -279,14 +272,13 @@ const EmployeeDashboard = () => {
                                         type="date"
                                         value={fromDate}
                                         onChange={(e) => setFromDate(e.target.value)}
-                                        className="bg-transparent text-white text-[11px] font-black uppercase outline-none w-[100px] placeholder:text-white/40 cursor-pointer"
+                                        className="bg-transparent text-white text-[10px] font-black uppercase outline-none w-[90px] placeholder:text-white/40 cursor-pointer"
                                     />
-                                    <Calendar size={10} className="text-white/60" />
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 border border-white/10 mx-1">
-                                <ArrowRight size={12} className="text-white/60" />
+                            <div className="flex items-center justify-center w-5 h-5 rounded-full bg-white/10 border border-white/10 mx-1">
+                                <ArrowRight size={10} className="text-white/60" />
                             </div>
 
                             <div className="flex flex-col text-left ml-3">
@@ -296,30 +288,31 @@ const EmployeeDashboard = () => {
                                         type="date"
                                         value={toDate}
                                         onChange={(e) => setToDate(e.target.value)}
-                                        className="bg-transparent text-white text-[11px] font-black uppercase outline-none w-[100px] placeholder:text-white/40 cursor-pointer"
+                                        className="bg-transparent text-white text-[10px] font-black uppercase outline-none w-[90px] placeholder:text-white/40 cursor-pointer"
                                     />
-                                    <Calendar size={10} className="text-white/60" />
                                 </div>
                             </div>
                         </div>
 
-                        {/* All Tasks Nav Pill */}
-                        <button
-                            onClick={() => navigate('/tasks')}
-                            className="bg-white text-indigo-900 hover:scale-105 transition-transform px-6 py-3.5 rounded-full font-black text-[10px] uppercase tracking-widest shadow-2xl flex items-center gap-2 group"
-                        >
-                            Review My Tasks
-                            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                        </button>
-
-                        {(fromDate || toDate) && (
+                        <div className="flex gap-2">
+                            {/* All Tasks Nav Pill */}
                             <button
-                                onClick={() => { setFromDate(''); setToDate(''); }}
-                                className="bg-white/10 hover:bg-white/20 text-white text-[9px] font-black px-5 py-3.5 rounded-full border border-white/20 backdrop-blur-sm transition-all uppercase tracking-widest"
+                                onClick={() => navigate('/tasks')}
+                                className="bg-white text-indigo-900 hover:scale-105 transition-transform px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl flex items-center gap-2 group"
                             >
-                                ✕ Reset
+                                All Tasks
+                                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                             </button>
-                        )}
+
+                            {(fromDate || toDate || searchTerm) && (
+                                <button
+                                    onClick={() => { setFromDate(''); setToDate(''); setSearchTerm(''); }}
+                                    className="bg-white/10 hover:bg-white/20 text-white text-[9px] font-black px-4 py-3.5 rounded-2xl border border-white/20 backdrop-blur-sm transition-all uppercase tracking-widest"
+                                >
+                                    ✕ Reset
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -433,7 +426,9 @@ const EmployeeDashboard = () => {
 
                 {/* Chart B — Task Status Breakdown */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-                    <h3 className="text-sm font-bold text-slate-800 mb-0.5">Task Status Breakdown</h3>
+                    <div className="flex justify-between items-start mb-0.5">
+                        <h3 className="text-sm font-bold text-slate-800">Task Status Breakdown</h3>
+                    </div>
                     <p className="text-[10px] text-slate-400 mb-3">Your tasks by current status</p>
                     <ResponsiveContainer width="100%" height={180}>
                         <PieChart>
@@ -461,7 +456,9 @@ const EmployeeDashboard = () => {
             {/* ══ PENDING TASKS LIST ══ */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                    <h3 className="text-base font-semibold text-slate-800">Pending Tasks</h3>
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-base font-semibold text-slate-800">Pending Tasks</h3>
+                    </div>
                     <button
                         onClick={() => navigate('/tasks')}
                         className="flex items-center gap-1.5 text-sm font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 px-4 py-1.5 rounded-lg transition"

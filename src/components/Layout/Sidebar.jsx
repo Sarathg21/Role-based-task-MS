@@ -201,10 +201,10 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
                     className={`
                         flex items-center justify-center gap-2.5 w-full rounded-xl
                         text-xs font-semibold py-3 px-3
-                        text-slate-400 hover:text-rose-400
-                        hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20
-                        transition-all duration-200 active:scale-95
-                        mt-1
+                        text-white bg-rose-600/90
+                        hover:bg-rose-600 border border-rose-500/20
+                        transition-all duration-300 active:scale-95 shadow-lg shadow-rose-900/40
+                        mt-4
                     `}
                 >
                     <LogOut size={16} />

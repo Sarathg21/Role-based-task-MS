@@ -281,8 +281,8 @@ const ActionTaskTable = ({
                 <td className="p-4">
                   <div className="flex justify-end gap-1.5 flex-wrap items-center">
 
-                    {/* ── EMPLOYEE: Start / Submit / Restart ── */}
-                    {user.role === "Employee" && (
+                    {/* ── ASSIGNEE ACTIONS (Employee OR Manager in Personal View) ── */}
+                    {viewMode === "personal" && (
                       <>
                         {task.status === "NEW" && (
                           <button
@@ -311,8 +311,8 @@ const ActionTaskTable = ({
                       </>
                     )}
 
-                    {/* ── MANAGER: Approve / Rework / Reassign / Cancel ── */}
-                    {user.role === "Manager" && (
+                    {/* ── REVIEWER ACTIONS (Manager only, in Team View) ── */}
+                    {user.role === "Manager" && viewMode === "team" && (
                       <>
                         {task.status === "SUBMITTED" && (
                           <>
@@ -330,7 +330,7 @@ const ActionTaskTable = ({
                             </button>
                           </>
                         )}
-                        {!['APPROVED', 'CANCELLED'].includes(task.status) && task.department === user.department && (
+                        {!['APPROVED', 'CANCELLED'].includes(task.status) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onReassign(task); }}
                             className="btn-action btn-action-primary"
@@ -338,7 +338,7 @@ const ActionTaskTable = ({
                             ⇄ Reassign
                           </button>
                         )}
-                        {viewMode === "team" && !["APPROVED", "CANCELLED"].includes(task.status) && (
+                        {!["APPROVED", "CANCELLED"].includes(task.status) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onCancel(task.id); }}
                             className="btn-action btn-action-danger"
@@ -376,12 +376,16 @@ const TaskPage = () => {
     severity: "All",
     department: "All",
     search: "",
+    fromDate: "",
+    toDate: "",
+    employeeId: "All",
   });
   const role = (user.role || '').toUpperCase();
   const isCFO = role === 'CFO' || role === 'ADMIN';
   const isEmployee = role === 'EMPLOYEE';
+  const isManager = role === 'MANAGER';
   const [viewMode, setViewMode] = useState(
-    isCFO ? 'all' : (role === 'MANAGER' ? 'team' : 'personal')
+    isCFO ? 'all' : (isManager ? 'team' : 'personal')
   );
 
   const [reassignModalOpen, setReassignModalOpen] = useState(false);
@@ -396,8 +400,13 @@ const TaskPage = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const mode = params.get('mode');
+    const searchParam = params.get('search');
+
     if (mode === 'personal' || mode === 'team' || mode === 'all') {
       setViewMode(mode);
+    }
+    if (searchParam) {
+      setFilter(prev => ({ ...prev, search: searchParam }));
     }
   }, [location.search]);
 
@@ -436,7 +445,8 @@ const TaskPage = () => {
         assigneeName: t.assigned_to_name,
         assignerName: t.assigned_by_name,
         severity: (t.priority || t.severity || '').toUpperCase(),
-        department: t.department_name || t.department_id,
+        department_id: t.department_id,
+        department: t.department_name || t.department || '',
         assignee_role: t.assignee_role || t.role,
       }));
       setTasks(normalised);
@@ -465,14 +475,27 @@ const TaskPage = () => {
       const matchesStatus = filter.status === "All" ||
         (filter.status === "Overdue" ? isOverdue : task.status === filter.status);
 
-      const matchesPriority = filter.severity === "All" || task.severity === filter.severity;
+      const matchesPriority = filter.severity === "All" || String(task.severity).toUpperCase() === String(filter.severity).toUpperCase();
       const matchesDept = filter.department === "All" ||
         String(task.department_id) === String(filter.department) ||
-        String(task.department) === String(filter.department);
+        String(task.department).toLowerCase().includes(String(filter.department).toLowerCase());
 
-      return matchesSearch && matchesStatus && matchesPriority && matchesDept;
+      // Date filtering
+      const taskDate = task.assigned_date || task.created_at || '';
+      const matchesFrom = !filter.fromDate || taskDate >= filter.fromDate;
+      const matchesTo = !filter.toDate || taskDate <= filter.toDate;
+
+      // Employee filtering (for Managers in team view)
+      const matchesEmployee = filter.employeeId === "All" || String(task.employee_id) === String(filter.employeeId);
+
+      // Exclude Cancelled tasks by default unless explicitly searching for them
+      const isCancelled = task.status === 'CANCELLED';
+      const isExplicitlyLookingForCancelled = filter.status === 'CANCELLED';
+      const shouldExcludeCancelled = isCancelled && !isExplicitlyLookingForCancelled;
+
+      return matchesSearch && matchesStatus && matchesPriority && matchesDept && matchesFrom && matchesTo && matchesEmployee && !shouldExcludeCancelled;
     });
-  }, [tasks, filter]);
+  }, [tasks, filter, isCFO]);
 
   const handleStatusChange = async (taskId, action, comment = "") => {
     if (!taskId && taskId !== 0) return;
@@ -661,8 +684,8 @@ const TaskPage = () => {
 
       {/* Filters & Search — Premium Spacing */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-row flex-wrap items-center gap-4">
-        <div className="relative flex-1 min-w-0 flex gap-3" style={{ minWidth: '400px' }}>
-          <div className="relative flex-1">
+        <div className="relative flex-1 min-w-0 flex flex-wrap gap-3">
+          <div className="relative flex-1" style={{ minWidth: '450px' }}>
             <Search
               size={18}
               className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
@@ -675,11 +698,34 @@ const TaskPage = () => {
               onChange={(e) => setFilter({ ...filter, search: e.target.value })}
             />
           </div>
+
+          <div className="flex items-center gap-2 bg-slate-50 px-4 py-1.5 rounded-xl border border-slate-200">
+            <div className="flex flex-col">
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">From</span>
+              <input
+                type="date"
+                className="bg-transparent text-xs font-bold outline-none cursor-pointer"
+                value={filter.fromDate}
+                onChange={(e) => setFilter({ ...filter, fromDate: e.target.value })}
+              />
+            </div>
+            <div className="w-px h-6 bg-slate-200 mx-1" />
+            <div className="flex flex-col">
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">To</span>
+              <input
+                type="date"
+                className="bg-transparent text-xs font-bold outline-none cursor-pointer"
+                value={filter.toDate}
+                onChange={(e) => setFilter({ ...filter, toDate: e.target.value })}
+              />
+            </div>
+          </div>
+
           <button
             onClick={() => fetchTasks()}
-            className="px-8 py-3 bg-violet-600 text-white rounded-xl text-sm font-black hover:bg-violet-700 transition active:scale-95 shadow-[0_10px_20px_-5px_rgba(139,92,246,0.3)] hover:shadow-[0_15px_30px_-5px_rgba(139,92,246,0.4)] whitespace-nowrap"
+            className="px-6 py-3 bg-violet-600 text-white rounded-xl text-xs font-black hover:bg-violet-700 transition active:scale-95 shadow-md whitespace-nowrap"
           >
-            Search
+            Sync Data
           </button>
         </div>
 
@@ -711,18 +757,56 @@ const TaskPage = () => {
           style={{ minWidth: '140px' }}
         />
 
-        {/* Departments filter — hidden for Employee */}
-        {!isEmployee && (
+        {/* Departments filter — only for CFO/Admin */}
+        {isCFO && (
+          <div className="flex items-center gap-2">
+            <CustomSelect
+              options={[
+                { value: 'All', label: 'Dept: All' },
+                ...departments.map((dept, idx) => {
+                  const val = typeof dept === 'string' ? dept : (dept.department_id || dept.id || dept.name || `dept-${idx}`);
+                  const label = typeof dept === 'string' ? dept : (dept.name || dept.department_id || dept.id || 'Unknown');
+                  return { value: String(val), label: String(label) };
+                })
+              ]}
+              value={filter.department}
+              onChange={(val) => setFilter({ ...filter, department: val })}
+              style={{ minWidth: '160px' }}
+            />
+
+            {/* Date Filters for CFO */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">From</span>
+              <input
+                type="date"
+                value={filter.fromDate}
+                onChange={(e) => setFilter({ ...filter, fromDate: e.target.value })}
+                className="text-[11px] font-bold text-slate-600 outline-none border-none bg-transparent cursor-pointer w-24"
+              />
+              <div className="w-px h-4 bg-slate-100 mx-1" />
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">To</span>
+              <input
+                type="date"
+                value={filter.toDate}
+                onChange={(e) => setFilter({ ...filter, toDate: e.target.value })}
+                className="text-[11px] font-bold text-slate-600 outline-none border-none bg-transparent cursor-pointer w-24"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Employee Filter — for Managers in Team view */}
+        {isManager && viewMode === 'team' && (
           <CustomSelect
             options={[
-              { value: 'All', label: 'Dept: All' },
-              ...departments.map(dept => ({
-                value: typeof dept === 'string' ? dept : (dept.id || dept),
-                label: typeof dept === 'string' ? dept : (dept.name || dept)
+              { value: 'All', label: 'Staff: All' },
+              ...users.filter(u => u.department === user.department).map(u => ({
+                value: String(u.emp_id || u.id),
+                label: u.name
               }))
             ]}
-            value={filter.department}
-            onChange={(val) => setFilter({ ...filter, department: val })}
+            value={filter.employeeId}
+            onChange={(val) => setFilter({ ...filter, employeeId: val })}
             style={{ minWidth: '160px' }}
           />
         )}

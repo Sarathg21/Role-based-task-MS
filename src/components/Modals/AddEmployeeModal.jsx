@@ -204,7 +204,7 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
                 options={departments.map((d, idx) => {
                   const val = typeof d === 'string' ? d : (d.id || d.department_id || `dept-${idx}`);
                   const label = typeof d === 'string' ? d : (d.name || d.department_id || 'Unknown');
-                  return { value: val, label };
+                  return { value: String(val), label: String(label) };
                 })}
                 value={formData.department_id}
                 onChange={(val) => setFormData(p => ({ ...p, department_id: val }))}

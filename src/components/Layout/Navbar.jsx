@@ -15,14 +15,22 @@ const Navbar = () => {
     const notifRef = useRef(null);
 
     const fetchNotifications = async () => {
+        if (!user) return;
         try {
             const res = await api.get('/notifications');
-            // Backend might return { notifications: [...] } or direct array
-            const data = Array.isArray(res.data) ? res.data : (res.data?.notifications || []);
+            // Backend might return { notifications: [...] }, { data: [...] } or direct array
+            let data = [];
+            if (Array.isArray(res.data)) {
+                data = res.data;
+            } else if (res.data?.notifications && Array.isArray(res.data.notifications)) {
+                data = res.data.notifications;
+            } else if (res.data?.data && Array.isArray(res.data.data)) {
+                data = res.data.data;
+            }
             setNotifications(data);
         } catch (err) {
             console.error("Failed to fetch notifications", err);
-            setNotifications([]);
+            // Don't clear existing notifications on temporary network failure
         }
     };
 
@@ -38,16 +46,25 @@ const Navbar = () => {
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
+
+        // Also fetch on window focus to be responsive
+        window.addEventListener('focus', fetchNotifications);
+
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('focus', fetchNotifications);
             clearInterval(pollInterval);
         };
-    }, []);
+    }, [user]);
 
     const markAsRead = async (id) => {
         try {
             await api.post(`/notifications/${id}/read`);
-            setNotifications(prev => prev.map(n => (n.id === id || n.notification_id === id) ? { ...n, is_read: true, read: true } : n));
+            setNotifications(prev => prev.map(n => {
+                const nId = String(n.id || n.notification_id || '');
+                const targetId = String(id);
+                return nId === targetId ? { ...n, is_read: true, read: true } : n;
+            }));
         } catch (err) {
             console.error("Failed to mark notification as read", err);
         }
@@ -66,10 +83,18 @@ const Navbar = () => {
     const safeNotifications = Array.isArray(notifications) ? notifications : [];
     const unreadCount = safeNotifications.filter(n => !(n.is_read || n.read)).length;
 
+    const [searchTerm, setSearchTerm] = useState('');
+    const handleSearch = (e) => {
+        if (e.key === 'Enter' && searchTerm.trim()) {
+            navigate(`/tasks?search=${encodeURIComponent(searchTerm.trim())}`);
+            setSearchTerm('');
+        }
+    };
+
     return (
         <header className="navbar">
-            <div className="flex-1 max-w-sm">
-                <div className="flex items-center gap-4 px-6 py-3.5 rounded-2xl border border-slate-200/60 transition-all bg-slate-50/50 hover:bg-slate-100/50 hover:border-slate-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-500/10 focus-within:border-violet-400/50 group shadow-inner">
+            <div className="flex-1 max-w-xl transition-all duration-300 group">
+                <div className="flex items-center gap-4 px-6 py-4 rounded-2xl border border-slate-200 transition-all bg-slate-100/40 hover:bg-slate-100/80 hover:border-slate-300 focus-within:bg-white focus-within:ring-8 focus-within:ring-violet-500/5 focus-within:border-violet-400 group shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]">
                     <Search
                         className="text-slate-400 group-focus-within:text-violet-500 transition-colors shrink-0"
                         size={20}
@@ -79,6 +104,9 @@ const Navbar = () => {
                         type="text"
                         placeholder="Search for tasks, analytics or staff..."
                         className="w-full bg-transparent border-none focus:outline-none text-sm font-semibold placeholder:text-slate-400"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyDown={handleSearch}
                     />
                 </div>
             </div>
@@ -86,7 +114,11 @@ const Navbar = () => {
             <div className="flex items-center gap-4 shrink-0">
                 <div className="relative" ref={notifRef}>
                     <button
-                        onClick={() => setShowNotifications(!showNotifications)}
+                        onClick={() => {
+                            const newState = !showNotifications;
+                            setShowNotifications(newState);
+                            if (newState) fetchNotifications(); // Refresh on open
+                        }}
                         className={`relative p-2.5 rounded-xl transition-all duration-200 ${showNotifications
                             ? 'bg-violet-100 text-violet-600'
                             : 'text-slate-500 hover:text-violet-600 hover:bg-violet-50'

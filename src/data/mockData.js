@@ -319,7 +319,7 @@ export const TASKS = [
         managerId: 'MGR001',
         assignedBy: 'MGR001',
         department: 'Engineering',
-        severity: 'Critical',
+        severity: 'High',
         status: 'APPROVED',
         reworkCount: 0,
         assignedDate: '2023-10-25',

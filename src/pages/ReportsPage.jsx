@@ -6,15 +6,19 @@ import ChartPanel from '../components/Charts/ChartPanel';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Download, FileSpreadsheet, TrendingUp, TrendingDown } from 'lucide-react';
+import { Download, FileSpreadsheet, TrendingUp, TrendingDown, Calendar, ArrowRight } from 'lucide-react';
 
 const ReportsPage = () => {
     const { user } = useAuth();
     const [filters, setFilters] = useState({
         employeeId: '',
-        month: '',
-        year: new Date().getFullYear().toString()
+        departmentId: '',
+        fromDate: '',
+        toDate: ''
     });
+
+    const [availableDepartments, setAvailableDepartments] = useState([]);
+    const [availableEmployees, setAvailableEmployees] = useState([]);
 
     const [reportData, setReportData] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -30,11 +34,14 @@ const ReportsPage = () => {
                 ? '/dashboard/cfo'
                 : '/manager/reports';
 
-            // Pass filters as query params
+            let start_date = filters.fromDate;
+            let end_date = filters.toDate;
+
             const params = {
-                month: filters.month,
-                year: filters.year,
-                employee_id: filters.employeeId
+                start_date,
+                end_date,
+                employee_id: filters.employeeId,
+                department_id: filters.departmentId
             };
 
             const response = await api.get(endpoint, { params });
@@ -52,6 +59,22 @@ const ReportsPage = () => {
     };
 
     useEffect(() => {
+        const fetchMeta = async () => {
+            try {
+                const [dRes, eRes] = await Promise.all([
+                    api.get('/departments'),
+                    api.get('/employees')
+                ]);
+                setAvailableDepartments(Array.isArray(dRes.data) ? dRes.data : []);
+                setAvailableEmployees(Array.isArray(eRes.data) ? eRes.data : []);
+            } catch (err) {
+                console.error("Failed to fetch report metadata", err);
+            }
+        };
+        fetchMeta();
+    }, []);
+
+    useEffect(() => {
         fetchReportData();
     }, [filters]);
 
@@ -62,25 +85,15 @@ const ReportsPage = () => {
             workloadData: [], empWorkloadData: [], empPerformanceData: []
         };
 
-        // Demo Fallbacks to ensure page looks premium even with no DB data
-        const DEMO_DEPTS = [
-            { department_id: 'Finance', total_tasks: 12, approved_tasks: 8, pending_tasks: 4, avg_reworks: 0.5 },
-            { department_id: 'Operations', total_tasks: 9, approved_tasks: 7, pending_tasks: 2, avg_reworks: 1.2 },
-            { department_id: 'HR', total_tasks: 7, approved_tasks: 6, pending_tasks: 1, avg_reworks: 0.2 },
-            { department_id: 'Marketing', total_tasks: 15, approved_tasks: 10, pending_tasks: 5, avg_reworks: 0.8 },
-        ];
-        const DEMO_EMPS = [
-            { emp_id: 'E101', name: 'Alice Johnson', role: 'Executive', department: 'Finance', tasks_assigned: 10, tasks_completed: 9, avg_reworks: 0.1 },
-            { emp_id: 'E102', name: 'Bob Smith', role: 'Associate', department: 'Operations', tasks_assigned: 12, tasks_completed: 8, avg_reworks: 1.5 },
-            { emp_id: 'E103', name: 'Charlie Davis', role: 'Lead', department: 'Tech', tasks_assigned: 8, tasks_completed: 8, avg_reworks: 0.0 },
-        ];
 
         const role = (user?.role || '').toUpperCase();
         const isCFO = (role === 'CFO' || role === 'ADMIN');
 
-        // Use real data if available, else fall back to demo
+        // Use real data if available
         const hasData = Array.isArray(reportData) && reportData.length > 0;
-        const arr = hasData ? reportData : (isCFO ? DEMO_DEPTS : DEMO_EMPS);
+        const arr = hasData ? reportData : [];
+
+        if (!hasData) return empty;
 
         // Determine shape by checking first element
         const isDeptShape = arr[0] && ('department_id' in arr[0]);
@@ -135,8 +148,8 @@ const ReportsPage = () => {
     const downloadFile = async (format) => {
         try {
             const params = new URLSearchParams({
-                from_date: filters.year + '-01-01',
-                to_date: filters.year + '-12-31'
+                from_date: filters.fromDate || '',
+                to_date: filters.toDate || ''
             });
             if (filters.department_id) params.append('department_id', filters.department_id);
             if (filters.employeeId) params.append('employee_id', filters.employeeId);
@@ -157,7 +170,7 @@ const ReportsPage = () => {
             const blobUrl = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = blobUrl;
-            a.download = `performance_report_${filters.year}.${format}`;
+            a.download = `performance_report_${filters.fromDate || 'all'}_to_${filters.toDate || 'now'}.${format}`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -216,31 +229,76 @@ const ReportsPage = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-center gap-4 w-full max-w-2xl">
-                        {/* Summary Pill */}
-                        <div className="flex items-center bg-white/5 backdrop-blur-md rounded-2xl p-1.5 border border-white/10 shadow-inner flex-1 min-w-[200px] text-white">
-                            <div className="flex-1 flex flex-col px-4 py-1 text-center">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</span>
-                                <span className="text-sm font-black flex items-center justify-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Metrics
-                                </span>
-                            </div>
-                        </div>
+                    <div className="flex flex-wrap items-center justify-center gap-4 w-full max-w-5xl">
+                        {/* Global Filters Group - Premium Glass */}
+                        <div className="flex flex-wrap items-center gap-3 bg-white/5 backdrop-blur-xl p-3 rounded-[2rem] border border-white/10 shadow-2xl flex-1 justify-center">
 
-                        {/* Export Actions */}
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={handleDownloadPDF}
-                                className="bg-white text-slate-900 hover:bg-slate-100 hover:scale-[1.03] active:scale-[0.97] transition-all px-6 py-4 rounded-2xl font-black text-sm shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] flex items-center gap-2 whitespace-nowrap"
+                            {(user?.role === 'CFO' || user?.role === 'ADMIN') && (
+                                <select
+                                    className="pl-4 pr-10 py-3 bg-white/10 text-white border border-white/20 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-white/10 appearance-none cursor-pointer hover:bg-white/20 transition-all min-w-[160px]"
+                                    value={filters.departmentId}
+                                    onChange={(e) => setFilters({ ...filters, departmentId: e.target.value })}
+                                    style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'white\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1rem' }}
+                                >
+                                    <option value="" className="text-slate-900">All Departments</option>
+                                    {availableDepartments.map((d, idx) => {
+                                        const val = typeof d === 'string' ? d : (d.department_id || d.id);
+                                        const label = typeof d === 'string' ? d : (d.name || d.department_id);
+                                        return <option key={`${val}-${idx}`} value={val} className="text-slate-900">{label}</option>
+                                    })}
+                                </select>
+                            )}
+
+                            <select
+                                className="pl-4 pr-10 py-3 bg-white/10 text-white border border-white/20 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-white/10 appearance-none cursor-pointer hover:bg-white/20 transition-all min-w-[160px]"
+                                value={filters.employeeId}
+                                onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
+                                style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'white\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1rem' }}
                             >
-                                <Download size={16} /> Export PDF
-                            </button>
-                            <button
-                                onClick={handleDownloadExcel}
-                                className="bg-emerald-500 text-white hover:bg-emerald-600 hover:scale-[1.03] active:scale-[0.97] transition-all px-6 py-4 rounded-2xl font-black text-sm shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] flex items-center gap-2 whitespace-nowrap"
-                            >
-                                <FileSpreadsheet size={16} /> Export Excel
-                            </button>
+                                <option value="" className="text-slate-900">All Personnel</option>
+                                {availableEmployees.map((u, idx) => (
+                                    <option key={`${u.emp_id || u.id || idx}-${idx}`} value={u.emp_id || u.id} className="text-slate-900">{u.name}</option>
+                                ))}
+                            </select>
+
+                            {/* Date Picker Range */}
+                            <div className="flex items-center gap-3 bg-white/10 px-5 py-2.5 rounded-2xl border border-white/20 shadow-inner">
+                                <div className="flex flex-col">
+                                    <span className="text-[7px] font-black text-indigo-200 uppercase tracking-widest leading-none mb-1">From</span>
+                                    <input
+                                        type="date"
+                                        className="bg-transparent text-[11px] font-bold outline-none cursor-pointer text-white color-scheme-dark"
+                                        value={filters.fromDate}
+                                        onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
+                                    />
+                                </div>
+                                <ArrowRight size={10} className="text-white/30" />
+                                <div className="flex flex-col">
+                                    <span className="text-[7px] font-black text-indigo-200 uppercase tracking-widest leading-none mb-1">To</span>
+                                    <input
+                                        type="date"
+                                        className="bg-transparent text-[11px] font-bold outline-none cursor-pointer text-white color-scheme-dark"
+                                        value={filters.toDate}
+                                        onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Export Actions */}
+                            <div className="flex items-center gap-2 ml-2">
+                                <button
+                                    onClick={handleDownloadPDF}
+                                    className="bg-white text-slate-900 hover:bg-slate-100 transition-all px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-2"
+                                >
+                                    <Download size={14} /> PDF
+                                </button>
+                                <button
+                                    onClick={handleDownloadExcel}
+                                    className="bg-emerald-500 text-white hover:bg-emerald-600 transition-all px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-2"
+                                >
+                                    <FileSpreadsheet size={14} /> CSV
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -296,8 +354,8 @@ const ReportsPage = () => {
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                {workloadData.map(d => (
-                                    <div key={d.name} className="flex flex-col gap-1 group/item cursor-default">
+                                {workloadData.map((d, idx) => (
+                                    <div key={`${d.name}-${idx}`} className="flex flex-col gap-1 group/item cursor-default">
                                         <div className="flex items-center gap-2">
                                             <div className="w-2 h-2 rounded-full bg-violet-500 group-hover/item:scale-125 transition-transform" />
                                             <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight truncate">{d.name}</span>
@@ -382,53 +440,16 @@ const ReportsPage = () => {
                             <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest mt-0.5">Filter and download metrics</p>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 flex-1 lg:flex-none">
-                                <select
-                                    className="pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-violet-500/10 focus:border-violet-400 bg-white hover:border-slate-300 transition-all min-w-[130px] appearance-none cursor-pointer"
-                                    value={filters.employeeId}
-                                    onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
-                                >
-                                    <option value="">All Employees</option>
-                                    {Array.isArray(reportData) && !('department_id' in (reportData[0] || {})) && reportData.map(u => (
-                                        <option key={u.emp_id || u.id} value={u.emp_id || u.id}>{u.name}</option>
-                                    ))}
-                                </select>
-
-                                <select
-                                    className="pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-violet-500/10 focus:border-violet-400 bg-white hover:border-slate-300 transition-all min-w-[110px] appearance-none cursor-pointer"
-                                    value={filters.month}
-                                    onChange={(e) => setFilters({ ...filters, month: e.target.value })}
-                                >
-                                    <option value="">All Months</option>
-                                    {Array.from({ length: 12 }, (_, i) => (
-                                        <option key={i} value={String(i + 1)}>{new Date(0, i).toLocaleString('default', { month: 'long' })}</option>
-                                    ))}
-                                </select>
-
-                                <select
-                                    className="pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-violet-500/10 focus:border-violet-400 bg-white hover:border-slate-300 transition-all min-w-[90px] appearance-none cursor-pointer"
-                                    value={filters.year}
-                                    onChange={(e) => setFilters({ ...filters, year: e.target.value })}
-                                >
-                                    <option value="2024">2024</option>
-                                    <option value="2025">2025</option>
-                                    <option value="2026">2026</option>
-                                </select>
-                            </div>
-
-                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 flex-1 lg:flex-none">
+                            <div className="flex items-center gap-3">
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    Filters active in Global Analytics Header
+                                </div>
                                 <button
-                                    onClick={handleDownloadPDF}
-                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all active:scale-95 shadow-sm hover:shadow-md"
+                                    onClick={() => setFilters({ employeeId: '', departmentId: '', fromDate: '', toDate: '' })}
+                                    className="text-[10px] font-black text-violet-600 bg-violet-50 px-3 py-1.5 rounded-lg hover:bg-violet-100 transition-colors"
                                 >
-                                    <Download size={14} /> Export PDF
-                                </button>
-                                <button
-                                    onClick={handleDownloadExcel}
-                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-all active:scale-95"
-                                >
-                                    <FileSpreadsheet size={14} /> Export CSV
+                                    RESET ALL
                                 </button>
                             </div>
                         </div>
@@ -449,8 +470,8 @@ const ReportsPage = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                             {performanceData.length > 0 ? (
-                                performanceData.map((row) => (
-                                    <tr key={row.id} className="hover:bg-slate-50/80 transition-all border-b border-slate-50 last:border-0 group">
+                                performanceData.map((row, idx) => (
+                                    <tr key={`${row.id}-${idx}`} className="hover:bg-slate-50/80 transition-all border-b border-slate-50 last:border-0 group">
                                         <td className="px-4 py-3">
                                             <div className="font-bold text-slate-800 group-hover:text-violet-600 transition-colors text-xs">{row.name}</div>
                                             <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{row.department}</div>
@@ -507,7 +528,7 @@ const ReportsPage = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                             {topList.length > 0 ? topList.map((emp, i) => (
-                                <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors">
+                                <tr key={`${emp.id}-${i}`} className="hover:bg-slate-50/50 transition-colors">
                                     <td className="px-4 py-2">
                                         <div className={`w-6 h-6 rounded flex items-center justify-center font-bold text-[10px] ${i === 0 ? 'bg-amber-100 text-amber-600' :
                                             i === 1 ? 'bg-slate-100 text-slate-500' :

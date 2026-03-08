@@ -10,7 +10,7 @@ import {
 } from 'recharts';
 import {
     TrendingUp, TrendingDown, Users, CheckSquare, AlertTriangle, ArrowRight,
-    BarChart2, Building2, Star, CalendarCheck, Calendar, Loader2, Plus
+    BarChart2, Building2, Star, CalendarCheck, Calendar, Loader2, Plus, CheckCircle
 } from 'lucide-react';
 
 /* ─── Helpers ──────────────────────────────────────────────────── */
@@ -32,10 +32,14 @@ const CFODashboard = () => {
 
     const fetchDashboardData = async () => {
         setLoading(true);
+        const params = {};
+        if (fromDate) params.start_date = fromDate;
+        if (toDate) params.end_date = toDate;
+
         try {
             const [dataRes, todayRes, deptsRes] = await Promise.all([
-                api.get('/dashboard/cfo').catch(e => ({ data: {} })),
-                api.get('/dashboard/cfo/today').catch(e => ({ data: [] })),
+                api.get('/dashboard/cfo', { params }).catch(e => ({ data: {} })),
+                api.get('/dashboard/cfo/today', { params }).catch(e => ({ data: [] })),
                 api.get('/departments').catch(e => ({ data: [] }))
             ]);
 
@@ -52,7 +56,7 @@ const CFODashboard = () => {
 
     useEffect(() => {
         fetchDashboardData();
-    }, []);
+    }, [fromDate, toDate]);
 
     const metrics = useMemo(() => {
         if (!dashboardData) return null;
@@ -104,25 +108,6 @@ const CFODashboard = () => {
         };
     }, [dashboardData]);
 
-    const DEMO_WORKLOAD = [
-        { name: 'Finance', Completed: 8, Pending: 4 },
-        { name: 'Operations', Completed: 5, Pending: 4 },
-        { name: 'HR', Completed: 6, Pending: 1 },
-        { name: 'Marketing', Completed: 10, Pending: 5 },
-    ];
-    const DEMO_ORG_PIE = [
-        { name: 'Approved', value: 29, fill: '#10b981' },
-        { name: 'Pending', value: 14, fill: '#f59e0b' },
-        { name: 'In Progress', value: 8, fill: '#8b5cf6' },
-        { name: 'Rework', value: 3, fill: '#ef4444' },
-    ];
-    const DEMO_PENDING_TASKS = [
-        { task_id: 'TSK-2092', title: 'Q3 Financial Audit Review', department: 'Finance', status: 'SUBMITTED' },
-        { task_id: 'TSK-2105', title: 'Procurement Strategy Update', department: 'Operations', status: 'IN_PROGRESS' },
-        { task_id: 'TSK-2118', title: 'Annual Tax Filing Prep', department: 'Finance', status: 'NEW' },
-        { task_id: 'TSK-2124', title: 'Quarterly Budget Allocation', department: 'Management', status: 'SUBMITTED' },
-        { task_id: 'TSK-2131', title: 'Compliance Policy Refresh', department: 'Legal', status: 'REWORK' },
-    ];
 
     if (loading) {
         return (
@@ -135,9 +120,9 @@ const CFODashboard = () => {
 
     const { workloadData, orgStatusData, globalStats } = metrics || {};
 
-    const finalWorkload = (workloadData && workloadData.some(d => (d.Completed + d.Pending) > 0)) ? workloadData : DEMO_WORKLOAD;
-    const finalOrgPie = (orgStatusData && orgStatusData.length > 0) ? orgStatusData : DEMO_ORG_PIE;
-    const finalPendingTasks = todayOrgTasks.length > 0 ? todayOrgTasks : DEMO_PENDING_TASKS;
+    const finalWorkload = workloadData || [];
+    const finalOrgPie = orgStatusData || [];
+    const finalPendingTasks = todayOrgTasks || [];
 
     return (
         <div className="space-y-3">
@@ -146,24 +131,24 @@ const CFODashboard = () => {
                 <div className="absolute -top-12 -right-12 w-64 h-64 bg-violet-400/20 rounded-full blur-[60px] animate-blob" />
                 <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-emerald-400/20 rounded-full blur-[60px] animate-blob [animation-delay:2s]" />
 
-                <div className="relative z-10 px-6 py-4 flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-white/10 backdrop-blur-xl p-2.5 rounded-2xl shadow-lg border border-white/20 animate-float card-gloss">
-                            <CalendarCheck size={24} className="text-white drop-shadow-glow" />
+                <div className="relative z-10 px-10 py-10 flex flex-col lg:flex-row items-center justify-between gap-8">
+                    <div className="flex items-center gap-6">
+                        <div className="bg-white/10 backdrop-blur-xl p-4 rounded-[1.5rem] shadow-lg border border-white/20 animate-float card-gloss">
+                            <CalendarCheck size={32} className="text-white drop-shadow-glow" />
                         </div>
                         <div className="text-left">
-                            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight drop-shadow-lg uppercase leading-none">
-                                CFO Executive View
+                            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tighter drop-shadow-lg uppercase leading-none">
+                                CFO Executive <span className="text-indigo-200">View</span>
                             </h2>
-                            <p className="text-indigo-100 font-bold uppercase tracking-[0.2em] text-[10px] sm:text-[11px] mt-0.5 opacity-90">
+                            <p className="text-indigo-100 font-bold uppercase tracking-[0.4em] text-[10px] sm:text-[11px] mt-2 opacity-80">
                                 {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap items-center justify-center lg:justify-end gap-4">
                         {/* Enlarged Date Range Pill */}
-                        <div className="flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-6 py-2.5 shadow-inner transition-all hover:bg-white/20">
+                        <div className="flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-8 py-3.5 shadow-inner transition-all hover:bg-white/20">
                             <div className="flex items-center gap-3">
                                 <input
                                     type="date"
@@ -173,7 +158,7 @@ const CFODashboard = () => {
                                 />
                                 <Calendar size={14} className="text-white/60" />
                             </div>
-                            <ArrowRight size={14} className="mx-4 text-white/40" />
+                            <ArrowRight size={14} className="mx-6 text-white/40" />
                             <div className="flex items-center gap-3">
                                 <input
                                     type="date"
@@ -185,22 +170,22 @@ const CFODashboard = () => {
                             </div>
                         </div>
 
-                        {/* All Tasks Pill */}
-                        <button
-                            onClick={() => navigate('/tasks')}
-                            className="bg-white text-indigo-900 hover:bg-indigo-50 transition-all duration-300 px-6 py-2 rounded-full font-black text-[11px] sm:text-xs uppercase tracking-wider shadow-xl flex items-center gap-2 group"
-                        >
-                            <span>All Tasks</span>
-                            <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => navigate('/tasks')}
+                                className="bg-white text-indigo-900 hover:bg-indigo-50 transition-all duration-300 px-8 py-3.5 rounded-full font-black text-[11px] sm:text-xs uppercase tracking-widest shadow-xl flex items-center gap-3 group"
+                            >
+                                <span>All Tasks</span>
+                                <ArrowRight size={16} className="group-hover:translate-x-2 transition-transform" />
+                            </button>
 
-                        {/* Assign Button */}
-                        <button
-                            onClick={() => navigate('/tasks/assign')}
-                            className="border border-white/30 text-white hover:bg-white/10 transition-all px-4 py-2 rounded-full font-black text-[10px] uppercase tracking-widest flex items-center gap-2"
-                        >
-                            <Plus size={14} /> New Task
-                        </button>
+                            <button
+                                onClick={() => navigate('/tasks/assign')}
+                                className="border-2 border-white/40 text-white hover:bg-white/10 transition-all px-6 py-3 rounded-full font-black text-[11px] uppercase tracking-widest flex items-center gap-2"
+                            >
+                                <Plus size={16} /> New Task
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -253,37 +238,55 @@ const CFODashboard = () => {
                     Pending Org Actions
                 </h3>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="bg-slate-50/50 text-slate-400 text-[9px] uppercase font-black tracking-widest">
-                            <tr>
-                                <th className="px-3 py-2">ID</th>
-                                <th className="px-3 py-2">Title</th>
-                                <th className="px-3 py-2">Dept</th>
-                                <th className="px-3 py-2">Status</th>
-                                <th className="px-4 py-2 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {finalPendingTasks.map(task => (
-                                <tr key={task.task_id} className="hover:bg-slate-50/50 transition-colors group">
-                                    <td className="px-3 py-2 font-mono text-[10px] text-slate-400">{task.task_id}</td>
-                                    <td className="px-3 py-2 font-bold text-slate-700 text-xs">
-                                        <div className="truncate max-w-[200px]">{task.title}</div>
-                                    </td>
-                                    <td className="px-3 py-2 text-xs text-slate-500 font-medium">{task.department}</td>
-                                    <td className="px-3 py-2"><Badge variant={task.status} className="scale-90 origin-left">{task.status}</Badge></td>
-                                    <td className="px-3 py-2 text-right">
-                                        <button
-                                            onClick={() => navigate(`/tasks?id=${task.task_id}`)}
-                                            className="bg-violet-50 text-violet-600 hover:bg-violet-600 hover:text-white px-3 py-1 rounded-lg font-black text-[10px] transition-all uppercase"
-                                        >
-                                            View
-                                        </button>
-                                    </td>
+                    {finalPendingTasks.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 px-6 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200">
+                            <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-3">
+                                <CheckCircle size={24} className="text-emerald-500" />
+                            </div>
+                            <p className="text-slate-900 font-bold text-sm">Clear Horizons</p>
+                            <p className="text-slate-500 text-[10px] font-medium uppercase tracking-widest mt-1">No pending organization-wide tasks found</p>
+                        </div>
+                    ) : (
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50/50 text-slate-500 text-[10px] uppercase font-black tracking-[0.2em] border-b border-slate-100">
+                                <tr>
+                                    <th className="px-5 py-4">Task Ref</th>
+                                    <th className="px-5 py-4">Directive</th>
+                                    <th className="px-5 py-4">Unit</th>
+                                    <th className="px-5 py-4 text-center">Status</th>
+                                    <th className="px-5 py-4 text-right">Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {finalPendingTasks.map((task) => (
+                                    <tr key={task.task_id} className="hover:bg-slate-50/80 transition-all border-b border-slate-50 last:border-0 group">
+                                        <td className="px-5 py-4">
+                                            <div className="font-extrabold text-slate-900 tabular-nums text-xs">#{task.task_id}</div>
+                                        </td>
+                                        <td className="px-5 py-4">
+                                            <div className="font-black text-slate-800 text-xs tracking-tight group-hover:text-indigo-600 transition-colors uppercase truncate max-w-[200px]">{task.title}</div>
+                                        </td>
+                                        <td className="px-5 py-4">
+                                            <Badge variant="outline" className="bg-white border-slate-200 text-slate-500 font-black text-[9px] uppercase tracking-widest">
+                                                {task.department || 'N/A'}
+                                            </Badge>
+                                        </td>
+                                        <td className="px-5 py-4 text-center">
+                                            <Badge variant={task.status}>{task.status}</Badge>
+                                        </td>
+                                        <td className="px-5 py-4 text-right">
+                                            <button
+                                                onClick={() => navigate(`/tasks/${task.task_id}`)}
+                                                className="bg-slate-900 text-white hover:bg-violet-600 transition-all p-2 rounded-xl shadow-lg hover:rotate-12"
+                                            >
+                                                <ArrowRight size={14} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
         </div>
