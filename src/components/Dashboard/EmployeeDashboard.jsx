@@ -17,6 +17,43 @@ import {
 
 /* ─── Helpers ─────────────────────────────────────────────── */
 const TERMINAL = ['APPROVED', 'CANCELLED'];
+const TERMINAL_SET = new Set(TERMINAL);
+
+const toDateKey = (value) => {
+    if (!value) return '';
+    const raw = String(value).trim();
+    if (!raw) return '';
+    const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+    const dmy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+};
+
+const fetchEmployeeTasksFallback = async () => {
+    const baseURL = api.defaults.baseURL || '';
+    const token = localStorage.getItem('pms_token');
+    const candidates = ['/tasks', '/tasks?scope=mine', '/tasks?scope=personal'];
+    for (const path of candidates) {
+        try {
+            const res = await fetch(`${baseURL}${path}`, {
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    'ngrok-skip-browser-warning': 'true',
+                },
+            });
+            if (res.status === 422 || res.status === 404 || res.status === 405) continue;
+            if (!res.ok) continue;
+            const data = await res.json();
+            const rows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+            if (rows.length > 0) return rows;
+        } catch (_) {
+            // try next
+        }
+    }
+    return [];
+};
 
 const STATUS_LABEL = {
     NEW: 'New',
@@ -66,7 +103,7 @@ const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
 
                 <div className="space-y-1">
                     <div className="text-2xl font-black text-slate-900 tabular-nums tracking-tighter leading-none">
-                        {value ?? '—'}
+                        {value ?? '-'}
                     </div>
                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight">
                         {label}
@@ -103,15 +140,23 @@ const EmployeeDashboard = () => {
         setLoading(true);
         try {
             const params = {};
-            if (fromDate) params.fromDate = fromDate;
-            if (toDate) params.toDate = toDate;
+            if (fromDate) {
+                params.fromDate = fromDate;
+                params.start_date = fromDate;
+            }
+            if (toDate) {
+                params.toDate = toDate;
+                params.end_date = toDate;
+            }
 
             const [dataRes, todayRes] = await Promise.all([
                 api.get('/dashboard/employee', { params }),
                 api.get('/dashboard/employee/today')
             ]);
-            setDashboardData(dataRes.data);
-            const todayT = Array.isArray(todayRes.data) ? todayRes.data : [];
+            const dashboardPayload = dataRes?.data?.data || dataRes?.data || {};
+            setDashboardData(dashboardPayload);
+            const todayPayload = todayRes?.data?.data || todayRes?.data || [];
+            const todayT = Array.isArray(todayPayload) ? todayPayload : [];
             setTodayTasks(todayT.map(t => ({
                 ...t,
                 id: t.task_id || t.id,                          // integer — used in all API URLs
@@ -122,6 +167,54 @@ const EmployeeDashboard = () => {
                 severity: (t.priority || t.severity || 'LOW').toUpperCase(),
                 department: t.department_name || t.department_id,
             })));
+            const totalFromDashboard = dashboardPayload?.total_tasks ?? 0;
+            if (totalFromDashboard === 0 && todayT.length === 0) {
+                const rawTasks = await fetchEmployeeTasksFallback();
+                if (rawTasks.length > 0) {
+                    const filtered = rawTasks.filter((t) => {
+                        const k = toDateKey(t.assigned_date || t.created_at || t.due_date);
+                        if (fromDate && (!k || k < fromDate)) return false;
+                        if (toDate && (!k || k > toDate)) return false;
+                        return true;
+                    });
+
+                    const normalized = filtered.map((t) => ({
+                        ...t,
+                        id: t.task_id || t.id,
+                        status: String(t.status || '').toUpperCase(),
+                        severity: (t.priority || t.severity || 'LOW').toUpperCase(),
+                        due_date: t.due_date,
+                        title: t.title || 'Untitled',
+                    }));
+
+                    const counts = { NEW: 0, IN_PROGRESS: 0, SUBMITTED: 0, APPROVED: 0, REWORK: 0, CANCELLED: 0 };
+                    normalized.forEach((t) => {
+                        if (counts[t.status] !== undefined) counts[t.status] += 1;
+                    });
+                    const total = normalized.length;
+                    const approved = counts.APPROVED;
+                    const submitted = counts.SUBMITTED;
+                    const pending = normalized.filter(t => !TERMINAL_SET.has(t.status)).length;
+                    const overdue = normalized.filter((t) => {
+                        const due = toDateKey(t.due_date);
+                        return due && due < new Date().toLocaleDateString('en-CA') && !TERMINAL_SET.has(t.status);
+                    }).length;
+                    setDashboardData({
+                        total_tasks: total,
+                        approved_tasks: approved,
+                        submitted_tasks: submitted,
+                        pending_tasks: pending,
+                        overdue_tasks: overdue,
+                        in_progress_tasks: counts.IN_PROGRESS,
+                        rework_tasks: counts.REWORK,
+                        new_tasks: counts.NEW,
+                        cancelled_tasks: counts.CANCELLED,
+                        performance_index: total > 0 ? Math.round((approved / total) * 100) : 0,
+                        dept_avg_score: 0,
+                    });
+                    setTodayTasks(normalized);
+                }
+            }
         } catch (err) {
             console.error("Failed to fetch dashboard data", err);
         } finally {
@@ -202,7 +295,7 @@ const EmployeeDashboard = () => {
                 String(t.id).toLowerCase().includes(searchTerm.toLowerCase());
 
             // Client-side date filter for the table as well
-            const taskDate = t.due_date || '';
+            const taskDate = toDateKey(t.due_date || t.assigned_date || t.created_at);
             const matchesFrom = !fromDate || taskDate >= fromDate;
             const matchesTo = !toDate || taskDate <= toDate;
 
@@ -555,3 +648,9 @@ const EmployeeDashboard = () => {
 };
 
 export default EmployeeDashboard;
+
+
+
+
+
+

@@ -15,6 +15,44 @@ import {
     PieChart, Pie, Cell, ResponsiveContainer
 } from 'recharts';
 
+const TERMINAL_STATUSES = new Set(['APPROVED', 'CANCELLED']);
+
+const toDateKey = (value) => {
+    if (!value) return '';
+    const raw = String(value).trim();
+    if (!raw) return '';
+    const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+    const dmy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+};
+
+const fetchManagerTasksFallback = async () => {
+    const baseURL = api.defaults.baseURL || '';
+    const token = localStorage.getItem('pms_token');
+    const candidates = ['/tasks', '/tasks?scope=department', '/tasks?scope=mine'];
+    for (const path of candidates) {
+        try {
+            const res = await fetch(`${baseURL}${path}`, {
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    'ngrok-skip-browser-warning': 'true',
+                },
+            });
+            if (res.status === 422 || res.status === 404 || res.status === 405) continue;
+            if (!res.ok) continue;
+            const data = await res.json();
+            const rows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+            if (rows.length > 0) return rows;
+        } catch (_) {
+            // try next
+        }
+    }
+    return [];
+};
+
 const STATUS_LABEL = {
     NEW: 'New',
     IN_PROGRESS: 'In Progress',
@@ -83,13 +121,17 @@ const ManagerDashboard = () => {
         const params = {};
         if (fromDate) params.start_date = fromDate;
         if (toDate) params.end_date = toDate;
+        if (fromDate) params.from_date = fromDate;
+        if (toDate) params.to_date = toDate;
 
         try {
             const dataRes = await api.get('/dashboard/manager', { params }).catch(e => { console.warn("Manager stats fail:", e); return { data: {} }; });
             const todayRes = await api.get('/dashboard/manager/today', { params }).catch(e => { console.warn("Team today fail:", e); return { data: [] }; });
 
-            setDashboardData(dataRes.data || {});
-            const todayTasks = Array.isArray(todayRes.data) ? todayRes.data : [];
+            const dashboardPayload = dataRes?.data?.data || dataRes?.data || {};
+            setDashboardData(dashboardPayload || {});
+            const todayPayload = todayRes?.data?.data || todayRes?.data || [];
+            const todayTasks = Array.isArray(todayPayload) ? todayPayload : [];
             const mappedTasks = todayTasks.map(t => ({
                 ...t,
                 id: t.task_id || t.id,
@@ -104,11 +146,71 @@ const ManagerDashboard = () => {
 
             try {
                 const reportRes = await api.get('/manager/reports', { params });
-                const stats = reportRes.data?.manager_stats || reportRes.data || [];
+                const reportPayload = reportRes?.data?.data || reportRes?.data || {};
+                const stats = reportPayload?.manager_stats || (Array.isArray(reportPayload) ? reportPayload : []);
                 setReportTeam(Array.isArray(stats) ? stats : []);
             } catch (reportErr) {
                 console.warn("Manager reports not available:", reportErr);
                 setReportTeam([]);
+            }
+
+            const totalFromDashboard = dashboardPayload?.total_tasks ?? dashboardPayload?.total ?? 0;
+            const hasDashboardStats = totalFromDashboard > 0;
+            const hasToday = mappedTasks.length > 0;
+
+            if (!hasDashboardStats && !hasToday) {
+                const rawTasks = await fetchManagerTasksFallback();
+                if (rawTasks.length > 0) {
+                    const filtered = rawTasks.filter((t) => {
+                        const k = toDateKey(t.assigned_date || t.created_at || t.due_date);
+                        if (fromDate && (!k || k < fromDate)) return false;
+                        if (toDate && (!k || k > toDate)) return false;
+                        return true;
+                    });
+
+                    const normalized = filtered.map((t) => ({
+                        id: t.task_id || t.id,
+                        title: t.title,
+                        status: String(t.status || '').toUpperCase(),
+                        severity: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
+                        employee_id: t.assigned_to_emp_id || t.employee_id,
+                        assigneeName: t.assigned_to_name || t.assignee_name || t.employee_name || 'Unassigned',
+                    }));
+
+                    const statusCounts = { NEW: 0, IN_PROGRESS: 0, SUBMITTED: 0, APPROVED: 0, REWORK: 0 };
+                    const byEmp = new Map();
+                    normalized.forEach((t) => {
+                        if (statusCounts[t.status] !== undefined) statusCounts[t.status] += 1;
+                        const key = String(t.employee_id || t.assigneeName);
+                        const row = byEmp.get(key) || {
+                            emp_id: t.employee_id || key,
+                            name: t.assigneeName,
+                            role: 'Team Member',
+                            tasks_assigned: 0,
+                            tasks_completed: 0,
+                        };
+                        row.tasks_assigned += 1;
+                        if (t.status === 'APPROVED') row.tasks_completed += 1;
+                        byEmp.set(key, row);
+                    });
+
+                    const total = normalized.length;
+                    const approved = statusCounts.APPROVED;
+                    const pending = normalized.filter(t => !TERMINAL_STATUSES.has(t.status)).length;
+                    const rework = statusCounts.REWORK;
+                    setDashboardData({
+                        total_tasks: total,
+                        approved_tasks: approved,
+                        pending_tasks: pending,
+                        rework_tasks: rework,
+                        new_tasks: statusCounts.NEW,
+                        in_progress_tasks: statusCounts.IN_PROGRESS,
+                        submitted_tasks: statusCounts.SUBMITTED,
+                        team_performance_index: total > 0 ? Math.round((approved / total) * 100) : 0,
+                    });
+                    setTodayTeamTasks(normalized.filter(t => !TERMINAL_STATUSES.has(t.status)).slice(0, 50));
+                    setReportTeam(Array.from(byEmp.values()));
+                }
             }
         } catch (err) {
             console.error("Critical fail in manager dashboard:", err);

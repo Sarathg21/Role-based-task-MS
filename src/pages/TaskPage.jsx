@@ -1,29 +1,48 @@
-import { useState, useMemo, useEffect } from "react";
+﻿import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import Badge from "../components/UI/Badge";
 import CustomSelect from "../components/UI/CustomSelect";
-import { Plus, Search, Loader2, History, Paperclip, ChevronDown, ChevronRight, CheckSquare } from "lucide-react";
+import { Plus, Search, Loader2, History, Paperclip, ChevronDown, ChevronRight, CheckSquare, Check, X, ArrowLeftRight, RotateCcw, Play, Upload, RefreshCw } from "lucide-react";
 import ReassignTaskModal from "../components/Modals/ReassignTaskModal";
 import TaskDetailModal from "../components/Modals/TaskDetailModal";
 import ReworkCommentModal from "../components/Modals/ReworkCommentModal";
 
 // Convert status keys to Title Case labels
 const formatStatus = (s) => {
-  if (!s) return "—";
+  if (!s) return "-";
   const status = String(s).toUpperCase();
   if (status === 'NEW' || status === 'NOT_STARTED') return 'New';
   return status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 };
 
-/* ─── Overdue Status Cell ─────────────────────────────────────
+// Normalize mixed API date formats (YYYY-MM-DD, DD/MM/YYYY, ISO datetime).
+const toDateKey = (value) => {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  const dmy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+
+  const ymdSlash = raw.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (ymdSlash) return `${ymdSlash[1]}-${ymdSlash[2]}-${ymdSlash[3]}`;
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+};
+/* --- Overdue Status Cell â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    Show actual status badge + red "Overdue" pill instead of
    replacing the status entirely with "Overdue".
-──────────────────────────────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const StatusCell = ({ task }) => {
   const today = new Date().toLocaleDateString('en-CA');
-  const isOverdue = task.due_date < today && !['APPROVED', 'CANCELLED'].includes(task.status);
+  const dueDateKey = toDateKey(task.due_date);
+  const isOverdue = dueDateKey && dueDateKey < today && !['APPROVED', 'CANCELLED'].includes(task.status);
 
   return (
     <div className="flex flex-col gap-1">
@@ -41,7 +60,7 @@ const StatusCell = ({ task }) => {
 };
 
 /* ========================================================= */
-/*  CFO Task Table — uses the full column schema requested   */
+/* CFO Task Table — uses the full column schema requested */
 /* ========================================================= */
 
 const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRework, onReassign, onCancel, onViewDetails }) => {
@@ -74,7 +93,8 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
         <tbody className="divide-y divide-slate-100 text-slate-700">
           {tasks.map((task, idx) => {
             const today = new Date().toLocaleDateString('en-CA');
-            const isOverdue = task.due_date < today && !['APPROVED', 'CANCELLED'].includes(task.status);
+            const dueDateKey = toDateKey(task.due_date);
+            const isOverdue = dueDateKey && dueDateKey < today && !['APPROVED', 'CANCELLED'].includes(task.status);
             const assigneeId = task.employee_id;
             // Match by emp_id or id
             const assignee = users?.find(u => u.emp_id === assigneeId || u.id === assigneeId);
@@ -102,7 +122,7 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                       (assignee?.role || task.assignee_role || '').toUpperCase() === 'CFO' || (assignee?.role || task.assignee_role || '').toUpperCase() === 'ADMIN' ? 'bg-violet-100 text-violet-700' :
                         'bg-slate-100 text-slate-400'
                     }`}>
-                    {assignee?.role || task.assignee_role || task.role || '—'}
+                    {assignee?.role || task.assignee_role || task.role || '-'}
                   </span>
                 </td>
 
@@ -126,7 +146,7 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                 <td className="p-3 text-slate-500 whitespace-nowrap">
                   {task.assigned_date || task.created_at
                     ? new Date(task.assigned_date || task.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                    : '—'}
+                    : '-'}
                 </td>
 
                 {/* Due Date */}
@@ -139,7 +159,7 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                   {task.severity ? (
                     <Badge variant={task.severity}>{task.severity}</Badge>
                   ) : (
-                    <span className="text-slate-400 text-xs">—</span>
+                    <span className="text-slate-400 text-xs">-</span>
                   )}
                 </td>
 
@@ -157,15 +177,15 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                       <>
                         <button
                           onClick={(e) => { e.stopPropagation(); onApprove(task.id); }}
-                          className="btn-action btn-action-success"
+                          className="btn-action btn-action-success flex items-center gap-1"
                         >
-                          ✓ Approve
+                          <Check size={12} /> Approve
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); onRework(task); }}
-                          className="btn-action btn-action-warning"
+                          className="btn-action btn-action-warning flex items-center gap-1"
                         >
-                          ↩ Rework
+                          <RotateCcw size={12} /> Rework
                         </button>
                       </>
                     )}
@@ -174,9 +194,9 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                     {!['APPROVED', 'CANCELLED'].includes(task.status) && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onReassign(task); }}
-                        className="btn-action btn-action-primary"
+                        className="btn-action btn-action-primary flex items-center gap-1"
                       >
-                        ⇄ Reassign
+                        <ArrowLeftRight size={12} /> Reassign
                       </button>
                     )}
 
@@ -184,15 +204,15 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                     {!['APPROVED', 'CANCELLED'].includes(task.status) && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onCancel(task.id); }}
-                        className="btn-action btn-action-danger"
+                        className="btn-action btn-action-danger flex items-center gap-1"
                       >
-                        ✕ Cancel
+                        <X size={12} /> Cancel
                       </button>
                     )}
 
                     {/* Terminal states */}
                     {['APPROVED', 'CANCELLED'].includes(task.status) && (
-                      <span className="text-[11px] text-slate-300 italic">—</span>
+                      <span className="text-[11px] text-slate-300 italic">-</span>
                     )}
                   </div>
                 </td>
@@ -270,7 +290,7 @@ const ActionTaskTable = ({
                     return sev ? (
                       <Badge variant={sev}>{sev}</Badge>
                     ) : (
-                      <span className="text-slate-400 text-xs">—</span>
+                      <span className="text-slate-400 text-xs">-</span>
                     );
                   })()}
                 </td>
@@ -287,25 +307,25 @@ const ActionTaskTable = ({
                         {task.status === "NEW" && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, "START"); }}
-                            className="btn-action btn-action-violet"
+                            className="btn-action btn-action-violet flex items-center gap-1"
                           >
-                            ▶ Start
+                            <Play size={12} fill="white" /> Start
                           </button>
                         )}
                         {task.status === "IN_PROGRESS" && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, "SUBMIT"); }}
-                            className="btn-action btn-action-warning"
+                            className="btn-action btn-action-warning flex items-center gap-1"
                           >
-                            ↑ Submit
+                            <Upload size={12} /> Submit
                           </button>
                         )}
                         {task.status === "REWORK" && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, "RESTART"); }}
-                            className="btn-action btn-action-violet"
+                            className="btn-action btn-action-violet flex items-center gap-1"
                           >
-                            ↺ Restart
+                            <RefreshCw size={12} /> Restart
                           </button>
                         )}
                       </>
@@ -318,32 +338,32 @@ const ActionTaskTable = ({
                           <>
                             <button
                               onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, "APPROVE"); }}
-                              className="btn-action btn-action-success"
+                              className="btn-action btn-action-success flex items-center gap-1"
                             >
-                              ✓ Approve
+                              <Check size={12} /> Approve
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); onRework(task); }}
-                              className="btn-action btn-action-warning"
+                              className="btn-action btn-action-warning flex items-center gap-1"
                             >
-                              ↩ Rework
+                              <RotateCcw size={12} /> Rework
                             </button>
                           </>
                         )}
                         {!['APPROVED', 'CANCELLED'].includes(task.status) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onReassign(task); }}
-                            className="btn-action btn-action-primary"
+                            className="btn-action btn-action-primary flex items-center gap-1"
                           >
-                            ⇄ Reassign
+                            <ArrowLeftRight size={12} /> Reassign
                           </button>
                         )}
                         {!["APPROVED", "CANCELLED"].includes(task.status) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onCancel(task.id); }}
-                            className="btn-action btn-action-danger"
+                            className="btn-action btn-action-danger flex items-center gap-1"
                           >
-                            ✕ Cancel
+                            <X size={12} /> Cancel
                           </button>
                         )}
                       </>
@@ -429,21 +449,48 @@ const TaskPage = () => {
   const fetchTasks = async (forceScope) => {
     setLoading(true);
     try {
-      const isAdmin = user.role === 'CFO' || user.role === 'ADMIN';
+      const isAdmin = (user.role || '').toUpperCase() === 'CFO' || (user.role || '').toUpperCase() === 'ADMIN';
       let scopeParam = forceScope ?? (isAdmin ? 'org' : viewMode === 'team' ? 'department' : 'mine');
 
-      const response = await api.get('/tasks', {
-        params: { scope: scopeParam, limit: 50, offset: 0 }
-      });
+      // Build parameters for server-side filtering
+      const params = {
+        scope: scopeParam,
+        limit: 100,
+        offset: 0
+      };
 
-      const raw = Array.isArray(response.data) ? response.data : [];
+      if (filter.status && filter.status !== 'All' && filter.status !== 'Overdue') {
+        params.status = filter.status;
+      }
+      if (filter.severity && filter.severity !== 'All') {
+        params.priority = filter.severity; // Backend typically uses 'priority'
+      }
+      if (filter.department && filter.department !== 'All') {
+        params.department_id = filter.department;
+      }
+      if (filter.employeeId && filter.employeeId !== 'All') {
+        params.assigned_to_emp_id = filter.employeeId;
+      }
+      if (filter.search) {
+        params.search = filter.search;
+      }
+      if (filter.fromDate) {
+        params.start_date = filter.fromDate;
+      }
+      if (filter.toDate) {
+        params.end_date = filter.toDate;
+      }
+
+      const response = await api.get('/tasks', { params });
+
+      const raw = Array.isArray(response.data) ? response.data : (Array.isArray(response.data?.data) ? response.data.data : []);
       const normalised = raw.map(t => ({
         ...t,
         id: t.task_id || t.id,
-        employee_id: t.assigned_to_emp_id,
-        assigned_by: t.assigned_by_emp_id,
-        assigneeName: t.assigned_to_name,
-        assignerName: t.assigned_by_name,
+        employee_id: t.assigned_to_emp_id || t.employee_id,
+        assigned_by: t.assigned_by_emp_id || t.assigned_by,
+        assigneeName: t.assigned_to_name || t.assignee_name || t.employee_name,
+        assignerName: t.assigned_by_name || t.assigner_name || t.manager_name,
         severity: (t.priority || t.severity || '').toUpperCase(),
         department_id: t.department_id,
         department: t.department_name || t.department || '',
@@ -459,7 +506,7 @@ const TaskPage = () => {
 
   useEffect(() => {
     fetchTasks();
-  }, [user, viewMode]);
+  }, [user, viewMode, filter.status, filter.severity, filter.department, filter.employeeId]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
@@ -470,7 +517,8 @@ const TaskPage = () => {
         (task.assigneeName || '').toLowerCase().includes(filter.search.toLowerCase());
 
       const today = new Date().toLocaleDateString('en-CA');
-      const isOverdue = task.due_date < today && !['APPROVED', 'CANCELLED'].includes(task.status);
+      const dueDateKey = toDateKey(task.due_date);
+      const isOverdue = dueDateKey && dueDateKey < today && !['APPROVED', 'CANCELLED'].includes(task.status);
 
       const matchesStatus = filter.status === "All" ||
         (filter.status === "Overdue" ? isOverdue : task.status === filter.status);
@@ -481,9 +529,9 @@ const TaskPage = () => {
         String(task.department).toLowerCase().includes(String(filter.department).toLowerCase());
 
       // Date filtering
-      const taskDate = task.assigned_date || task.created_at || '';
-      const matchesFrom = !filter.fromDate || taskDate >= filter.fromDate;
-      const matchesTo = !filter.toDate || taskDate <= filter.toDate;
+      const taskDate = toDateKey(task.due_date || task.assigned_date || task.created_at);
+      const matchesFrom = !filter.fromDate || (taskDate && taskDate >= filter.fromDate);
+      const matchesTo = !filter.toDate || (taskDate && taskDate <= filter.toDate);
 
       // Employee filtering (for Managers in team view)
       const matchesEmployee = filter.employeeId === "All" || String(task.employee_id) === String(filter.employeeId);
@@ -597,7 +645,7 @@ const TaskPage = () => {
         taskTitle={taskForRework?.title}
       />
 
-      {/* ══ TASK MANAGEMENT PREMIUM HERO ══ */}
+      {/* â•â• TASK MANAGEMENT PREMIUM HERO â•â• */}
       <div
         className="rounded-3xl overflow-hidden shadow-2xl relative mb-6"
         style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #334155 100%)' }}
@@ -631,7 +679,7 @@ const TaskPage = () => {
               <div className="flex-1 flex flex-col px-4 py-1 text-center">
                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Overdue</span>
                 <span className="text-lg font-black text-rose-400">
-                  {tasks.filter(t => t.due_date < new Date().toLocaleDateString('en-CA') && !['APPROVED', 'CANCELLED'].includes(t.status)).length}
+                  {tasks.filter(t => { const dueDateKey = toDateKey(t.due_date); return dueDateKey && dueDateKey < new Date().toLocaleDateString('en-CA') && !['APPROVED', 'CANCELLED'].includes(t.status); }).length}
                 </span>
               </div>
             </div>
@@ -727,6 +775,23 @@ const TaskPage = () => {
           >
             Sync Data
           </button>
+
+          {(filter.search || filter.fromDate || filter.toDate || filter.status !== 'All' || filter.severity !== 'All' || filter.department !== 'All' || filter.employeeId !== 'All') && (
+            <button
+              onClick={() => setFilter({
+                status: "All",
+                severity: "All",
+                department: "All",
+                search: "",
+                fromDate: "",
+                toDate: "",
+                employeeId: "All",
+              })}
+              className="px-4 py-3 bg-slate-100 text-slate-400 hover:text-slate-600 rounded-xl text-[10px] font-black hover:bg-slate-200 transition uppercase tracking-widest flex items-center gap-1.5"
+            >
+              <X size={13} /> Reset
+            </button>
+          )}
         </div>
 
         <CustomSelect
@@ -774,24 +839,7 @@ const TaskPage = () => {
               style={{ minWidth: '160px' }}
             />
 
-            {/* Date Filters for CFO */}
-            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">From</span>
-              <input
-                type="date"
-                value={filter.fromDate}
-                onChange={(e) => setFilter({ ...filter, fromDate: e.target.value })}
-                className="text-[11px] font-bold text-slate-600 outline-none border-none bg-transparent cursor-pointer w-24"
-              />
-              <div className="w-px h-4 bg-slate-100 mx-1" />
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">To</span>
-              <input
-                type="date"
-                value={filter.toDate}
-                onChange={(e) => setFilter({ ...filter, toDate: e.target.value })}
-                className="text-[11px] font-bold text-slate-600 outline-none border-none bg-transparent cursor-pointer w-24"
-              />
-            </div>
+
           </div>
         )}
 
@@ -854,3 +902,9 @@ const TaskPage = () => {
 };
 
 export default TaskPage;
+
+
+
+
+
+

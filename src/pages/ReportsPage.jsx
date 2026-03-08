@@ -6,7 +6,60 @@ import ChartPanel from '../components/Charts/ChartPanel';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Download, FileSpreadsheet, TrendingUp, TrendingDown, Calendar, ArrowRight } from 'lucide-react';
+import { Download, FileSpreadsheet, TrendingUp, TrendingDown, Calendar, ArrowRight, CheckSquare } from 'lucide-react';
+
+const TERMINAL_STATUSES = new Set(['APPROVED', 'CANCELLED']);
+
+const toDateKey = (value) => {
+    if (!value) return '';
+    const raw = String(value).trim();
+    if (!raw) return '';
+
+    const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+    const dmy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+};
+
+const inRange = (dateKey, fromDate, toDate) => {
+    if (!dateKey) return !fromDate && !toDate;
+    if (fromDate && dateKey < fromDate) return false;
+    if (toDate && dateKey > toDate) return false;
+    return true;
+};
+
+const fetchTasksForReports = async (isCFO) => {
+    const baseURL = api.defaults.baseURL || '';
+    const token = localStorage.getItem('pms_token');
+    const candidates = isCFO
+        ? ['/tasks', '/tasks?scope=org', '/tasks?scope=all']
+        : ['/tasks', '/tasks?scope=department', '/tasks?scope=mine'];
+
+    for (const path of candidates) {
+        try {
+            const res = await fetch(`${baseURL}${path}`, {
+                headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    'ngrok-skip-browser-warning': 'true',
+                },
+            });
+            if (res.status === 422 || res.status === 404 || res.status === 405) {
+                continue;
+            }
+            if (!res.ok) continue;
+            const data = await res.json();
+            const rows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+            if (rows.length > 0) return rows;
+        } catch (_) {
+            // try next candidate
+        }
+    }
+    return [];
+};
 
 const ReportsPage = () => {
     const { user } = useAuth();
@@ -27,29 +80,114 @@ const ReportsPage = () => {
         setLoading(true);
         try {
             const role = (user?.role || '').toUpperCase();
+            const isCFO = role === 'CFO' || role === 'ADMIN';
 
-            // For managers, use the dedicated reports endpoint
-            // For CFO/Admin, use the dashboard overview
-            const endpoint = (role === 'CFO' || role === 'ADMIN')
+            const endpoint = isCFO
                 ? '/dashboard/cfo'
                 : '/manager/reports';
 
-            let start_date = filters.fromDate;
-            let end_date = filters.toDate;
+            const start_date = filters.fromDate;
+            const end_date = filters.toDate;
 
-            const params = {
-                start_date,
-                end_date,
-                employee_id: filters.employeeId,
-                department_id: filters.departmentId
-            };
+            const params = {};
+            if (start_date) {
+                params.start_date = start_date;
+                params.from_date = start_date;
+            }
+            if (end_date) {
+                params.end_date = end_date;
+                params.to_date = end_date;
+            }
+            if (filters.employeeId) params.employee_id = filters.employeeId;
+            if (filters.departmentId) params.department_id = filters.departmentId;
 
             const response = await api.get(endpoint, { params });
             const data = response.data;
+            const payload = data?.data || data;
 
-            // Extract the stats array from various possible keys
-            const stats = data.department_stats || data.manager_stats || data.performance_data || data.stats || (Array.isArray(data) ? data : []);
-            setReportData(stats.length > 0 ? stats : null);
+            const stats = payload?.department_stats
+                || payload?.manager_stats
+                || payload?.performance_data
+                || payload?.stats
+                || (Array.isArray(payload) ? payload : []);
+
+            if (Array.isArray(stats) && stats.length > 0) {
+                setReportData(stats);
+                return;
+            }
+
+            // Fallback: derive report rows from real DB tasks when report endpoint is empty.
+            const rawTasks = await fetchTasksForReports(isCFO);
+
+            const normalizedTasks = rawTasks.map((t) => ({
+                id: t.task_id || t.id,
+                employeeId: String(t.assigned_to_emp_id || t.employee_id || ''),
+                employeeName: t.assigned_to_name || t.assignee_name || t.employee_name || 'Unassigned',
+                departmentId: String(t.department_id || ''),
+                departmentName: t.department_name || t.department || 'N/A',
+                status: String(t.status || '').toUpperCase(),
+                dateKey: toDateKey(t.assigned_date || t.created_at || t.due_date),
+            }));
+
+            const filtered = normalizedTasks.filter((t) => {
+                const empOk = !filters.employeeId || t.employeeId === String(filters.employeeId);
+                const deptOk = !filters.departmentId
+                    || t.departmentId === String(filters.departmentId)
+                    || t.departmentName.toLowerCase() === String(filters.departmentId).toLowerCase();
+                const dateOk = inRange(t.dateKey, filters.fromDate, filters.toDate);
+                return empOk && deptOk && dateOk;
+            });
+
+            if (isCFO) {
+                const byDept = new Map();
+                filtered.forEach((t) => {
+                    const key = t.departmentId || t.departmentName || 'N/A';
+                    const existing = byDept.get(key) || {
+                        department_id: t.departmentName || key,
+                        total_tasks: 0,
+                        approved_tasks: 0,
+                        pending_tasks: 0,
+                        avg_reworks: 0,
+                        _reworks: 0,
+                    };
+                    existing.total_tasks += 1;
+                    if (t.status === 'APPROVED') existing.approved_tasks += 1;
+                    if (!TERMINAL_STATUSES.has(t.status)) existing.pending_tasks += 1;
+                    if (t.status === 'REWORK') existing._reworks += 1;
+                    byDept.set(key, existing);
+                });
+
+                const deptRows = Array.from(byDept.values()).map((d) => ({
+                    ...d,
+                    avg_reworks: d.total_tasks > 0 ? Number((d._reworks / d.total_tasks).toFixed(2)) : 0,
+                }));
+                setReportData(deptRows);
+            } else {
+                const byEmp = new Map();
+                filtered.forEach((t) => {
+                    const key = t.employeeId || t.employeeName;
+                    const existing = byEmp.get(key) || {
+                        emp_id: t.employeeId || key,
+                        name: t.employeeName,
+                        department: t.departmentName,
+                        role: 'Employee',
+                        tasks_assigned: 0,
+                        tasks_completed: 0,
+                        avg_reworks: 0,
+                        _reworks: 0,
+                    };
+                    existing.tasks_assigned += 1;
+                    if (t.status === 'APPROVED') existing.tasks_completed += 1;
+                    if (t.status === 'REWORK') existing._reworks += 1;
+                    byEmp.set(key, existing);
+                });
+
+                const empRows = Array.from(byEmp.values()).map((e) => ({
+                    ...e,
+                    avg_reworks: e.tasks_assigned > 0 ? Number((e._reworks / e.tasks_assigned).toFixed(2)) : 0,
+                }));
+                setReportData(empRows);
+            }
         } catch (err) {
             console.error("Failed to fetch reports", err);
             setReportData([]);
@@ -151,7 +289,7 @@ const ReportsPage = () => {
                 from_date: filters.fromDate || '',
                 to_date: filters.toDate || ''
             });
-            if (filters.department_id) params.append('department_id', filters.department_id);
+            if (filters.departmentId) params.append('department_id', filters.departmentId);
             if (filters.employeeId) params.append('employee_id', filters.employeeId);
 
             const url = `${api.defaults.baseURL}/reports/performance.${format}?${params.toString()}`;
@@ -381,25 +519,39 @@ const ReportsPage = () => {
                 {(user?.role || '').toUpperCase() === 'MANAGER' && (
                     <>
                         <ChartPanel title="Employee Workload Distribution">
-                            <BarChart data={empWorkloadData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                                <YAxis tick={{ fontSize: 10 }} />
-                                <Tooltip />
-                                <Legend wrapperStyle={{ fontSize: '10px' }} />
-                                <Bar dataKey="Completed" stackId="a" fill="#10b981" name="Completed" />
-                                <Bar dataKey="Pending" stackId="a" fill="#f59e0b" name="Pending" />
-                            </BarChart>
+                            {empWorkloadData.length > 0 ? (
+                                <BarChart data={empWorkloadData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                                    <YAxis tick={{ fontSize: 10 }} />
+                                    <Tooltip />
+                                    <Legend wrapperStyle={{ fontSize: '10px' }} />
+                                    <Bar dataKey="Completed" stackId="a" fill="#10b981" name="Completed" />
+                                    <Bar dataKey="Pending" stackId="a" fill="#f59e0b" name="Pending" />
+                                </BarChart>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                    <CheckSquare size={32} className="opacity-20 mb-2" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">No workload data</span>
+                                </div>
+                            )}
                         </ChartPanel>
 
                         <ChartPanel title="Employee Performance Index (%)">
-                            <BarChart data={empPerformanceData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                                <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-                                <Tooltip formatter={v => [`${v}%`, 'Completion Rate']} />
-                                <Bar dataKey="Performance" fill="#8b5cf6" name="Performance %" radius={[4, 4, 0, 0]} />
-                            </BarChart>
+                            {empPerformanceData.length > 0 ? (
+                                <BarChart data={empPerformanceData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                                    <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
+                                    <Tooltip formatter={v => [`${v}%`, 'Completion Rate']} />
+                                    <Bar dataKey="Performance" fill="#8b5cf6" name="Performance %" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                    <TrendingUp size={32} className="opacity-20 mb-2" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">No performance data</span>
+                                </div>
+                            )}
                         </ChartPanel>
                     </>
                 )}
@@ -408,25 +560,39 @@ const ReportsPage = () => {
                 {(['ADMIN', 'CFO'].includes((user?.role || '').toUpperCase())) && (
                     <>
                         <ChartPanel title="Workload (Dept)">
-                            <BarChart data={workloadData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                                <YAxis tick={{ fontSize: 10 }} />
-                                <Tooltip />
-                                <Legend wrapperStyle={{ fontSize: '10px' }} />
-                                <Bar dataKey="Completed" stackId="a" fill="#10b981" name="Completed" />
-                                <Bar dataKey="Pending" stackId="a" fill="#f59e0b" name="Pending" />
-                            </BarChart>
+                            {workloadData.length > 0 ? (
+                                <BarChart data={workloadData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                                    <YAxis tick={{ fontSize: 10 }} />
+                                    <Tooltip />
+                                    <Legend wrapperStyle={{ fontSize: '10px' }} />
+                                    <Bar dataKey="Completed" stackId="a" fill="#10b981" name="Completed" />
+                                    <Bar dataKey="Pending" stackId="a" fill="#f59e0b" name="Pending" />
+                                </BarChart>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                    <CheckSquare size={32} className="opacity-20 mb-2" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">No workload data</span>
+                                </div>
+                            )}
                         </ChartPanel>
 
                         <ChartPanel title="Perf. Index (%)">
-                            <BarChart data={deptScores}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                                <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-                                <Tooltip />
-                                <Bar dataKey="Performance" fill="#8b5cf6" name="Rate %" radius={[4, 4, 0, 0]} />
-                            </BarChart>
+                            {deptScores.length > 0 ? (
+                                <BarChart data={deptScores}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                                    <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
+                                    <Tooltip />
+                                    <Bar dataKey="Performance" fill="#8b5cf6" name="Rate %" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                    <TrendingUp size={32} className="opacity-20 mb-2" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">No performance data</span>
+                                </div>
+                            )}
                         </ChartPanel>
                     </>
                 )}
