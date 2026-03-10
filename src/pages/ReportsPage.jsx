@@ -105,14 +105,17 @@ const ReportsPage = () => {
             const data = response.data;
             const payload = data?.data || data;
 
+            // Comprehensive stat extraction
             const stats = payload?.department_stats
                 || payload?.manager_stats
                 || payload?.performance_data
+                || payload?.team_stats
                 || payload?.stats
-                || (Array.isArray(payload) ? payload : []);
+                || (Array.isArray(payload) ? payload : (payload?.items || []));
 
             if (Array.isArray(stats) && stats.length > 0) {
                 setReportData(stats);
+                setLoading(false);
                 return;
             }
 
@@ -157,10 +160,7 @@ const ReportsPage = () => {
                     byDept.set(key, existing);
                 });
 
-                const deptRows = Array.from(byDept.values()).map((d) => ({
-                    ...d,
-                    avg_reworks: d.total_tasks > 0 ? Number((d._reworks / d.total_tasks).toFixed(2)) : 0,
-                }));
+                const deptRows = Array.from(byDept.values());
                 setReportData(deptRows);
             } else {
                 const byEmp = new Map();
@@ -171,21 +171,19 @@ const ReportsPage = () => {
                         name: t.employeeName,
                         department: t.departmentName,
                         role: 'Employee',
-                        tasks_assigned: 0,
-                        tasks_completed: 0,
-                        avg_reworks: 0,
+                        total_tasks: 0,
+                        approved_tasks: 0,
+                        pending_tasks: 0,
                         _reworks: 0,
                     };
-                    existing.tasks_assigned += 1;
-                    if (t.status === 'APPROVED') existing.tasks_completed += 1;
+                    existing.total_tasks += 1;
+                    if (t.status === 'APPROVED') existing.approved_tasks += 1;
+                    if (!TERMINAL_STATUSES.has(t.status)) existing.pending_tasks += 1;
                     if (t.status === 'REWORK') existing._reworks += 1;
                     byEmp.set(key, existing);
                 });
 
-                const empRows = Array.from(byEmp.values()).map((e) => ({
-                    ...e,
-                    avg_reworks: e.tasks_assigned > 0 ? Number((e._reworks / e.tasks_assigned).toFixed(2)) : 0,
-                }));
+                const empRows = Array.from(byEmp.values());
                 setReportData(empRows);
             }
         } catch (err) {
@@ -223,50 +221,44 @@ const ReportsPage = () => {
             workloadData: [], empWorkloadData: [], empPerformanceData: []
         };
 
-
         const role = (user?.role || '').toUpperCase();
         const isCFO = (role === 'CFO' || role === 'ADMIN');
+        const isManager = role === 'MANAGER';
 
-        // Use real data if available
         const hasData = Array.isArray(reportData) && reportData.length > 0;
         const arr = hasData ? reportData : [];
 
         if (!hasData) return empty;
 
-        // Determine shape by checking first element
-        const isDeptShape = arr[0] && ('department_id' in arr[0]);
+        const first = arr[0] || {};
+        // If it's a Manager, it's definitely employees. 
+        // If it's a CFO, we check if they have specific employee ID filters
+        const isDeptShape = isCFO && !filters.employeeId && (!!first.department_id || !!first.department_stats);
 
-        const mapped = isDeptShape
-            ? arr.map(d => ({
-                id: d.department_id,
-                name: d.department_id,
-                role: 'Department',
-                department: d.department_id,
-                total: d.total_tasks || 0,
-                completed: d.approved_tasks || 0,
-                pending: d.pending_tasks || 0,
-                onTimePct: d.total_tasks > 0 ? Math.round((d.approved_tasks / d.total_tasks) * 100) : 0,
-                avgReworks: d.avg_reworks || 0,
-                score: d.total_tasks > 0 ? Math.round((d.approved_tasks / d.total_tasks) * 100) : 0,
-                manager: 'Dept Head'
-            }))
-            : arr.map(u => ({
-                id: u.emp_id || u.id,
-                name: u.name,
-                role: u.role || 'Employee',
-                department: u.department || u.department_name || 'N/A',
-                total: u.tasks_assigned || u.total_tasks || 0,
-                completed: u.tasks_completed || u.approved_tasks || 0,
-                pending: Math.max(0, (u.tasks_assigned || u.total_tasks || 0) - (u.tasks_completed || u.approved_tasks || 0)),
-                onTimePct: (u.tasks_assigned || u.total_tasks) > 0
-                    ? Math.round(((u.tasks_completed || u.approved_tasks) / (u.tasks_assigned || u.total_tasks)) * 100)
-                    : 0,
-                avgReworks: u.avg_reworks || 0,
-                score: (u.tasks_assigned || u.total_tasks) > 0
-                    ? Math.round(((u.tasks_completed || u.approved_tasks) / (u.tasks_assigned || u.total_tasks)) * 100)
-                    : 0,
-                manager: u.manager_name || 'Supervisor'
-            }));
+        const mapped = arr.map(item => {
+            const total = Number(item.total_tasks || item.total || item.tasks_assigned || item.tasks_count || 0);
+            const completed = Number(item.approved_tasks || item.approved || item.tasks_completed || item.tasks_done || item.completed || 0);
+            const pending = Number(item.pending_tasks || item.pending || (total - completed) || 0);
+
+            let onTimePct = Number(item.on_time_pct || item.performance || item.performance_index || item.completion_rate || 0);
+            if (onTimePct === 0 && total > 0) {
+                onTimePct = Math.round((completed / total) * 100);
+            }
+
+            return {
+                id: item.emp_id || item.id || item.department_id || Math.random(),
+                name: item.name || item.employee_name || item.department_name || item.department_id || 'Unit',
+                role: item.role || item.designation || (isDeptShape ? 'Department' : 'Employee'),
+                department: item.department || item.department_name || 'N/A',
+                total,
+                completed,
+                pending: Math.max(0, pending),
+                onTimePct,
+                avgReworks: Number(item.avg_reworks || (item._reworks / (total || 1)) || 0).toFixed(2),
+                score: onTimePct,
+                manager: item.manager_name || 'Supervisor'
+            };
+        });
 
         const sorted = [...mapped].sort((a, b) => b.onTimePct - a.onTimePct);
 
@@ -274,13 +266,13 @@ const ReportsPage = () => {
             performanceData: mapped,
             topList: sorted.slice(0, 5),
             deptScores: isDeptShape ? mapped.map(d => ({ name: d.name, Performance: d.onTimePct })) : [],
-            topDept: isDeptShape && sorted[0] ? { name: sorted[0].name, Performance: sorted[0].onTimePct, Tasks: sorted[0].total } : (sorted[0] ? { name: sorted[0].name, Performance: sorted[0].onTimePct, Tasks: sorted[0].total } : null),
+            topDept: sorted[0] ? { name: sorted[0].name, Performance: sorted[0].onTimePct, Tasks: sorted[0].total } : null,
             underperformingDept: sorted.length > 1 ? { name: sorted[sorted.length - 1].name, Performance: sorted[sorted.length - 1].onTimePct, Tasks: sorted[sorted.length - 1].total } : null,
-            workloadData: isDeptShape ? mapped.map(d => ({ name: d.name, Total: d.total, Completed: d.completed, Pending: d.pending })) : mapped.map(u => ({ name: u.name, Total: u.total, Completed: u.completed, Pending: u.pending })),
+            workloadData: mapped.map(d => ({ name: d.name, Total: d.total, Completed: d.completed, Pending: d.pending })),
             empWorkloadData: !isDeptShape ? mapped.map(u => ({ name: u.name, Completed: u.completed, Pending: u.pending })) : [],
             empPerformanceData: !isDeptShape ? mapped.map(u => ({ name: u.name, Performance: u.onTimePct })) : [],
         };
-    }, [reportData, user?.role]);
+    }, [reportData, user?.role, filters.employeeId]);
 
 
     const downloadFile = async (format) => {
@@ -343,100 +335,91 @@ const ReportsPage = () => {
 
     return (
         <div className="space-y-4">
-            {/* ══ ANALYTICS PREMIUM HERO ══ */}
-            <div
-                className="rounded-3xl overflow-hidden shadow-2xl relative mb-6"
-                style={{ background: 'linear-gradient(135deg, #1e293b 0%, #334155 40%, #475569 100%)' }}
-            >
-                {/* Decorative Premium Blobs */}
-                <div className="glass-circle w-64 h-64 bg-white/5 -top-10 -right-10 animate-blob" />
-                <div className="glass-circle w-48 h-48 bg-white/5 bottom-0 left-1/4 animate-blob [animation-delay:2s]" />
+            {/* ══ ANALYTICS EXECUTIVE LIGHT HERO ══ */}
+            <div className="rounded-[2.5rem] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative border border-slate-100 p-10 overflow-hidden mb-6 group">
+                {/* Clean Accents */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-40 group-hover:opacity-70 transition-opacity" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl -ml-32 -mb-32 opacity-40 group-hover:opacity-70 transition-opacity" />
 
-                <div className="relative z-10 px-8 py-10 flex flex-col items-center text-center gap-6">
+                <div className="relative z-10 flex flex-col items-center text-center gap-8">
                     <div className="flex flex-col items-center gap-4">
-                        <div className="bg-white/10 backdrop-blur-xl p-4 rounded-3xl shadow-2xl border border-white/20 animate-float">
-                            <TrendingUp size={32} className="text-white" />
+                        <div className="bg-slate-900 p-5 rounded-[1.5rem] shadow-xl group-hover:scale-110 transition-all duration-500">
+                            <TrendingUp size={32} className="text-emerald-400" />
                         </div>
                         <div>
-                            <h2 className="text-3xl font-black text-white tracking-tight drop-shadow-lg">
-                                Performance Analytics
+                            <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">
+                                Performance <span className="text-emerald-500">Analytics</span>
                             </h2>
-                            <p className="text-slate-300 font-bold uppercase tracking-[0.3em] text-[10px] mt-2 opacity-80">
-                                {(user?.role || '').toUpperCase() === 'MANAGER' ? 'Departmental Metrics & KPI Tracking' : 'Enterprise Intelligence & System Reports'}
+                            <p className="text-slate-500 font-black uppercase tracking-[0.4em] text-[10px] mt-4 opacity-70">
+                                {(user?.role || '').toUpperCase() === 'MANAGER' ? 'UNIT METRICS & KPI CAPTURE' : 'SYSTEM INTELLIGENCE & GLOBAL REPORTS'}
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-center gap-4 w-full max-w-5xl">
-                        {/* Global Filters Group - Premium Glass */}
-                        <div className="flex flex-wrap items-center gap-3 bg-white/5 backdrop-blur-xl p-3 rounded-[2rem] border border-white/10 shadow-2xl flex-1 justify-center">
-
-                            {(user?.role === 'CFO' || user?.role === 'ADMIN') && (
-                                <select
-                                    className="pl-4 pr-10 py-3 bg-white/10 text-white border border-white/20 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-white/10 appearance-none cursor-pointer hover:bg-white/20 transition-all min-w-[160px]"
-                                    value={filters.departmentId}
-                                    onChange={(e) => setFilters({ ...filters, departmentId: e.target.value })}
-                                    style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'white\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1rem' }}
-                                >
-                                    <option value="" className="text-slate-900">All Departments</option>
-                                    {availableDepartments.map((d, idx) => {
-                                        const val = typeof d === 'string' ? d : (d.department_id || d.id);
-                                        const label = typeof d === 'string' ? d : (d.name || d.department_id);
-                                        return <option key={`${val}-${idx}`} value={val} className="text-slate-900">{label}</option>
-                                    })}
-                                </select>
-                            )}
-
+                    <div className="flex flex-wrap items-center justify-center gap-4 bg-slate-50 p-2.5 rounded-[2rem] border border-slate-100 shadow-sm w-full max-w-5xl">
+                        {(user?.role === 'CFO' || user?.role === 'ADMIN') && (
                             <select
-                                className="pl-4 pr-10 py-3 bg-white/10 text-white border border-white/20 rounded-2xl text-xs font-bold focus:outline-none focus:ring-4 focus:ring-white/10 appearance-none cursor-pointer hover:bg-white/20 transition-all min-w-[160px]"
-                                value={filters.employeeId}
-                                onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
-                                style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'white\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1rem' }}
+                                className="pl-6 pr-12 py-3.5 bg-white text-slate-900 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-emerald-500/10 appearance-none cursor-pointer hover:border-emerald-500/30 transition-all min-w-[180px] shadow-sm"
+                                value={filters.departmentId}
+                                onChange={(e) => setFilters({ ...filters, departmentId: e.target.value })}
+                                style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1.25rem center', backgroundSize: '1rem' }}
                             >
-                                <option value="" className="text-slate-900">All Personnel</option>
-                                {availableEmployees.map((u, idx) => (
-                                    <option key={`${u.emp_id || u.id || idx}-${idx}`} value={u.emp_id || u.id} className="text-slate-900">{u.name}</option>
-                                ))}
+                                <option value="">Global Units</option>
+                                {availableDepartments.map((d, idx) => {
+                                    const val = typeof d === 'string' ? d : (d.department_id || d.id);
+                                    const label = typeof d === 'string' ? d : (d.name || d.department_id);
+                                    return <option key={`${val}-${idx}`} value={val}>{label}</option>
+                                })}
                             </select>
+                        )}
 
-                            {/* Date Picker Range */}
-                            <div className="flex items-center gap-3 bg-white/10 px-5 py-2.5 rounded-2xl border border-white/20 shadow-inner">
-                                <div className="flex flex-col">
-                                    <span className="text-[7px] font-black text-indigo-200 uppercase tracking-widest leading-none mb-1">From</span>
-                                    <input
-                                        type="date"
-                                        className="bg-transparent text-[11px] font-bold outline-none cursor-pointer text-white color-scheme-dark"
-                                        value={filters.fromDate}
-                                        onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
-                                    />
-                                </div>
-                                <ArrowRight size={10} className="text-white/30" />
-                                <div className="flex flex-col">
-                                    <span className="text-[7px] font-black text-indigo-200 uppercase tracking-widest leading-none mb-1">To</span>
-                                    <input
-                                        type="date"
-                                        className="bg-transparent text-[11px] font-bold outline-none cursor-pointer text-white color-scheme-dark"
-                                        value={filters.toDate}
-                                        onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
-                                    />
-                                </div>
-                            </div>
+                        <select
+                            className="pl-6 pr-12 py-3.5 bg-white text-slate-900 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-indigo-500/10 appearance-none cursor-pointer hover:border-indigo-500/30 transition-all min-w-[180px] shadow-sm"
+                            value={filters.employeeId}
+                            onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
+                            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1.25rem center', backgroundSize: '1rem' }}
+                        >
+                            <option value="">All Personnel</option>
+                            {availableEmployees.map((u, idx) => (
+                                <option key={`${u.emp_id || u.id || idx}-${idx}`} value={u.emp_id || u.id}>{u.name}</option>
+                            ))}
+                        </select>
 
-                            {/* Export Actions */}
-                            <div className="flex items-center gap-2 ml-2">
-                                <button
-                                    onClick={handleDownloadPDF}
-                                    className="bg-white text-slate-900 hover:bg-slate-100 transition-all px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-2"
-                                >
-                                    <Download size={14} /> PDF
-                                </button>
-                                <button
-                                    onClick={handleDownloadExcel}
-                                    className="bg-emerald-500 text-white hover:bg-emerald-600 transition-all px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center gap-2"
-                                >
-                                    <FileSpreadsheet size={14} /> CSV
-                                </button>
+                        <div className="flex items-center gap-4 bg-white px-6 py-2.5 rounded-2xl border border-slate-200 shadow-sm">
+                            <div className="flex flex-col">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">Start</span>
+                                <input
+                                    type="date"
+                                    className="bg-transparent text-[11px] font-black outline-none cursor-pointer text-slate-900 border-none p-0 focus:ring-0"
+                                    value={filters.fromDate}
+                                    onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
+                                />
                             </div>
+                            <div className="w-px h-8 bg-slate-100" />
+                            <div className="flex flex-col">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">End</span>
+                                <input
+                                    type="date"
+                                    className="bg-transparent text-[11px] font-black outline-none cursor-pointer text-slate-900 border-none p-0 focus:ring-0"
+                                    value={filters.toDate}
+                                    onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleDownloadPDF}
+                                className="bg-slate-900 text-white hover:bg-slate-800 transition-all px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-3 active:scale-95"
+                            >
+                                <Download size={14} className="text-indigo-400" /> PDF
+                            </button>
+                            <button
+                                onClick={handleDownloadExcel}
+                                className="bg-white text-slate-900 hover:bg-slate-50 border border-slate-200 shadow-sm transition-all px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 active:scale-95"
+                            >
+                                <FileSpreadsheet size={14} className="text-emerald-500" /> CSV
+                            </button>
                         </div>
                     </div>
                 </div>

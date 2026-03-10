@@ -74,50 +74,41 @@ const STATUS_COLORS = {
 };
 
 
-/* Small stat tile — premium version */
+/* Small stat tile — CFO-style large gradient card */
 const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
     const c = {
-        violet: { gradient: 'from-violet-500 to-violet-700', shadow: 'shadow-violet-200' },
-        green: { gradient: 'from-emerald-400 to-emerald-600', shadow: 'shadow-emerald-200' },
-        blue: { gradient: 'from-blue-500 to-blue-700', shadow: 'shadow-blue-200' },
-        amber: { gradient: 'from-amber-400 to-amber-600', shadow: 'shadow-amber-200' },
-        orange: { gradient: 'from-orange-500 to-orange-700', shadow: 'shadow-orange-200' },
-        teal: { gradient: 'from-teal-400 to-teal-600', shadow: 'shadow-teal-200' },
-    }[color] || { gradient: 'from-violet-500 to-violet-700', shadow: 'shadow-violet-200' };
+        violet: { bg: 'from-violet-500 to-indigo-600', shadow: 'shadow-violet-300/40', icon: 'bg-white/20', accent: 'bg-violet-400/30' },
+        green: { bg: 'from-emerald-400 to-teal-500', shadow: 'shadow-emerald-300/40', icon: 'bg-white/20', accent: 'bg-emerald-400/30' },
+        blue: { bg: 'from-blue-500 to-indigo-500', shadow: 'shadow-blue-300/40', icon: 'bg-white/20', accent: 'bg-blue-400/30' },
+        amber: { bg: 'from-amber-400 to-orange-500', shadow: 'shadow-amber-300/40', icon: 'bg-white/20', accent: 'bg-amber-400/30' },
+        orange: { bg: 'from-orange-500 to-rose-500', shadow: 'shadow-orange-300/40', icon: 'bg-white/20', accent: 'bg-orange-400/30' },
+        teal: { bg: 'from-teal-400 to-cyan-500', shadow: 'shadow-teal-300/40', icon: 'bg-white/20', accent: 'bg-teal-400/30' },
+    }[color] || { bg: 'from-violet-500 to-indigo-600', shadow: 'shadow-violet-300/40', icon: 'bg-white/20', accent: 'bg-violet-400/30' };
 
     return (
-        <div className="stat-card group animate-fade-in-up py-4 px-5 border border-slate-100/60 shadow-sm hover:shadow-xl transition-all duration-500 bg-white/50 backdrop-blur-sm rounded-3xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/10 to-transparent -mr-12 -mt-12 rounded-full" />
+        <div className={`group animate-fade-in-up relative overflow-hidden rounded-2xl bg-gradient-to-br ${c.bg} ${c.shadow} shadow-lg py-5 px-6 transition-all duration-500 hover:scale-[1.03] hover:shadow-xl`}>
+            {/* Decorative blobs */}
+            <div className={`absolute -top-6 -right-6 w-24 h-24 rounded-full ${c.accent} blur-2xl`} />
+            <div className={`absolute -bottom-6 -left-6 w-20 h-20 rounded-full ${c.accent} blur-2xl opacity-60`} />
 
-            <div className="flex flex-col gap-3 relative z-10">
-                <div className={`
-                    w-12 h-12 rounded-2xl
-                    bg-gradient-to-br ${c.gradient}
-                    shadow-lg ${c.shadow}
-                    flex items-center justify-center
-                    transition-all duration-500
-                    group-hover:scale-110 group-hover:rotate-3
-                `}>
-                    <Icon size={24} className="text-white drop-shadow-md" strokeWidth={2.5} />
+            <div className="relative z-10 flex items-center gap-4">
+                <div className={`flex-shrink-0 w-12 h-12 rounded-2xl ${c.icon} backdrop-blur-sm flex items-center justify-center transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6 border border-white/30`}>
+                    <Icon size={24} className="text-white drop-shadow-sm" strokeWidth={2.5} />
                 </div>
-
-                <div className="space-y-1">
-                    <div className="text-2xl font-black text-slate-900 tabular-nums tracking-tighter leading-none">
+                <div className="min-w-0 flex-1">
+                    <div className="text-3xl font-black text-white tabular-nums tracking-tighter leading-none drop-shadow">
                         {value ?? '-'}
                     </div>
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight">
+                    <div className="text-[11px] font-bold text-white/80 uppercase tracking-widest leading-tight mt-1.5">
                         {label}
                     </div>
                     {sub && (
-                        <div className="text-[9px] text-slate-300 font-bold uppercase tracking-hero-tight mt-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <div className="text-[9px] text-white/60 font-semibold uppercase tracking-widest mt-0.5">
                             {sub}
                         </div>
                     )}
                 </div>
             </div>
-
-            {/* Hover Glow */}
-            <div className={`absolute -bottom-24 -left-24 w-48 h-48 bg-gradient-to-tr ${c.gradient} opacity-0 group-hover:opacity-10 blur-3xl transition-opacity duration-700`} />
         </div>
     );
 };
@@ -323,134 +314,101 @@ const EmployeeDashboard = () => {
     return (
         <div className="space-y-4">
 
-            {/* ══ EMPLOYEE PREMIUM EXECUTIVE HERO ══ */}
-            <div className="rounded-[2.5rem] overflow-hidden shadow-2xl relative mb-6 border border-white/10 mesh-gradient-premium">
-                <div className="absolute -top-24 -right-24 w-96 h-96 bg-violet-400/20 rounded-full blur-[80px] animate-blob" />
-                <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-400/20 rounded-full blur-[80px] animate-blob [animation-delay:2s]" />
+            {/* ══ EMPLOYEE HEADER — CFO-STYLE CLEAN WHITE ══ */}
+            <div className="rounded-[2rem] bg-white shadow-sm border border-slate-100 relative overflow-hidden p-6 mb-2">
+                <div className="absolute top-0 right-0 w-72 h-72 bg-violet-50 rounded-full blur-3xl -mr-36 -mt-36 opacity-60" />
+                <div className="absolute bottom-0 left-0 w-56 h-56 bg-indigo-50 rounded-full blur-3xl -ml-28 -mb-28 opacity-60" />
 
-                <div className="relative z-10 px-10 pt-10 pb-8 flex flex-col items-center text-center gap-5">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="bg-white/10 backdrop-blur-2xl p-3 rounded-[1.5rem] shadow-2xl border border-white/20 animate-float card-gloss">
-                            <CalendarCheck size={30} className="text-white drop-shadow-glow" />
+                <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-5">
+                        <div className="bg-gradient-to-br from-violet-500 to-indigo-600 p-4 rounded-2xl shadow-lg shadow-violet-200/50">
+                            <CalendarCheck size={28} className="text-white" />
                         </div>
                         <div>
-                            <h2 className="text-3xl font-black text-white tracking-tight drop-shadow-2xl uppercase leading-none mb-1.5">
-                                My Dashboard
+                            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none">
+                                My <span className="text-violet-600">Dashboard</span>
                             </h2>
-                            <p className="text-indigo-100 font-bold uppercase tracking-[0.4em] text-[9px] opacity-80 flex items-center gap-2">
+                            <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px] mt-2">
                                 {dateLabel} · Welcome Back, {user?.name?.split(' ')[0] || 'User'}
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex flex-col lg:flex-row items-center justify-center gap-4 w-full max-w-4xl">
-                        {/* Search Bar — Integrated Premium Style */}
-                        <div className="flex-1 w-full bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-3.5 shadow-inner flex items-center gap-3 group focus-within:bg-white/20 transition-all">
-                            <SearchIcon size={18} className="text-white/60 group-focus-within:text-white" />
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* Search Bar */}
+                        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 gap-2 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100 transition-all">
+                            <SearchIcon size={15} className="text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Search tasks by title or ID..."
-                                className="bg-transparent border-none outline-none text-white text-sm font-bold placeholder:text-white/40 w-full"
+                                placeholder="Search tasks..."
+                                className="bg-transparent border-none outline-none text-[12px] font-medium placeholder:text-slate-400 text-slate-700 w-44"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
 
-                        {/* Compact Date Range Pill — Premium Executive Style */}
-                        <div className="flex items-center bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-2 shadow-inner transition-all hover:bg-white/20">
-                            <div className="flex flex-col text-left mr-3">
-                                <span className="text-[7px] font-black text-indigo-200 uppercase tracking-widest leading-none mb-0.5">From</span>
-                                <div className="flex items-center gap-1.5">
-                                    <input
-                                        type="date"
-                                        value={fromDate}
-                                        onChange={(e) => setFromDate(e.target.value)}
-                                        className="bg-transparent text-white text-[10px] font-black uppercase outline-none w-[90px] placeholder:text-white/40 cursor-pointer"
-                                    />
-                                </div>
+                        {/* Date Range */}
+                        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 gap-3">
+                            <div className="flex flex-col">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">From</span>
+                                <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+                                    className="bg-transparent text-slate-700 text-[11px] font-bold outline-none w-[100px] cursor-pointer" />
                             </div>
-
-                            <div className="flex items-center justify-center w-5 h-5 rounded-full bg-white/10 border border-white/10 mx-1">
-                                <ArrowRight size={10} className="text-white/60" />
-                            </div>
-
-                            <div className="flex flex-col text-left ml-3">
-                                <span className="text-[7px] font-black text-indigo-200 uppercase tracking-widest leading-none mb-0.5">To</span>
-                                <div className="flex items-center gap-1.5">
-                                    <input
-                                        type="date"
-                                        value={toDate}
-                                        onChange={(e) => setToDate(e.target.value)}
-                                        className="bg-transparent text-white text-[10px] font-black uppercase outline-none w-[90px] placeholder:text-white/40 cursor-pointer"
-                                    />
-                                </div>
+                            <div className="w-px h-6 bg-slate-200" />
+                            <div className="flex flex-col">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">To</span>
+                                <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+                                    className="bg-transparent text-slate-700 text-[11px] font-bold outline-none w-[100px] cursor-pointer" />
                             </div>
                         </div>
 
-                        <div className="flex gap-2">
-                            {/* All Tasks Nav Pill */}
-                            <button
-                                onClick={() => navigate('/tasks')}
-                                className="bg-white text-indigo-900 hover:scale-105 transition-transform px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl flex items-center gap-2 group"
-                            >
-                                All Tasks
-                                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                        <button onClick={() => navigate('/tasks')}
+                            className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] shadow-md transition-all flex items-center gap-2 hover:-translate-y-0.5">
+                            All Tasks <ArrowRight size={13} className="text-violet-400" />
+                        </button>
+
+                        {(fromDate || toDate || searchTerm) && (
+                            <button onClick={() => { setFromDate(''); setToDate(''); setSearchTerm(''); }}
+                                className="text-[9px] font-black text-slate-400 hover:text-rose-500 px-3 py-2.5 rounded-xl border border-slate-200 hover:border-rose-200 transition-all uppercase tracking-widest">
+                                ✕ Reset
                             </button>
-
-                            {(fromDate || toDate || searchTerm) && (
-                                <button
-                                    onClick={() => { setFromDate(''); setToDate(''); setSearchTerm(''); }}
-                                    className="bg-white/10 hover:bg-white/20 text-white text-[9px] font-black px-4 py-3.5 rounded-2xl border border-white/20 backdrop-blur-sm transition-all uppercase tracking-widest"
-                                >
-                                    ✕ Reset
-                                </button>
-                            )}
-                        </div>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* ══ ACTIONABLE SUMMARY ══ */}
-            <div className="p-4 bg-white rounded-3xl border border-slate-100 shadow-sm mb-6 border-l-8 border-l-violet-600 relative overflow-hidden group hover:shadow-xl transition-all duration-500">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-violet-50/50 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-violet-100/50 transition-colors" />
-
-                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-violet-600 flex items-center justify-center text-white shadow-lg shadow-violet-200 animate-pulse-subtle">
-                            <Clock size={24} strokeWidth={2.5} />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest leading-none mb-1">Incoming Priority</h3>
-                            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.2em]">
-                                {pendingTasks.length} {pendingTasks.length === 1 ? 'Task Item' : 'Task Items'} To Process
-                            </p>
-                        </div>
+            {/* ══ PENDING COUNT SUMMARY ══ */}
+            <div className="flex items-center justify-between px-5 py-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center text-violet-600">
+                        <Clock size={18} strokeWidth={2.5} />
                     </div>
-
-                    {pendingTasks.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 flex-1 w-full lg:max-w-3xl">
-                            {pendingTasks.slice(0, 3).map(task => (
-                                <div
-                                    key={task.id}
-                                    onClick={() => navigate('/tasks')}
-                                    className="bg-slate-50/80 backdrop-blur-sm hover:bg-white rounded-2xl p-3 border border-slate-100 transition-all hover:scale-[1.02] shadow-sm hover:shadow-md flex items-center justify-between group/task cursor-pointer"
-                                >
-                                    <div className="min-w-0 flex-1 mr-3">
-                                        <div className="text-[11px] font-black text-slate-800 truncate leading-tight mb-1">{task.title}</div>
-                                        <Badge variant={task.status} className="scale-75 origin-left">{STATUS_LABEL[task.status]}</Badge>
-                                    </div>
-                                    <ChevronRight size={14} className="text-slate-300 group-hover/task:text-violet-600 transition-colors flex-shrink-0" />
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="flex-1 flex items-center justify-center p-2 rounded-xl bg-emerald-50/50 border border-emerald-100">
-                            <span className="text-xs font-bold text-emerald-600 flex items-center gap-2">
-                                <CheckCircle size={14} /> Global Schedule Clear
-                            </span>
-                        </div>
-                    )}
+                    <div>
+                        <p className="text-sm font-black text-slate-800 leading-none">Pending Tasks</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                            {pendingTasks.length} item{pendingTasks.length !== 1 ? 's' : ''} require action
+                        </p>
+                    </div>
                 </div>
+                {pendingTasks.length > 0 ? (
+                    <div className="flex items-center gap-2">
+                        {pendingTasks.slice(0, 3).map(task => (
+                            <div key={task.id} onClick={() => navigate('/tasks')}
+                                className="hidden md:flex items-center gap-2 bg-slate-50 hover:bg-violet-50 border border-slate-100 hover:border-violet-200 rounded-xl px-3 py-1.5 cursor-pointer transition-all group/t">
+                                <Badge variant={task.status} className="scale-75 origin-left">{STATUS_LABEL[task.status]}</Badge>
+                                <span className="text-[10px] font-bold text-slate-600 truncate max-w-[100px] group-hover/t:text-violet-700">{task.title}</span>
+                            </div>
+                        ))}
+                        <button onClick={() => navigate('/tasks')} className="flex items-center gap-1 text-[10px] font-black text-violet-600 hover:text-violet-800 uppercase tracking-widest">
+                            View All <ChevronRight size={12} />
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-2 text-emerald-600">
+                        <CheckCircle size={16} />
+                        <span className="text-xs font-bold">All clear!</span>
+                    </div>
+                )}
             </div>
 
             {/* ══ STAT CARDS ══ */}

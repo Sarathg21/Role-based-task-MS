@@ -1,4 +1,15 @@
-import { useState, useMemo } from 'react';
+import re
+
+# Now fix AdminDashboard - update it to match CFO premium style
+admin_path = r'c:\Users\SARATH\Project UAE\Rolebased task MS\src\components\Dashboard\AdminDashboard.jsx'
+
+with open(admin_path, 'r', encoding='utf-8', errors='replace') as f:
+    content = f.read()
+
+print("AdminDashboard size:", len(content))
+
+# New AdminDashboard content with CFO style
+new_content = '''import { useState, useMemo } from 'react';
 import { TASKS, USERS, DEPARTMENTS } from '../../data/mockData';
 import { getEmployeeRankings, getManagerRankings } from '../../utils/rankingEngine';
 import StatsCard from '../UI/StatsCard';
@@ -380,3 +391,10 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+'''
+
+with open(admin_path, 'w', encoding='utf-8') as f:
+    f.write(new_content)
+
+print("AdminDashboard written successfully. Size:", len(new_content))
+print("Done!")

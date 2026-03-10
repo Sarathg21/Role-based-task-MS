@@ -63,40 +63,32 @@ const STATUS_LABEL = {
 };
 
 
-/* ─── Small stat card — premium ────────────────────────────── */
+/* ─── Small stat card — CFO-style large gradient ─────────────── */
 const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
     const c = {
-        violet: { gradient: 'from-indigo-500 to-violet-600', shadow: 'shadow-indigo-200/50', glow: 'bg-indigo-400' },
-        green: { gradient: 'from-emerald-400 to-teal-600', shadow: 'shadow-emerald-200/50', glow: 'bg-emerald-400' },
-        emerald: { gradient: 'from-emerald-400 to-teal-600', shadow: 'shadow-emerald-200/50', glow: 'bg-emerald-400' },
-        amber: { gradient: 'from-amber-400 to-orange-500', shadow: 'shadow-amber-200/50', glow: 'bg-amber-400' },
-        orange: { gradient: 'from-orange-500 to-rose-600', shadow: 'shadow-orange-200/50', glow: 'bg-orange-400' },
-        blue: { gradient: 'from-blue-500 to-indigo-600', shadow: 'shadow-blue-200/50', glow: 'bg-blue-400' },
-        rose: { gradient: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-200/50', glow: 'bg-rose-400' },
-    }[color] || { gradient: 'from-indigo-500 to-violet-600', shadow: 'shadow-indigo-200/50', glow: 'bg-indigo-400' };
+        violet: { bg: 'from-indigo-500 to-violet-600', shadow: 'shadow-indigo-300/40', accent: 'bg-indigo-400/30' },
+        green:  { bg: 'from-emerald-400 to-teal-500',  shadow: 'shadow-emerald-300/40', accent: 'bg-emerald-400/30' },
+        emerald:{ bg: 'from-emerald-400 to-teal-500',  shadow: 'shadow-emerald-300/40', accent: 'bg-emerald-400/30' },
+        amber:  { bg: 'from-amber-400 to-orange-500',  shadow: 'shadow-amber-300/40',   accent: 'bg-amber-400/30' },
+        orange: { bg: 'from-orange-500 to-rose-500',   shadow: 'shadow-orange-300/40',  accent: 'bg-orange-400/30' },
+        blue:   { bg: 'from-blue-500 to-indigo-500',   shadow: 'shadow-blue-300/40',    accent: 'bg-blue-400/30' },
+        rose:   { bg: 'from-rose-500 to-pink-600',     shadow: 'shadow-rose-300/40',    accent: 'bg-rose-400/30' },
+    }[color] || { bg: 'from-indigo-500 to-violet-600', shadow: 'shadow-indigo-300/40', accent: 'bg-indigo-400/30' };
 
     return (
-        <div className="stat-card group animate-fade-in-up py-4 px-5 border border-slate-100/60 shadow-sm hover:shadow-xl transition-all duration-500 bg-white/50 backdrop-blur-sm rounded-[1.5rem] relative overflow-hidden">
-            <div className="flex items-center gap-4 relative z-10">
-                <div className={`
-                    flex-shrink-0 w-11 h-11 rounded-2xl
-                    bg-gradient-to-br ${c.gradient}
-                    shadow-lg ${c.shadow}
-                    flex items-center justify-center
-                    transition-all duration-500
-                    group-hover:scale-110 group-hover:rotate-6
-                `}>
-                    <Icon size={22} className="text-white drop-shadow-md" strokeWidth={2.5} />
+        <div className={`group animate-fade-in-up relative overflow-hidden rounded-2xl bg-gradient-to-br ${c.bg} ${c.shadow} shadow-lg py-5 px-6 transition-all duration-500 hover:scale-[1.03] hover:shadow-xl`}>
+            <div className={`absolute -top-6 -right-6 w-24 h-24 rounded-full ${c.accent} blur-2xl`} />
+            <div className={`absolute -bottom-6 -left-6 w-20 h-20 rounded-full ${c.accent} blur-2xl opacity-60`} />
+            <div className="relative z-10 flex items-center gap-4">
+                <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6 border border-white/30">
+                    <Icon size={22} className="text-white drop-shadow-sm" strokeWidth={2.5} />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="text-2xl font-black text-slate-800 tabular-nums tracking-tighter leading-none group-hover:text-indigo-600 transition-colors duration-300">{value ?? '—'}</div>
-                    <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest truncate mt-1.5">{label}</div>
-                    {sub && <div className="text-[9px] text-slate-400 font-bold truncate opacity-60 uppercase tracking-tight mt-0.5">{sub}</div>}
+                    <div className="text-3xl font-black text-white tabular-nums tracking-tighter leading-none drop-shadow">{value ?? '—'}</div>
+                    <div className="text-[11px] font-bold text-white/80 uppercase tracking-widest truncate mt-1.5">{label}</div>
+                    {sub && <div className="text-[9px] text-white/60 font-semibold truncate uppercase tracking-widest mt-0.5">{sub}</div>}
                 </div>
             </div>
-            {/* Subtle glow effect */}
-            <div className={`absolute -right-4 -bottom-4 w-20 h-20 ${c.glow} opacity-[0.03] rounded-full blur-2xl group-hover:opacity-[0.08] transition-opacity duration-700`} />
-            <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-${color === 'emerald' || color === 'green' ? 'emerald' : color === 'rose' ? 'rose' : color === 'amber' || color === 'orange' ? 'amber' : 'indigo'}-400 to-transparent opacity-0 group-hover:opacity-40 transition-opacity duration-500`} />
         </div>
     );
 };
@@ -306,96 +298,69 @@ const ManagerDashboard = () => {
 
     return (
         <div className="space-y-4">
-            <div className="rounded-[2.5rem] overflow-hidden shadow-2xl relative mb-10 border border-white/10 mesh-gradient-premium">
-                <div className="absolute -top-24 -right-24 w-96 h-96 bg-violet-400/20 rounded-full blur-[100px] animate-blob" />
-                <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-400/20 rounded-full blur-[100px] animate-blob [animation-delay:2s]" />
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-64 bg-indigo-500/10 rounded-full blur-[120px] animate-pulse" />
+            {/* ══ MANAGER HEADER — CFO-STYLE CLEAN WHITE ══ */}
+            <div className="rounded-[2rem] bg-white shadow-sm border border-slate-100 relative overflow-hidden p-6 mb-2">
+                <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-50 rounded-full blur-3xl -mr-36 -mt-36 opacity-60" />
+                <div className="absolute bottom-0 left-0 w-56 h-56 bg-emerald-50 rounded-full blur-3xl -ml-28 -mb-28 opacity-60" />
 
-                <div className="relative z-10 px-12 pt-10 pb-6 flex flex-col lg:flex-row items-center justify-between gap-8">
-                    <div className="flex flex-col items-center lg:items-start gap-5">
-                        <div className="bg-white/10 backdrop-blur-2xl p-4 rounded-[1.75rem] shadow-2xl border border-white/20 animate-float flex items-center justify-center w-16 h-16">
-                            <Users size={32} className="text-white drop-shadow-glow" />
+                <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-5">
+                        <div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-4 rounded-2xl shadow-lg shadow-indigo-200/50">
+                            <Users size={28} className="text-white" />
                         </div>
-                        <div className="text-center lg:text-left">
-                            <h2 className="text-3xl font-black text-white tracking-tighter drop-shadow-2xl leading-tight text-glow">
-                                Unit <span className="text-indigo-300">Operations</span> & <br className="hidden lg:block" /> Team <span className="text-emerald-300">Performance</span>
+                        <div>
+                            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none">
+                                Team <span className="text-indigo-600">Performance</span>
                             </h2>
-                            <div className="flex items-center justify-center lg:justify-start gap-3 mt-3">
-                                <div className="h-0.5 w-10 bg-indigo-400 rounded-full shadow-glow"></div>
-                                <p className="text-indigo-100 font-bold uppercase tracking-[0.4em] text-[11px] opacity-70">
-                                    {user.department || 'Management'} · {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                                </p>
-                            </div>
+                            <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px] mt-2">
+                                {user.department || 'Management'} · {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                            </p>
                         </div>
                     </div>
 
-                    <div className="flex flex-col lg:flex-row items-center gap-5 w-full lg:w-auto">
-                        <div className="flex items-center glass-premium-dark rounded-2xl p-1.5 border border-white/10 shadow-2xl min-w-[340px]">
-                            <div className="flex-1 flex flex-col px-5 py-2">
-                                <span className="text-[8px] font-black text-indigo-300 uppercase tracking-[0.2em] mb-0.5 opacity-60">Capture Start</span>
-                                <input
-                                    type="date"
-                                    value={fromDate}
-                                    onChange={(e) => setFromDate(e.target.value)}
-                                    className="bg-transparent text-white text-xs font-bold border-none outline-none w-full uppercase cursor-pointer focus:ring-0 placeholder:text-white/20"
-                                />
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 gap-3">
+                            <div className="flex flex-col">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Start Date</span>
+                                <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+                                    className="bg-transparent text-slate-700 text-[11px] font-bold outline-none w-[110px] cursor-pointer" />
                             </div>
-                            <div className="w-px h-10 bg-white/10 mx-1" />
-                            <div className="flex-1 flex flex-col px-5 py-2">
-                                <span className="text-[8px] font-black text-indigo-300 uppercase tracking-[0.2em] mb-0.5 opacity-60">Capture End</span>
-                                <input
-                                    type="date"
-                                    value={toDate}
-                                    onChange={(e) => setToDate(e.target.value)}
-                                    className="bg-transparent text-white text-xs font-bold border-none outline-none w-full uppercase cursor-pointer focus:ring-0 placeholder:text-white/20"
-                                />
+                            <div className="w-px h-6 bg-slate-200" />
+                            <div className="flex flex-col">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">End Date</span>
+                                <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+                                    className="bg-transparent text-slate-700 text-[11px] font-bold outline-none w-[110px] cursor-pointer" />
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-3 w-full lg:w-auto">
-                            <button
-                                onClick={() => navigate('/tasks/assign')}
-                                className="flex-1 lg:flex-none lg:min-w-[220px] bg-white text-indigo-900 hover:scale-[1.03] active:scale-[0.97] transition-all duration-500 px-8 py-4.5 rounded-[1.25rem] font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl flex items-center justify-center gap-3 group relative overflow-hidden"
-                            >
-                                <Plus size={20} className="group-hover:rotate-90 transition-transform duration-500" />
-                                <span>Assign New Task</span>
+                        <button onClick={() => navigate('/tasks/assign')}
+                            className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] shadow-md transition-all flex items-center gap-2 hover:-translate-y-0.5">
+                            <Plus size={14} /> Assign Task
+                        </button>
+
+                        {(fromDate || toDate) && (
+                            <button onClick={() => { setFromDate(''); setToDate(''); }}
+                                className="text-[9px] font-black text-slate-400 hover:text-rose-500 px-3 py-2.5 rounded-xl border border-slate-200 hover:border-rose-200 transition-all uppercase tracking-widest">
+                                ✕ Reset
                             </button>
-
-                            {(fromDate || toDate) && (
-                                <button
-                                    onClick={() => { setFromDate(''); setToDate(''); }}
-                                    className="bg-white/5 hover:bg-rose-500/20 text-white text-[9px] font-black px-5 py-4.5 rounded-[1.25rem] border border-white/10 backdrop-blur-md transition-all duration-300 uppercase tracking-widest"
-                                >
-                                    ✕ Reset
-                                </button>
-                            )}
-                        </div>
+                        )}
                     </div>
                 </div>
 
-                <div className="relative z-10 mx-6 mb-8 px-12 py-8 flex flex-wrap items-center justify-around gap-6 bg-white/[0.08] backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl shadow-black/20">
-                    <div className="flex flex-col gap-1.5 items-center md:items-start">
-                        <span className="text-[9px] font-black text-indigo-200 uppercase tracking-[0.3em] opacity-80">Managed Units</span>
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-4xl font-black text-white tabular-nums leading-none leading-[0.8]">{reportTeam.length}</span>
-                            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Members</span>
-                        </div>
+                <div className="relative z-10 mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-6">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Team Members</span>
+                        <span className="text-xl font-black text-slate-900 tabular-nums">{reportTeam.length}</span>
                     </div>
-                    <div className="hidden lg:block w-px h-12 bg-white/10 self-center" />
-                    <div className="flex flex-col gap-1.5 items-center md:items-start">
-                        <span className="text-[9px] font-black text-indigo-200 uppercase tracking-[0.3em] opacity-80">Active Pipeline</span>
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-4xl font-black text-indigo-300 tabular-nums leading-none leading-[0.8]">{stats.pending}</span>
-                            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Tasks</span>
-                        </div>
+                    <div className="w-px h-6 bg-slate-200" />
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Active Pipeline</span>
+                        <span className="text-xl font-black text-indigo-600 tabular-nums">{stats.pending}</span>
                     </div>
-                    <div className="hidden lg:block w-px h-12 bg-white/10 self-center" />
-                    <div className="flex flex-col gap-1.5 items-center md:items-start">
-                        <span className="text-[9px] font-black text-indigo-200 uppercase tracking-[0.3em] opacity-80">Avg Efficiency</span>
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-4xl font-black text-emerald-400 tabular-nums leading-none leading-[0.8]">{stats.completionRate}%</span>
-                            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Index</span>
-                        </div>
+                    <div className="w-px h-6 bg-slate-200" />
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Efficiency</span>
+                        <span className="text-xl font-black text-emerald-600 tabular-nums">{stats.completionRate}%</span>
                     </div>
                 </div>
             </div>
