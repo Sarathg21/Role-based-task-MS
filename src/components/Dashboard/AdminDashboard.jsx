@@ -1,12 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import api from '../../services/api';
 import { TASKS, USERS, DEPARTMENTS } from '../../data/mockData';
 import { getEmployeeRankings, getManagerRankings } from '../../utils/rankingEngine';
 import StatsCard from '../UI/StatsCard';
 import ChartPanel from '../Charts/ChartPanel';
-import { Users, Briefcase, Activity, Award, Building2, Shield } from 'lucide-react';
+import { Users, Briefcase, Activity, Award, Building2, Shield, Plus, Settings, MessageSquare, ChevronDown, CheckCircle, User, Edit2, CheckSquare, Loader2, AlertCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 
 const AdminDashboard = () => {
+    const [activities, setActivities] = useState([]);
+    const [loadingActivities, setLoadingActivities] = useState(false);
     const [filters, setFilters] = useState({
         department: 'All',
         role: 'All',
@@ -15,6 +18,39 @@ const AdminDashboard = () => {
         performanceMin: '',
         performanceMax: ''
     });
+
+    const formatTimeAgo = (dateStr) => {
+        if (!dateStr) return 'Just now';
+        try {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+            if (diffInSeconds < 60) return `${Math.max(0, diffInSeconds)}s ago`;
+            const diffInMinutes = Math.floor(diffInSeconds / 60);
+            if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+            const diffInHours = Math.floor(diffInMinutes / 60);
+            if (diffInHours < 24) return `${diffInHours}h ago`;
+            const diffInDays = Math.floor(diffInHours / 24);
+            return `${diffInDays}d ago`;
+        } catch (e) { return 'Recent'; }
+    };
+
+    const fetchActivities = async () => {
+        setLoadingActivities(true);
+        try {
+            const res = await api.get('/notifications');
+            const data = res.data?.data || res.data || [];
+            setActivities(Array.isArray(data) ? data : []);
+        } catch (err) {
+            console.error("Failed to fetch admin activities:", err);
+        } finally {
+            setLoadingActivities(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchActivities();
+    }, []);
 
     const { stats, deptData, topEmployees, orgTableData, managerRankings, deptPerformanceChart, workloadData, trendData } = useMemo(() => {
         const totalEmployees = USERS.filter(u => u.role === 'Employee').length;
@@ -114,265 +150,171 @@ const AdminDashboard = () => {
     const COLORS = ['#8b5cf6', '#10b981', '#f59e0b', '#3b82f6'];
 
     return (
-        <div className="space-y-6 animate-fade-in pb-8">
-            {/* Header Hero - CFO Style */}
-            <div className="rounded-[2rem] bg-white shadow-sm border border-slate-100 relative overflow-hidden p-6">
-                <div className="absolute top-0 right-0 w-72 h-72 bg-violet-50 rounded-full blur-3xl -mr-36 -mt-36 opacity-60" />
-                <div className="absolute bottom-0 left-0 w-56 h-56 bg-indigo-50 rounded-full blur-3xl -ml-28 -mb-28 opacity-60" />
-                <div className="relative z-10 flex items-center gap-5">
-                    <div className="bg-slate-900 p-4 rounded-2xl shadow-xl">
-                        <Shield size={28} className="text-violet-400" />
-                    </div>
+        <div className="space-y-6 animate-fade-in pb-8 mt-4">
+            {/* Top Metrics Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
                     <div>
-                        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none">
-                            Admin <span className="text-violet-600">Dashboard</span>
-                        </h2>
-                        <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px] mt-2">
-                            Organization Overview &middot; {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                        </p>
+                        <span className="text-5xl font-bold tracking-tight">{stats.employees + stats.managers || 8}</span>
+                        <p className="text-[15px] font-medium mt-1 text-white/90">Total Users</p>
+                    </div>
+                    <div className="absolute right-4 bottom-4 opacity-20">
+                        <Users size={72} strokeWidth={1.5} />
                     </div>
                 </div>
-            </div>
 
-            {/* Stats Row - CFO gradient cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-lg shadow-violet-300/40 py-5 px-6 transition-all duration-500 hover:scale-[1.03]">
-                    <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-violet-400/30 blur-2xl" />
-                    <div className="relative z-10 flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center border border-white/30">
-                            <Users size={22} className="text-white" strokeWidth={2.5} />
-                        </div>
+                <div className="bg-[#9B51E0] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28 border border-[#a259e8]">
+                    <div className="flex items-start justify-between">
                         <div>
-                            <div className="text-3xl font-black text-white tabular-nums tracking-tighter leading-none">{stats.employees}</div>
-                            <div className="text-[11px] font-bold text-white/80 uppercase tracking-widest mt-1">Employees</div>
+                            <span className="text-5xl font-bold tracking-tight">{stats.departments || 3}</span>
+                            <p className="text-[15px] font-medium mt-1 text-white/90">Teams</p>
                         </div>
+                        <div className="opacity-40 mt-2">
+                            <Users size={32} />
+                        </div>
+                    </div>
+                    <div className="absolute right-[-10px] bottom-[-10px] opacity-10">
+                        <div className="w-32 h-32 rounded-full border-[12px] border-white"></div>
                     </div>
                 </div>
 
-                <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 shadow-lg shadow-blue-300/40 py-5 px-6 transition-all duration-500 hover:scale-[1.03]">
-                    <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-blue-400/30 blur-2xl" />
-                    <div className="relative z-10 flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center border border-white/30">
-                            <Briefcase size={22} className="text-white" strokeWidth={2.5} />
-                        </div>
+                <div className="bg-[#34D399] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
+                    <div className="flex items-start justify-between">
                         <div>
-                            <div className="text-3xl font-black text-white tabular-nums tracking-tighter leading-none">{stats.managers}</div>
-                            <div className="text-[11px] font-bold text-white/80 uppercase tracking-widest mt-1">Managers</div>
+                            <span className="text-5xl font-bold tracking-tight">2</span>
+                            <p className="text-[15px] font-medium mt-1 text-white/90">Pending Users</p>
                         </div>
-                    </div>
-                </div>
-
-                <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-300/40 py-5 px-6 transition-all duration-500 hover:scale-[1.03]">
-                    <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-emerald-400/30 blur-2xl" />
-                    <div className="relative z-10 flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center border border-white/30">
-                            <Building2 size={22} className="text-white" strokeWidth={2.5} />
-                        </div>
-                        <div>
-                            <div className="text-3xl font-black text-white tabular-nums tracking-tighter leading-none">{stats.departments}</div>
-                            <div className="text-[11px] font-bold text-white/80 uppercase tracking-widest mt-1">Departments</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-300/40 py-5 px-6 transition-all duration-500 hover:scale-[1.03]">
-                    <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-amber-400/30 blur-2xl" />
-                    <div className="relative z-10 flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center border border-white/30">
-                            <Activity size={22} className="text-white" strokeWidth={2.5} />
-                        </div>
-                        <div>
-                            <div className="text-3xl font-black text-white tabular-nums tracking-tighter leading-none">{stats.activeTasks}</div>
-                            <div className="text-[11px] font-bold text-white/80 uppercase tracking-widest mt-1">Active Tasks</div>
+                        <div className="opacity-40 mt-2">
+                            <CheckCircle size={32} />
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-                <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-4 flex items-center gap-2">
-                    <Building2 size={13} className="text-violet-500" /> Filters
-                </h3>
-                <div className="flex flex-wrap gap-3">
-                    <select
-                        className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-violet-300 bg-slate-50 transition-all"
-                        value={filters.department}
-                        onChange={(e) => setFilters({ ...filters, department: e.target.value })}
-                    >
-                        <option key="all" value="All">All Departments</option>
-                        {DEPARTMENTS.map(d => (
-                            <option key={d} value={d}>{d}</option>
-                        ))}
-                    </select>
-                    <select
-                        className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-400 bg-slate-50 transition-all"
-                        value={filters.role}
-                        onChange={(e) => setFilters({ ...filters, role: e.target.value })}
-                    >
-                        <option key="all" value="All">All Roles</option>
-                        <option key="mgr" value="Manager">Managers Only</option>
-                        <option key="emp" value="Employee">Employees Only</option>
-                    </select>
-                    <input
-                        type="date"
-                        className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-400 bg-slate-50 transition-all"
-                        value={filters.dateFrom}
-                        onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-                    />
-                    <input
-                        type="date"
-                        className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-400 bg-slate-50 transition-all"
-                        value={filters.dateTo}
-                        onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-                    />
-                    <input type="number" min="0" max="100" placeholder="Min Score"
-                        className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 w-28 focus:outline-none focus:ring-2 focus:ring-violet-400 bg-slate-50 transition-all"
-                        value={filters.performanceMin}
-                        onChange={(e) => setFilters({ ...filters, performanceMin: e.target.value })}
-                    />
-                    <input type="number" min="0" max="100" placeholder="Max Score"
-                        className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 w-28 focus:outline-none focus:ring-2 focus:ring-violet-400 bg-slate-50 transition-all"
-                        value={filters.performanceMax}
-                        onChange={(e) => setFilters({ ...filters, performanceMax: e.target.value })}
-                    />
-                </div>
-            </div>
-
-            {/* Organization View Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30 flex items-center gap-3">
-                    <div className="bg-violet-100 text-violet-600 p-2 rounded-xl">
-                        <Building2 size={18} />
+            {/* Main Content Split */}
+            <div className="flex flex-col xl:flex-row gap-6">
+                {/* Left Side - Team Members Table */}
+                <div className="flex-[7] bg-white rounded-[1.5rem] p-0 shadow-sm border border-slate-100 flex flex-col min-h-[500px]">
+                    <div className="flex items-center justify-between pt-6 px-6 border-b border-slate-100 pb-4">
+                        <h2 className="text-[17px] font-bold text-slate-800">Team Members</h2>
                     </div>
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Organization View</h3>
-                </div>
-                <div className="overflow-x-auto max-h-[320px] overflow-y-auto">
-                    <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-50/80 text-[10px] uppercase font-black tracking-[0.15em] text-slate-500 border-b border-slate-100 sticky top-0">
-                            <tr>
-                                <th className="py-3 px-5">Department</th>
-                                <th className="py-3 px-5">Role</th>
-                                <th className="py-3 px-5">Name</th>
-                                <th className="py-3 px-5">Score</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {filteredOrgData.flatMap((row) => {
-                                const rows = [];
-                                if (row.manager && (filters.role === 'All' || filters.role === 'Manager')) {
-                                    rows.push(
-                                        <tr key={`${row.department}-mgr`} className="hover:bg-slate-50 transition-colors group">
-                                            <td className="py-2.5 px-5 font-black text-slate-800 text-[11px]">{row.department}</td>
-                                            <td className="py-2.5 px-5"><span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[9px] font-black uppercase tracking-widest">Manager</span></td>
-                                            <td className="py-2.5 px-5 font-medium text-slate-700">{row.manager.name}</td>
-                                            <td className="py-2.5 px-5 font-black text-violet-600">{row.managerScore}</td>
-                                        </tr>
-                                    );
-                                }
-                                if (filters.role === 'All' || filters.role === 'Employee') {
-                                    row.employees.forEach((emp) =>
-                                        rows.push(
-                                            <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="py-2.5 px-5 text-slate-500 text-[11px]">{row.department}</td>
-                                                <td className="py-2.5 px-5"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-widest">Emp</span></td>
-                                                <td className="py-2.5 px-5 pl-8 text-slate-700">{emp.name}</td>
-                                                <td className="py-2.5 px-5 font-black text-violet-600">{emp.score}</td>
-                                            </tr>
-                                        )
-                                    );
-                                }
-                                return rows;
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
 
-            {/* Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <ChartPanel title="Department-wise Performance Comparison">
-                    <BarChart data={deptPerformanceChart}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
-                        <Bar dataKey="Performance" fill="#8b5cf6" name="Completion %" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                </ChartPanel>
-
-                <ChartPanel title="Manager Performance Comparison">
-                    <BarChart data={managerRankings.map(m => ({ name: m.name.split(' ')[0], score: m.score, dept: m.department }))} layout="vertical" margin={{ left: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                        <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
-                        <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
-                        <Bar dataKey="score" fill="#10b981" name="Score" radius={[0, 6, 6, 0]} barSize={20} />
-                    </BarChart>
-                </ChartPanel>
-
-                <ChartPanel title="Employee Distribution by Dept">
-                    <PieChart>
-                        <Pie data={deptData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} dataKey="value" paddingAngle={4}>
-                            {deptData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="white" strokeWidth={2} />)}
-                        </Pie>
-                        <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
-                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '10px', fontWeight: '700' }} />
-                    </PieChart>
-                </ChartPanel>
-
-                <ChartPanel title="Workload Distribution">
-                    <BarChart data={workloadData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
-                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '10px', fontWeight: '700' }} />
-                        <Bar dataKey="Completed" stackId="a" fill="#10b981" name="Completed" radius={[0, 0, 0, 0]} />
-                        <Bar dataKey="Pending" stackId="a" fill="#f59e0b" name="Pending" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                </ChartPanel>
-
-                <div className="lg:col-span-2">
-                    <ChartPanel title="Performance Trend by Department">
-                        <LineChart data={trendData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
-                            <YAxis domain={[0, 100]} tick={{ fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }} />
-                            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '10px', fontWeight: '700' }} />
-                            <Line type="monotone" dataKey="Engineering" stroke="#8b5cf6" strokeWidth={2.5} dot={false} />
-                            <Line type="monotone" dataKey="Sales" stroke="#f59e0b" strokeWidth={2.5} dot={false} />
-                            <Line type="monotone" dataKey="HR" stroke="#10b981" strokeWidth={2.5} dot={false} />
-                            <Line type="monotone" dataKey="Administration" stroke="#3b82f6" strokeWidth={2.5} dot={false} />
-                        </LineChart>
-                    </ChartPanel>
-                </div>
-            </div>
-
-            {/* Top Performers */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                <div className="flex items-center gap-3 mb-5">
-                    <div className="bg-amber-100 text-amber-600 p-2 rounded-xl">
-                        <Award size={18} />
-                    </div>
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Top Performers</h3>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                    {topEmployees.map((emp, index) => (
-                        <div key={emp.id} className="group flex items-center justify-between p-3 bg-slate-50 hover:bg-violet-50 rounded-xl border border-slate-100 hover:border-violet-200 transition-all">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${index === 0 ? 'bg-amber-100 text-amber-700' : 'bg-violet-100 text-violet-700'}`}>
-                                    {index + 1}
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="text-xs font-black text-slate-800 truncate">{emp.name}</p>
-                                    <p className="text-[9px] text-slate-400 uppercase tracking-widest font-bold truncate">{emp.department}</p>
-                                </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="text-[12px] text-slate-400 border-b border-slate-100 bg-slate-50/30">
+                                <tr>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap"><input type="checkbox" className="rounded text-violet-600 mr-3 border-slate-300" />Name</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Role <ChevronDown size={14} className="inline ml-1" /></th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Open Tasks <ChevronDown size={14} className="inline ml-1" /></th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-center">Status</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {[
+                                    { id: 1, name: 'Linda Zhang', role: 'Developer', tasks: 4, status: 'Active', char: 'L' },
+                                    { id: 2, name: 'John Doe', role: 'Designer', tasks: 2, status: 'Active', char: 'J' },
+                                    { id: 3, name: 'Anna Brown', role: 'Manager', tasks: 5, status: 'Pending', char: 'A' },
+                                    { id: 4, name: 'Mark Wilson', role: 'Developer', tasks: 3, status: 'Active', char: 'M' },
+                                    { id: 5, name: 'John Doe', role: 'QA Tester', tasks: 1, status: 'Active', char: 'J' }
+                                ].map(member => (
+                                    <tr key={member.id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="py-2 px-6 flex items-center gap-3">
+                                            <input type="checkbox" className={`rounded border-slate-300 w-4 h-4`} />
+                                            <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-500 font-bold overflow-hidden flex items-center justify-center shrink-0 shadow-sm border border-white text-xs">
+                                                {member.char}
+                                            </div>
+                                            <span className="text-[13.5px] font-semibold text-slate-700 truncate">{member.name}</span>
+                                        </td>
+                                        <td className="py-2 px-6">
+                                            <span className="text-[13px] font-medium text-slate-600">{member.role}</span>
+                                        </td>
+                                        <td className="py-2 px-6">
+                                            <span className="text-[13px] font-medium text-slate-600 ml-4">{member.tasks}</span>
+                                        </td>
+                                        <td className="py-2 px-6 text-center">
+                                            <span className={`px-4 py-1.5 rounded-full text-[11px] font-bold shadow-sm inline-block min-w-[70px] ${member.status === 'Active' ? 'bg-[#EAF5F0] text-[#10B981]' : 'bg-[#FFF3E0] text-[#F59E0B]'}`}>
+                                                {member.status}
+                                            </span>
+                                        </td>
+                                        <td className="py-2 px-6 text-right">
+                                            <button className="px-5 py-1.5 bg-[#7B51ED] text-white text-[12px] font-bold rounded-lg hover:bg-violet-700 transition-[transform,colors] active:scale-95 shadow-sm inline-flex items-center gap-1.5">
+                                                <Edit2 size={12} /> Edit
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400 font-medium">
+                            <span>Showing 5 of 8</span>
+                            <div className="flex items-center gap-1">
+                                <span className="mr-2">Showing 5 of 8</span>
+                                <button className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition">&lt;</button>
+                                <button className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#7B51ED] text-white font-bold shadow-sm">1</button>
+                                <button className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition text-slate-600">2</button>
+                                <span className="px-1 text-slate-400">...</span>
+                                <button className="px-3 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition text-slate-600 font-semibold">Next</button>
                             </div>
-                            <div className="text-violet-600 text-sm font-black shrink-0 ml-2">{emp.score}</div>
                         </div>
-                    ))}
+                    </div>
+                </div>
+
+                {/* Right Side - Actions & Activity */}
+                <div className="flex-[2.5] flex flex-col gap-6">
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 ml-1">Quick Actions</h3>
+                        <div className="flex flex-col gap-3">
+                            <button className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
+                                <Plus size={18} strokeWidth={2.5} /> Create New Task
+                            </button>
+                            <button className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
+                                <User size={18} strokeWidth={2.5} /> Add User
+                            </button>
+                            <button className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
+                                <Activity size={18} strokeWidth={2.5} /> View Reports
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 min-h-[300px]">
+                        <div className="flex justify-between items-center mb-4 ml-1">
+                            <h3 className="text-lg font-bold text-slate-800">Recent Activity</h3>
+                            <button className="text-slate-400 hover:text-slate-600"><Settings size={16} /></button>
+                        </div>
+
+                        <div className="space-y-3">
+                            {loadingActivities ? (
+                                <div className="py-10 text-center">
+                                    <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mx-auto mb-2" />
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Syncing Activity...</p>
+                                </div>
+                            ) : activities.length === 0 ? (
+                                <div className="py-10 text-center">
+                                    <Activity className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">No recent activity</p>
+                                </div>
+                            ) : (
+                                activities.slice(0, 5).map((n, idx) => (
+                                    <div key={n.id || idx} className="flex gap-3 items-start border border-slate-100 p-3.5 rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                                        <div className={`w-9 h-9 border-2 border-white shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-bold text-sm ${n.type === 'SUCCESS' ? 'bg-emerald-100 text-emerald-600' :
+                                            n.type === 'WARNING' ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'
+                                            }`}>
+                                            {(n.actor_name || n.title || 'N').charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="flex-1 pt-0.5 min-w-0">
+                                            <p className="text-[13px] text-slate-600 leading-tight">
+                                                <span className="font-bold text-slate-800">{n.title || 'Activity'}</span>
+                                                <span className="block text-slate-500 mt-1 text-[12px]">{n.message}</span>
+                                            </p>
+                                            <p className="text-[11px] font-medium text-slate-400 mt-1">{formatTimeAgo(n.created_at)}</p>
+                                        </div>
+                                        <MessageSquare size={14} className="text-slate-300 mt-1 shrink-0" />
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

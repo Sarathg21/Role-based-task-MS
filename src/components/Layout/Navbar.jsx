@@ -82,7 +82,7 @@ const Navbar = () => {
     return (
         <header className="navbar cfo-navbar">
             <div className="flex-1 max-w-xl transition-all duration-300 group">
-                <div className="cfo-search flex items-center gap-3 px-5 py-3 rounded-2xl border transition-all">
+                <div className="cfo-search flex items-center gap-3 px-5 py-3 rounded-full border border-slate-200 transition-all bg-slate-50">
                     <Search className="text-slate-400 group-focus-within:text-violet-500 transition-colors shrink-0" size={18} strokeWidth={1.8} />
                     <input
                         type="text"

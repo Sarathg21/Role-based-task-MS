@@ -158,9 +158,9 @@ const AdminPage = () => {
               </div>
               <div>
                 <h2 className="text-3xl font-black text-white tracking-tighter drop-shadow-2xl leading-tight">
-                  Personnel <span className="text-violet-300">Archive</span> & <br className="hidden md:block" /> Governance
+                  Personnel <span className="text-violet-200">Archive</span> & <br className="hidden md:block" /> Governance
                 </h2>
-                <p className="text-slate-300 font-bold uppercase tracking-[0.4em] text-[9px] mt-3 opacity-60">
+                <p className="text-white font-bold uppercase tracking-[0.4em] text-[10px] mt-3 opacity-90">
                   Secure Enterprise Resource Management
                 </p>
               </div>
@@ -178,9 +178,9 @@ const AdminPage = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => navigate('/org-tree')}
-                  className="flex-1 bg-white/10 hover:bg-white/20 text-white text-[11px] font-black uppercase tracking-[0.2em] px-10 py-5 rounded-2xl border border-white/20 backdrop-blur-xl transition-all flex items-center justify-center gap-3 group shadow-xl"
+                  className="flex-1 bg-white/20 hover:bg-white/30 text-white text-[11px] font-black uppercase tracking-[0.2em] px-10 py-5 rounded-2xl border border-white/40 backdrop-blur-xl transition-all flex items-center justify-center gap-3 group shadow-xl"
                 >
-                  <Network size={22} className="group-hover:rotate-12 transition-transform text-violet-300" />
+                  <Network size={22} className="group-hover:rotate-12 transition-transform text-violet-200" />
                   <span>Org Tree</span>
                 </button>
 
@@ -197,26 +197,26 @@ const AdminPage = () => {
           {/* Governance Command Island — Optimized Fit */}
           <div className="relative z-10 mx-6 mb-8 px-12 py-8 flex flex-wrap items-center justify-around gap-6 bg-white/[0.08] backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl shadow-black/20">
             <div className="flex flex-col gap-1.5 items-center md:items-start">
-              <span className="text-[9px] font-black text-violet-200 uppercase tracking-[0.3em] opacity-80">Personnel Registry</span>
+              <span className="text-[10px] font-black text-white uppercase tracking-[0.3em] opacity-90">Personnel Registry</span>
               <div className="flex items-baseline gap-2">
                 <span className="text-4xl font-black text-white tabular-nums leading-none leading-[0.8]">{employees.length}</span>
-                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Units</span>
+                <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Units</span>
               </div>
             </div>
-            <div className="hidden lg:block w-px h-12 bg-white/10 self-center" />
+            <div className="hidden lg:block w-px h-12 bg-white/20 self-center" />
             <div className="flex flex-col gap-1.5 items-center md:items-start">
-              <span className="text-[9px] font-black text-violet-200 uppercase tracking-[0.3em] opacity-80">Strategic Assets</span>
+              <span className="text-[10px] font-black text-white uppercase tracking-[0.3em] opacity-90">Strategic Assets</span>
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-emerald-400 tabular-nums leading-none leading-[0.8]">{employees.filter(e => e.status === 'active').length}</span>
-                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Active</span>
+                <span className="text-4xl font-black text-emerald-300 tabular-nums leading-none leading-[0.8]">{employees.filter(e => e.active).length}</span>
+                <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Active</span>
               </div>
             </div>
-            <div className="hidden lg:block w-px h-12 bg-white/10 self-center" />
+            <div className="hidden lg:block w-px h-12 bg-white/20 self-center" />
             <div className="flex flex-col gap-1.5 items-center md:items-start">
-              <span className="text-[9px] font-black text-violet-200 uppercase tracking-[0.3em] opacity-80">Core Stability</span>
+              <span className="text-[10px] font-black text-white uppercase tracking-[0.3em] opacity-90">Core Stability</span>
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-violet-300 tabular-nums leading-none leading-[0.8]">99.8%</span>
-                <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Index</span>
+                <span className="text-4xl font-black text-violet-200 tabular-nums leading-none leading-[0.8]">99.8%</span>
+                <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Index</span>
               </div>
             </div>
           </div>
@@ -249,7 +249,7 @@ const AdminPage = () => {
               {/* Advanced Filter Row */}
               <div className="flex flex-wrap items-end gap-5">
                 <div className="flex-1 min-w-[140px]">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Access Role</p>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Access Role</p>
                   <CustomSelect
                     options={[
                       { value: 'All', label: 'All Roles' },
@@ -265,7 +265,7 @@ const AdminPage = () => {
                 </div>
 
                 <div className="flex-[1.5] min-w-[200px]">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Department</p>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Department</p>
                   <CustomSelect
                     options={[
                       { value: 'All', label: 'All Departments' },
@@ -282,7 +282,7 @@ const AdminPage = () => {
                 </div>
 
                 <div className="flex-1 min-w-[130px]">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Status</p>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Status</p>
                   <CustomSelect
                     options={[
                       { value: 'All', label: 'All Status' },
@@ -319,14 +319,14 @@ const AdminPage = () => {
               </div>
             ) : (
               <table className="w-full text-left text-xs text-slate-700 table-fixed">
-                <thead className="bg-slate-50/50 uppercase text-[10px] font-black tracking-widest text-slate-400 border-b border-slate-100">
+                <thead className="bg-[#f1f5f9] uppercase text-[10px] font-black tracking-widest text-[#475569] border-b border-slate-200">
                   <tr>
-                    <th className="px-6 py-4">Employee Identity</th>
-                    <th className="px-6 py-4 w-32">Security Role</th>
-                    <th className="px-6 py-4">Department</th>
-                    <th className="px-6 py-4">Reporting To</th>
-                    <th className="px-6 py-4 w-28">Status</th>
-                    <th className="px-6 py-4 text-right">Operations</th>
+                    <th className="px-6 py-5">Employee Identity</th>
+                    <th className="px-6 py-5 w-32 text-center">Security Role</th>
+                    <th className="px-6 py-5 text-center">Department</th>
+                    <th className="px-6 py-5 text-center">Reporting To</th>
+                    <th className="px-6 py-5 w-28 text-center">Status</th>
+                    <th className="px-6 py-5 text-right">Operations</th>
                   </tr>
                 </thead>
 
@@ -358,7 +358,7 @@ const AdminPage = () => {
                           </div>
                         </td>
 
-                        <td className="px-6 py-3 truncate">
+                        <td className="px-6 py-1.5 truncate">
                           <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${emp.role === 'CFO' || emp.role === 'ADMIN' ? 'bg-violet-100 text-violet-700 shadow-sm border border-violet-200' :
                             emp.role === 'MANAGER' ? 'bg-blue-100 text-blue-700 shadow-sm border border-blue-200' :
                               'bg-slate-100 text-slate-600 border border-slate-200'
@@ -366,19 +366,19 @@ const AdminPage = () => {
                             {emp.role}
                           </span>
                         </td>
-                        <td className="px-6 py-3 truncate text-slate-500 font-bold text-[10px] uppercase">{emp.department_id || emp.department || '—'}</td>
-                        <td className="px-6 py-3 truncate text-slate-400 text-[10px] font-medium tabular-nums">
+                        <td className="px-6 py-3 truncate text-slate-600 font-bold text-[10px] uppercase text-center">{emp.department_id || emp.department || '—'}</td>
+                        <td className="px-6 py-3 truncate text-slate-600 text-[10px] font-bold tabular-nums text-center">
                           {emp.manager_emp_id || 'Global Parent'}
                         </td>
 
-                        <td className="px-6 py-3">
-                          <div className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${emp.active ? 'text-emerald-500' : 'text-slate-400'}`}>
-                            <div className={`w-1.5 h-1.5 rounded-full ${emp.active ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                        <td className="px-6 py-1.5">
+                          <div className={`flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest ${emp.active ? 'text-emerald-600' : 'text-slate-500'}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${emp.active ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-slate-400'}`} />
                             {emp.active ? "Active" : "Inactive"}
                           </div>
                         </td>
 
-                        <td className="px-6 py-3 text-right">
+                        <td className="px-6 py-1.5 text-right">
                           <div className="flex justify-end gap-1 translate-x-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
                             <button
                               onClick={() => handleToggleStatus(emp)}

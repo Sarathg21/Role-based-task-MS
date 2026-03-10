@@ -8,12 +8,26 @@ import ChartPanel from '../Charts/ChartPanel';
 import {
     TrendingUp, CheckCircle, Clock, AlertCircle,
     ThumbsUp, Calendar, ArrowRight, ChevronRight, CalendarCheck, Loader2,
-    Search as SearchIcon
+    Search as SearchIcon, Plus, Settings, MessageSquare, ChevronDown, User, Edit2, Activity, CheckSquare, BarChart2
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell, Legend
 } from 'recharts';
+
+const formatTimeAgo = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    if (diffInSeconds < 60) return 'just now';
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays}d ago`;
+};
 
 /* ─── Helpers ─────────────────────────────────────────────── */
 const TERMINAL = ['APPROVED', 'CANCELLED'];
@@ -126,6 +140,20 @@ const EmployeeDashboard = () => {
     const [dashboardData, setDashboardData] = useState(null);
     const [todayTasks, setTodayTasks] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [activities, setActivities] = useState([]);
+    const [loadingActivities, setLoadingActivities] = useState(false);
+
+    const fetchActivities = async () => {
+        setLoadingActivities(true);
+        try {
+            const res = await api.get('/notifications');
+            setActivities(Array.isArray(res.data) ? res.data : []);
+        } catch (err) {
+            console.error("Failed to fetch activities", err);
+        } finally {
+            setLoadingActivities(false);
+        }
+    };
 
     const fetchDashboardData = async () => {
         setLoading(true);
@@ -229,6 +257,7 @@ const EmployeeDashboard = () => {
     useEffect(() => {
         if (user?.id) {
             fetchDashboardData();
+            fetchActivities();
         }
     }, [user?.id, fromDate, toDate]);
 
@@ -312,161 +341,205 @@ const EmployeeDashboard = () => {
     }
 
     return (
-        <div className="space-y-4">
-
-            {/* ══ EMPLOYEE HEADER — CFO-STYLE CLEAN WHITE ══ */}
-            <div className="rounded-[2rem] bg-white shadow-sm border border-slate-100 relative overflow-hidden p-6 mb-2">
-                <div className="absolute top-0 right-0 w-72 h-72 bg-violet-50 rounded-full blur-3xl -mr-36 -mt-36 opacity-60" />
-                <div className="absolute bottom-0 left-0 w-56 h-56 bg-indigo-50 rounded-full blur-3xl -ml-28 -mb-28 opacity-60" />
-
-                <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-6">
-                    <div className="flex items-center gap-5">
-                        <div className="bg-gradient-to-br from-violet-500 to-indigo-600 p-4 rounded-2xl shadow-lg shadow-violet-200/50">
-                            <CalendarCheck size={28} className="text-white" />
-                        </div>
-                        <div>
-                            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none">
-                                My <span className="text-violet-600">Dashboard</span>
-                            </h2>
-                            <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px] mt-2">
-                                {dateLabel} · Welcome Back, {user?.name?.split(' ')[0] || 'User'}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                        {/* Search Bar */}
-                        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 gap-2 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100 transition-all">
-                            <SearchIcon size={15} className="text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Search tasks..."
-                                className="bg-transparent border-none outline-none text-[12px] font-medium placeholder:text-slate-400 text-slate-700 w-44"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-
-                        {/* Date Range */}
-                        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 gap-3">
-                            <div className="flex flex-col">
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">From</span>
-                                <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
-                                    className="bg-transparent text-slate-700 text-[11px] font-bold outline-none w-[100px] cursor-pointer" />
-                            </div>
-                            <div className="w-px h-6 bg-slate-200" />
-                            <div className="flex flex-col">
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">To</span>
-                                <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
-                                    className="bg-transparent text-slate-700 text-[11px] font-bold outline-none w-[100px] cursor-pointer" />
-                            </div>
-                        </div>
-
-                        <button onClick={() => navigate('/tasks')}
-                            className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] shadow-md transition-all flex items-center gap-2 hover:-translate-y-0.5">
-                            All Tasks <ArrowRight size={13} className="text-violet-400" />
-                        </button>
-
-                        {(fromDate || toDate || searchTerm) && (
-                            <button onClick={() => { setFromDate(''); setToDate(''); setSearchTerm(''); }}
-                                className="text-[9px] font-black text-slate-400 hover:text-rose-500 px-3 py-2.5 rounded-xl border border-slate-200 hover:border-rose-200 transition-all uppercase tracking-widest">
-                                ✕ Reset
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* ══ PENDING COUNT SUMMARY ══ */}
-            <div className="flex items-center justify-between px-5 py-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center text-violet-600">
-                        <Clock size={18} strokeWidth={2.5} />
-                    </div>
+        <div className="space-y-6 animate-fade-in pb-8 mt-4">
+            {/* Top Metrics Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
                     <div>
-                        <p className="text-sm font-black text-slate-800 leading-none">Pending Tasks</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                            {pendingTasks.length} item{pendingTasks.length !== 1 ? 's' : ''} require action
-                        </p>
+                        <span className="text-5xl font-bold tracking-tight">{stats.total || 0}</span>
+                        <p className="text-[15px] font-medium mt-1 text-white/90">Total Assignments</p>
+                    </div>
+                    <div className="absolute right-4 bottom-4 opacity-20">
+                        <CheckSquare size={72} strokeWidth={1.5} />
                     </div>
                 </div>
-                {pendingTasks.length > 0 ? (
-                    <div className="flex items-center gap-2">
-                        {pendingTasks.slice(0, 3).map(task => (
-                            <div key={task.id} onClick={() => navigate('/tasks')}
-                                className="hidden md:flex items-center gap-2 bg-slate-50 hover:bg-violet-50 border border-slate-100 hover:border-violet-200 rounded-xl px-3 py-1.5 cursor-pointer transition-all group/t">
-                                <Badge variant={task.status} className="scale-75 origin-left">{STATUS_LABEL[task.status]}</Badge>
-                                <span className="text-[10px] font-bold text-slate-600 truncate max-w-[100px] group-hover/t:text-violet-700">{task.title}</span>
-                            </div>
-                        ))}
-                        <button onClick={() => navigate('/tasks')} className="flex items-center gap-1 text-[10px] font-black text-violet-600 hover:text-violet-800 uppercase tracking-widest">
-                            View All <ChevronRight size={12} />
-                        </button>
+
+                <div className="bg-[#9B51E0] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28 border border-[#a259e8]">
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <span className="text-5xl font-bold tracking-tight">{stats.pending || 0}</span>
+                            <p className="text-[15px] font-medium mt-1 text-white/90">Pending Tasks</p>
+                        </div>
+                        <div className="opacity-40 mt-2">
+                            <Activity size={32} />
+                        </div>
                     </div>
-                ) : (
-                    <div className="flex items-center gap-2 text-emerald-600">
-                        <CheckCircle size={16} />
-                        <span className="text-xs font-bold">All clear!</span>
+                    <div className="absolute right-[-10px] bottom-[-10px] opacity-10">
+                        <div className="w-32 h-32 rounded-full border-[12px] border-white"></div>
                     </div>
-                )}
+                </div>
+
+                <div className="bg-[#34D399] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <span className="text-5xl font-bold tracking-tight">{score || 0}%</span>
+                            <p className="text-[15px] font-medium mt-1 text-white/90">Performance Index</p>
+                        </div>
+                        <div className="opacity-40 mt-2">
+                            <TrendingUp size={32} />
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            {/* ══ STAT CARDS ══ */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 stagger-children mb-2">
-                <Stat
-                    label="Performance Index"
-                    value={score}
-                    sub="Composite Score"
-                    icon={TrendingUp}
-                    color="violet"
-                />
-                <Stat
-                    label="Total Assigned"
-                    value={stats.total}
-                    sub="Lifetime Record"
-                    icon={Clock}
-                    color="blue"
-                />
-                <Stat
-                    label="Under Review"
-                    value={stats.completedOrSub}
-                    sub="Awaiting Approval"
-                    icon={CheckCircle}
-                    color="teal"
-                />
-                <Stat
-                    label="Net Completed"
-                    value={stats.approved}
-                    sub="Verified Success"
-                    icon={ThumbsUp}
-                    color="green"
-                />
-                <Stat
-                    label="Active Issues"
-                    value={stats.pending}
-                    sub="Immediate Focus"
-                    icon={AlertCircle}
-                    color="amber"
-                />
+            {/* Main Content Split */}
+            <div className="flex flex-col xl:flex-row gap-6">
+                {/* Left Side - Task Table */}
+                <div className="flex-[7] bg-white rounded-[1.5rem] p-0 shadow-sm border border-slate-100 flex flex-col min-h-[500px]">
+                    <div className="flex items-center gap-6 pt-6 px-6 border-b border-slate-100 pb-0">
+                        <h2 className="text-[17px] font-bold text-slate-800 pb-4">My Task List</h2>
+                        <div className="flex gap-5 ml-2">
+                            <span className="text-sm font-semibold text-violet-600 border-b-2 border-violet-600 pb-4 -mb-[1px]">All Tasks</span>
+                            <span className="text-sm font-medium text-slate-400 pb-4">In Progress</span>
+                            <span className="text-sm font-medium text-slate-400 pb-4">Completed</span>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="text-[12px] text-slate-400 border-b border-slate-100 bg-slate-50/30">
+                                <tr>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap"><input type="checkbox" className="rounded text-violet-600 mr-3 border-slate-300" />Directives</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Assigned By <ChevronDown size={14} className="inline ml-1" /></th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Priority <ChevronDown size={14} className="inline ml-1" /></th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-center">Status</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {pendingTasks.length === 0 ? (
+                                    <tr><td colSpan="5" className="py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No pending tasks present</td></tr>
+                                ) : (
+                                    pendingTasks.slice(0, 6).map(task => (
+                                        <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="py-2 px-6 flex items-center gap-3">
+                                                <input type="checkbox" className="rounded border-slate-300 w-4 h-4" />
+                                                <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-sm border border-white">
+                                                    <CheckSquare size={13} />
+                                                </div>
+                                                <span className="text-[13.5px] font-semibold text-slate-700 truncate max-w-[180px]">{task.title}</span>
+                                            </td>
+                                            <td className="py-2 px-6">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 rounded-full bg-slate-200 border-2 border-white shadow-sm overflow-hidden flex items-center justify-center shrink-0">
+                                                        <User size={14} className="text-slate-400" />
+                                                    </div>
+                                                    <span className="text-[13px] font-medium text-slate-600">{task.assignerName || 'Manager'}</span>
+                                                </div>
+                                            </td>
+                                            <td className="py-2 px-6">
+                                                <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-600">
+                                                    <span className={`w-2 h-2 rounded-full ${task.severity === 'HIGH' ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]' : 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.5)]'}`}></span>
+                                                    {task.severity === 'HIGH' ? 'High' : 'Medium'}
+                                                </div>
+                                            </td>
+                                            <td className="py-2 px-6 text-center">
+                                                <span className={`px-4 py-1.5 rounded-full text-[11px] font-bold shadow-sm inline-block min-w-[90px] ${task.status === 'SUBMITTED' ? 'bg-[#9B51E0] text-white' : task.status === 'IN_PROGRESS' ? 'bg-[#34D399] text-white' : 'bg-[#4285F4] text-white'}`}>
+                                                    {task.status === 'SUBMITTED' ? 'Review' : task.status === 'IN_PROGRESS' ? 'In Progress' : 'Open'}
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-6 text-right">
+                                                <div className="flex justify-end gap-1.5">
+                                                    {task.status === "NEW" && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, "START"); }}
+                                                            className="px-5 py-1.5 bg-[#7B51ED] text-white text-[12px] font-bold rounded-lg hover:bg-violet-700 transition-[transform,colors] active:scale-95 shadow-sm inline-flex items-center gap-1.5"
+                                                        >
+                                                            Start
+                                                        </button>
+                                                    )}
+                                                    {task.status === "IN_PROGRESS" && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, "SUBMIT"); }}
+                                                            className="px-5 py-1.5 bg-[#10B981] text-white text-[12px] font-bold rounded-lg hover:bg-emerald-600 transition-[transform,colors] active:scale-95 shadow-sm inline-flex items-center gap-1.5"
+                                                        >
+                                                            Submit
+                                                        </button>
+                                                    )}
+                                                    {task.status === "REWORK" && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, "RESTART"); }}
+                                                            className="px-5 py-1.5 bg-[#F59E0B] text-white text-[12px] font-bold rounded-lg hover:bg-amber-600 transition-[transform,colors] active:scale-95 shadow-sm inline-flex items-center gap-1.5"
+                                                        >
+                                                            Restart
+                                                        </button>
+                                                    )}
+                                                    {task.status === "SUBMITTED" && (
+                                                        <button onClick={() => navigate('/tasks')} className="px-5 py-1.5 bg-[#4285F4] text-white text-[12px] font-bold rounded-lg hover:bg-blue-600 transition-[transform,colors] active:scale-95 shadow-sm inline-flex items-center gap-1.5">
+                                                            View
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Right Side - Actions & Activity */}
+                <div className="flex-[2.5] flex flex-col gap-6">
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 ml-1">Quick Actions</h3>
+                        <div className="flex flex-col gap-3">
+                            <button onClick={() => navigate('/tasks')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
+                                <CheckSquare size={18} strokeWidth={2.5} /> View All Tasks
+                            </button>
+                            <button className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
+                                <BarChart2 size={18} strokeWidth={2.5} /> View Reports
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 min-h-[300px]">
+                        <div className="flex justify-between items-center mb-4 ml-1">
+                            <h3 className="text-lg font-bold text-slate-800">Recent Activity</h3>
+                            <button className="text-slate-400 hover:text-slate-600"><Settings size={16} /></button>
+                        </div>
+
+                        <div className="space-y-3">
+                            {loadingActivities ? (
+                                <div className="flex flex-col items-center justify-center p-8">
+                                    <Loader2 className="w-6 h-6 text-violet-500 animate-spin mb-2" />
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Loading Activity...</p>
+                                </div>
+                            ) : activities.length === 0 ? (
+                                <div className="text-center p-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No Recent Activity</div>
+                            ) : activities.map((i, idx) => (
+                                <div key={idx} className="flex gap-3 items-start border border-slate-100 p-3.5 rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                                    <div className={`w-9 h-9 border-2 border-white shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-bold text-white text-sm ${i.type === 'SUCCESS' ? 'bg-emerald-500' : i.type === 'WARNING' ? 'bg-amber-500' : 'bg-indigo-500'}`}>
+                                        {(i.title || 'S').charAt(0)}
+                                    </div>
+                                    <div className="flex-1 pt-0.5">
+                                        <p className="text-[13px] text-slate-600 leading-tight">
+                                            <span className="font-bold text-slate-800">{i.title}</span> {i.message && <span className="block text-slate-400 mt-0.5">{i.message}</span>}
+                                        </p>
+                                        <p className="text-[11px] font-medium text-slate-400 mt-1">{formatTimeAgo(i.created_at)}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            {/* ══ CHARTS ROW ══ */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 stagger-children">
-
-                {/* Chart A — Performance Score vs Target */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-                    <h3 className="text-sm font-bold text-slate-800 mb-0.5">Performance Score</h3>
-                    <p className="text-[10px] text-slate-400 mb-3">Score vs target vs dept average</p>
-                    <ResponsiveContainer width="100%" height={180}>
-                        <BarChart data={performanceTrend} margin={{ top: 4, right: 10, left: 0, bottom: 0 }} barSize={36}>
+            {/* Charts Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 p-6">
+                    <h3 className="text-[16px] font-bold text-slate-800 mb-1">Performance Score</h3>
+                    <p className="text-[12px] text-slate-400 mb-6 font-medium">Score vs target vs dept average</p>
+                    <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={performanceTrend} margin={{ top: 20, right: 10, left: 0, bottom: 0 }} barSize={36}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
-                            <YAxis domain={[0, 100]} tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+                            <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                            <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
                             <Tooltip
                                 formatter={v => [`${v}`, 'Score']}
-                                contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '10px' }}
+                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: '12px', fontWeight: 500 }}
                             />
-                            <Bar dataKey="score" radius={[4, 4, 0, 0]}>
+                            <Bar dataKey="score" radius={[6, 6, 0, 0]}>
                                 {performanceTrend.map((entry, i) => (
                                     <Cell key={i} fill={entry.fill} />
                                 ))}
@@ -475,132 +548,32 @@ const EmployeeDashboard = () => {
                     </ResponsiveContainer>
                 </div>
 
-                {/* Chart B — Task Status Breakdown */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
-                    <div className="flex justify-between items-start mb-0.5">
-                        <h3 className="text-sm font-bold text-slate-800">Task Status Breakdown</h3>
+                <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 p-6">
+                    <h3 className="text-[16px] font-bold text-slate-800 mb-1">Task Status Breakdown</h3>
+                    <p className="text-[12px] text-slate-400 mb-6 font-medium">Your tasks by current status</p>
+                    <div className="flex items-center justify-center h-[260px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={statusDistribution}
+                                    cx="50%" cy="50%"
+                                    outerRadius={90}
+                                    innerRadius={55}
+                                    paddingAngle={3}
+                                    dataKey="value"
+                                    label={false}
+                                >
+                                    {statusDistribution.map((entry, i) => (
+                                        <Cell key={i} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip formatter={(v, n) => [v, n]} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: '12px', fontWeight: 500 }} />
+                                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px', fontWeight: 500, color: '#64748b' }} />
+                            </PieChart>
+                        </ResponsiveContainer>
                     </div>
-                    <p className="text-[10px] text-slate-400 mb-3">Your tasks by current status</p>
-                    <ResponsiveContainer width="100%" height={180}>
-                        <PieChart>
-                            <Pie
-                                data={statusDistribution}
-                                cx="50%" cy="50%"
-                                outerRadius={65}
-                                innerRadius={35}
-                                paddingAngle={2}
-                                dataKey="value"
-                                label={({ name, percent }) => percent > 0.1 ? `${(percent * 100).toFixed(0)}%` : ''}
-                                labelLine={false}
-                            >
-                                {statusDistribution.map((entry, i) => (
-                                    <Cell key={i} fill={entry.color} />
-                                ))}
-                            </Pie>
-                            <Tooltip formatter={(v, n) => [v, n]} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '10px' }} />
-                            <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: '10px', paddingTop: '5px' }} />
-                        </PieChart>
-                    </ResponsiveContainer>
                 </div>
             </div>
-
-            {/* ══ PENDING TASKS LIST ══ */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                    <div className="flex items-center gap-3">
-                        <h3 className="text-base font-semibold text-slate-800">Pending Tasks</h3>
-                    </div>
-                    <button
-                        onClick={() => navigate('/tasks')}
-                        className="flex items-center gap-1.5 text-sm font-semibold text-violet-600 hover:text-violet-800 bg-violet-50 hover:bg-violet-100 px-4 py-1.5 rounded-lg transition"
-                    >
-                        View All <ChevronRight size={15} />
-                    </button>
-                </div>
-
-                {pendingTasks.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 gap-2">
-                        <CheckCircle size={36} className="text-emerald-400" />
-                        <p className="text-slate-600 font-semibold">All caught up! 🎉</p>
-                        <p className="text-slate-400 text-sm">No pending tasks in this date range.</p>
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50/50 text-slate-400 text-[10px] uppercase font-black tracking-widest border-b border-slate-100">
-                                <tr>
-                                    <th className="py-2 px-4">Task</th>
-                                    <th className="py-2 px-4">Status</th>
-                                    <th className="py-2 px-4">Severity</th>
-                                    <th className="py-2 px-4">Timeline</th>
-                                    <th className="py-2 px-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50 text-slate-700">
-                                {pendingTasks.map(task => {
-                                    const isOverdue = task.due_date && task.due_date < new Date().toLocaleDateString('en-CA') && !['APPROVED', 'CANCELLED'].includes(task.status);
-                                    return (
-                                        <tr key={task.id} className="hover:bg-slate-50">
-                                            <td className="py-2 px-4">
-                                                <div className="font-medium text-slate-800 truncate max-w-[200px] text-xs">{task.title}</div>
-                                                <div className="text-[10px] text-slate-400">ID: {task.id}</div>
-                                            </td>
-                                            <td className="py-2 px-4">
-                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                    <Badge variant={task.status}>
-                                                        {STATUS_LABEL[task.status] || task.status.replace(/_/g, ' ')}
-                                                    </Badge>
-                                                    {isOverdue && (
-                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-100 text-red-600 border border-red-200">
-                                                            Overdue
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="py-2 px-4">
-                                                <Badge variant={task.severity}>{task.severity}</Badge>
-                                            </td>
-                                            <td className="py-2 px-4 text-slate-500 text-[11px] font-medium">
-                                                <div>{task.due_date}</div>
-                                                {isOverdue && <div className="text-rose-500 text-[9px] font-black uppercase">Overdue ⚠️</div>}
-                                            </td>
-                                            <td className="py-2 px-4 text-right">
-                                                <div className="flex justify-end gap-1.5">
-                                                    {task.status === "NEW" && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, "START"); }}
-                                                            className="px-4 py-1.5 text-[10px] font-black rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-lg shadow-indigo-100 active:scale-95 uppercase tracking-widest"
-                                                        >
-                                                            Start
-                                                        </button>
-                                                    )}
-                                                    {task.status === "IN_PROGRESS" && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, "SUBMIT"); }}
-                                                            className="px-4 py-1.5 text-[10px] font-black rounded-xl text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-lg shadow-emerald-100 active:scale-95 uppercase tracking-widest"
-                                                        >
-                                                            Submit
-                                                        </button>
-                                                    )}
-                                                    {task.status === "REWORK" && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, "RESTART"); }}
-                                                            className="px-4 py-1.5 text-[10px] font-black rounded-xl text-white bg-orange-600 hover:bg-orange-700 transition shadow-lg shadow-orange-100 active:scale-95 uppercase tracking-widest"
-                                                        >
-                                                            Restart
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
-
         </div>
     );
 };

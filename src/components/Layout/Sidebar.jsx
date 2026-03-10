@@ -9,7 +9,6 @@ import {
     Menu,
     ChevronLeft,
     Network,
-    Building2,
 } from 'lucide-react';
 
 const Sidebar = ({ isCollapsed, toggleSidebar }) => {
@@ -53,8 +52,8 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
         <aside className={`sidebar cfo-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
             <div className={`sidebar-header flex items-center ${isCollapsed ? 'justify-center px-0 flex-col gap-4' : 'justify-between'}`}>
                 <div className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'gap-3 ml-2'}`}>
-                    <div className="flex-shrink-0 bg-gradient-to-br from-violet-500 to-indigo-700 flex items-center justify-center rounded-xl shadow-lg shadow-violet-500/30 transition-all duration-300 w-9 h-9">
-                        <Building2 className="text-white" size={20} />
+                    <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center overflow-hidden rounded-xl">
+                        <img src="/images/fj.png" alt="FJ Group" className="w-full h-full object-contain" />
                     </div>
                     {!isCollapsed && (
                         <div className="overflow-hidden">

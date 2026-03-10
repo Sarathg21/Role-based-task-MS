@@ -289,8 +289,12 @@ const LoginPage = () => {
         const result = await login(formData.id, formData.password);
         setIsLoading(false);
         if (result.success) {
-            navigate('/dashboard');
-        } else {
+            if (result.role === 'Admin') {
+                navigate('/admin');
+            } else {
+                navigate('/dashboard');
+            }
+        } else {
             setError(result.message);
         }
     };

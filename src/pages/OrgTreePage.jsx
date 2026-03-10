@@ -318,48 +318,48 @@ const OrgTreePage = () => {
     }
 
     return (
-        <div className="space-y-6 h-[calc(100vh-120px)] flex flex-col">
+        <div className="space-y-6 h-[calc(100vh-120px)] flex flex-col animate-fade-in mt-4">
             {/* Header */}
             <div className="flex justify-between items-start flex-wrap gap-3">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 bg-white/50 p-2 rounded-2xl border border-white/40 shadow-sm w-fit">
                     <button
                         onClick={() => navigate('/admin')}
-                        className="p-2 hover:bg-white rounded-xl text-slate-400 hover:text-slate-800 transition-all border border-transparent hover:border-slate-200 hover:shadow-sm"
+                        className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shrink-0 transition shadow-sm hover:shadow-md active:scale-95"
                         title="Back to Directory"
                     >
-                        <ArrowLeft size={20} />
+                        <ArrowLeft size={18} />
                     </button>
-                    <div>
-                        <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+                    <div className="pr-4">
+                        <h1 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
                             <Network size={22} className="text-violet-600" />
                             Organization Hierarchy
                         </h1>
-                        <p className="text-sm text-slate-500 mt-0.5">
+                        <p className="text-xs font-bold text-slate-400 mt-0.5 tracking-widest uppercase">
                             Manage your team structure and branch relationships
                         </p>
                     </div>
                 </div>
 
-                <div className="flex gap-4 items-center bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex gap-4 items-center bg-white px-5 py-3 rounded-2xl border border-slate-100 shadow-sm">
                     <div className="text-center">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Managers</p>
-                        <p className="text-sm font-extrabold text-slate-800 tabular-nums">{calculatedManagers}</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Managers</p>
+                        <p className="text-sm font-black text-slate-800 tabular-nums">{calculatedManagers}</p>
                     </div>
                     <div className="w-px h-8 bg-slate-100" />
                     <div className="text-center">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Employees</p>
-                        <p className="text-sm font-extrabold text-slate-800 tabular-nums">{calculatedEmployees}</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Employees</p>
+                        <p className="text-sm font-black text-slate-800 tabular-nums">{calculatedEmployees}</p>
                     </div>
                     <div className="w-px h-8 bg-slate-100" />
                     <div className="text-center">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Total Staff</p>
-                        <p className="text-sm font-extrabold text-violet-600 tabular-nums">{totalEmployees}</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Total Staff</p>
+                        <p className="text-sm font-black text-violet-600 tabular-nums">{totalEmployees}</p>
                     </div>
                 </div>
             </div>
 
             {/* Tree Canvas */}
-            <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-auto p-4 bg-[radial-gradient(#cbd5e1_0.5px,transparent_0.5px)] [background-size:20px_20px] relative flex justify-center min-h-0">
+            <div className="flex-1 bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-auto p-4 bg-[radial-gradient(#cbd5e1_0.5px,transparent_0.5px)] [background-size:20px_20px] relative flex justify-center min-h-0">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center h-full">
                         <Loader2 size={32} className="text-violet-600 animate-spin mb-2" />
@@ -417,10 +417,10 @@ const OrgTreePage = () => {
             </div>
 
             {/* Legend Footer */}
-            <div className="bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center shadow-sm">
+            <div className="bg-white p-4 rounded-[1.5rem] border border-slate-100 flex justify-between items-center shadow-sm">
                 <div className="flex gap-6 items-center">
                     <div className="flex items-center gap-4 border-r border-slate-100 pr-6 mr-2">
-                        <span className="text-[10px] font-black uppercase text-slate-400">Zoom</span>
+                        <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">Zoom</span>
                         <input
                             type="range"
                             min="0.3"
@@ -428,25 +428,25 @@ const OrgTreePage = () => {
                             step="0.05"
                             value={zoom}
                             onChange={(e) => setZoom(parseFloat(e.target.value))}
-                            className="w-32 accent-violet-600 cursor-pointer h-1 bg-slate-100 rounded-full"
+                            className="w-32 accent-violet-600 cursor-pointer h-1.5 bg-slate-100 rounded-full"
                         />
-                        <span className="text-[10px] font-bold text-slate-600 w-8">{Math.round(zoom * 100)}%</span>
+                        <span className="text-[10px] font-black text-slate-600 w-8 tabular-nums">{Math.round(zoom * 100)}%</span>
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-violet-500 shadow-sm" />
-                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tighter">CFO / Admin</span>
+                        <div className="w-3 h-3 rounded-full bg-[#9B51E0] shadow-sm" />
+                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">CFO / Admin</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-blue-500 shadow-sm" />
-                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tighter">Manager</span>
+                        <div className="w-3 h-3 rounded-full bg-[#4285F4] shadow-sm" />
+                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Manager</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm" />
-                        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tighter">Employee</span>
+                        <div className="w-3 h-3 rounded-full bg-[#10B981] shadow-sm" />
+                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Employee</span>
                     </div>
                 </div>
-                <div className="text-[10px] text-slate-400 italic">
+                <div className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">
                     Use slider to zoom · Drag canvas to navigate · Click nodes to expand branches
                 </div>
             </div>

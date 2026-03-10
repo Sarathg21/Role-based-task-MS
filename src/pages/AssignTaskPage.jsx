@@ -91,31 +91,31 @@ const AssignTaskPage = () => {
     };
 
     return (
-        <div className="max-w-2xl mx-auto space-y-6">
-            <div className="flex items-center gap-3">
+        <div className="max-w-2xl mx-auto space-y-6 animate-fade-in mt-4">
+            <div className="flex items-center gap-4 bg-white/50 p-2 rounded-2xl border border-white/40 shadow-sm w-fit">
                 <button
                     onClick={() => navigate(-1)}
-                    className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shrink-0 transition"
+                    className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shrink-0 transition shadow-sm hover:shadow-md active:scale-95"
                 >
                     <ArrowLeft size={18} />
                 </button>
-                <div>
-                    <h1 className="text-xl font-semibold text-slate-800">Assign New Task</h1>
-                    <p className="text-sm text-slate-500 mt-0.5">Create and assign a task to your team members</p>
+                <div className="pr-4">
+                    <h1 className="text-xl font-black text-slate-800 tracking-tight">Assign New Task</h1>
+                    <p className="text-xs font-bold text-slate-400 mt-0.5 tracking-widest uppercase">Create and assign directives</p>
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 p-8">
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Task Title <span className="text-red-500">*</span>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5 ml-1">
+                            Task Title <span className="text-rose-500">*</span>
                         </label>
                         <input
                             type="text"
                             name="title"
                             required
-                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500"
+                            className="w-full px-5 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300 font-medium transition-all placeholder:text-slate-400 text-[14px]"
                             placeholder="e.g. Q3 Performance Review"
                             value={formData.title}
                             onChange={handleChange}
@@ -123,11 +123,11 @@ const AssignTaskPage = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5 ml-1">Description</label>
                         <textarea
                             name="description"
                             rows="4"
-                            className="w-full p-3 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500"
+                            className="w-full p-5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300 font-medium transition-all placeholder:text-slate-400 resize-y text-[14px]"
                             placeholder="Detailed description of the task..."
                             value={formData.description}
                             onChange={handleChange}
@@ -135,38 +135,37 @@ const AssignTaskPage = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Attachment</label>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5 ml-1">Attachment</label>
                         <input
                             type="file"
                             name="attachment"
                             onChange={(e) => setAttachment(e.target.files[0])}
-                            className="block w-full text-sm text-slate-500
-                                file:mr-4 file:py-2 file:px-4
-                                file:rounded-lg file:border-0
-                                file:text-sm file:font-medium
+                            className="block w-full text-sm text-slate-600 font-medium
+                                file:mr-4 file:py-2.5 file:px-5
+                                file:rounded-xl file:border-0
+                                file:text-sm file:font-bold file:cursor-pointer
                                 file:bg-violet-50 file:text-violet-700
-                                hover:file:bg-violet-100"
+                                hover:file:bg-violet-100 transition-colors cursor-pointer"
                         />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">
-                                Assignee <span className="text-red-500">*</span>
+                            <label className="block text-sm font-bold text-slate-700 mb-1.5 ml-1">
+                                Assignee <span className="text-rose-500">*</span>
                             </label>
                             <select
                                 name="assignee"
                                 required
-                                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500 bg-white"
+                                className="w-full px-5 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300 font-medium transition-all text-[14px]"
                                 value={formData.assignee}
                                 onChange={handleChange}
                             >
-                                <option key="placeholder" value="">Select Assignee</option>
+                                <option key="placeholder" value="" className="text-slate-400">Select Assignee</option>
                                 {loading ? (
                                     <option key="loading" disabled>Loading...</option>
                                 ) : (
                                     eligibleAssignees.map(p => (
-                                        // API returns emp_id, not id
                                         <option key={p.emp_id} value={p.emp_id}>
                                             {p.name} ({p.role}) - {p.department_id || p.department}
                                         </option>
@@ -176,10 +175,10 @@ const AssignTaskPage = () => {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Priority</label>
+                            <label className="block text-sm font-bold text-slate-700 mb-1.5 ml-1">Priority</label>
                             <select
                                 name="priority"
-                                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500 bg-white"
+                                className="w-full px-5 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300 font-medium transition-all text-[14px]"
                                 value={formData.priority}
                                 onChange={handleChange}
                             >
@@ -191,31 +190,31 @@ const AssignTaskPage = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Due Date <span className="text-red-500">*</span>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5 ml-1">
+                            Due Date <span className="text-rose-500">*</span>
                         </label>
                         <input
                             type="date"
                             name="dueDate"
                             required
-                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:border-violet-500"
+                            className="w-full px-5 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300 font-medium transition-all text-[14px]"
                             value={formData.dueDate}
                             onChange={handleChange}
                         />
                     </div>
 
-                    <div className="pt-4 flex justify-end gap-3">
+                    <div className="pt-6 flex justify-end gap-3 border-t border-slate-100 mt-8">
                         <button
                             type="button"
                             onClick={() => navigate('/tasks')}
-                            className="btn-secondary px-6 py-2.5"
+                            className="px-6 py-3 rounded-xl font-bold text-[#4285F4] bg-white border border-[#4285F4]/30 hover:bg-blue-50 transition-colors shadow-sm text-[14px]"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={submitting}
-                            className="btn-primary px-8 py-2.5 gap-2"
+                            className="px-8 py-3 rounded-xl font-bold text-white bg-[#7B51ED] hover:bg-violet-700 transition flex items-center justify-center gap-2 shadow-sm text-[14px]"
                         >
                             {submitting ? <Loader2 size={18} className="animate-spin" /> : 'Assign Task'}
                         </button>

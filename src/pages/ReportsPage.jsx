@@ -336,7 +336,7 @@ const ReportsPage = () => {
     return (
         <div className="space-y-4">
             {/* ══ ANALYTICS EXECUTIVE LIGHT HERO ══ */}
-            <div className="rounded-[2.5rem] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative border border-slate-100 p-10 overflow-hidden mb-6 group">
+            <div className="rounded-[2.5rem] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative border border-slate-100 p-6 overflow-hidden mb-4 group">
                 {/* Clean Accents */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-40 group-hover:opacity-70 transition-opacity" />
                 <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl -ml-32 -mb-32 opacity-40 group-hover:opacity-70 transition-opacity" />
@@ -359,7 +359,7 @@ const ReportsPage = () => {
                     <div className="flex flex-wrap items-center justify-center gap-4 bg-slate-50 p-2.5 rounded-[2rem] border border-slate-100 shadow-sm w-full max-w-5xl">
                         {(user?.role === 'CFO' || user?.role === 'ADMIN') && (
                             <select
-                                className="pl-6 pr-12 py-3.5 bg-white text-slate-900 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-emerald-500/10 appearance-none cursor-pointer hover:border-emerald-500/30 transition-all min-w-[180px] shadow-sm"
+                                className="pl-6 pr-12 py-2.5 bg-white text-slate-900 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-emerald-500/10 appearance-none cursor-pointer hover:border-emerald-500/30 transition-all min-w-[180px] shadow-sm"
                                 value={filters.departmentId}
                                 onChange={(e) => setFilters({ ...filters, departmentId: e.target.value })}
                                 style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1.25rem center', backgroundSize: '1rem' }}
@@ -374,7 +374,7 @@ const ReportsPage = () => {
                         )}
 
                         <select
-                            className="pl-6 pr-12 py-3.5 bg-white text-slate-900 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-indigo-500/10 appearance-none cursor-pointer hover:border-indigo-500/30 transition-all min-w-[180px] shadow-sm"
+                            className="pl-6 pr-12 py-2.5 bg-white text-slate-900 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-indigo-500/10 appearance-none cursor-pointer hover:border-indigo-500/30 transition-all min-w-[180px] shadow-sm"
                             value={filters.employeeId}
                             onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
                             style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1.25rem center', backgroundSize: '1rem' }}
@@ -410,13 +410,13 @@ const ReportsPage = () => {
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={handleDownloadPDF}
-                                className="bg-slate-900 text-white hover:bg-slate-800 transition-all px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-3 active:scale-95"
+                                className="bg-slate-900 text-white hover:bg-slate-800 transition-all px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-3 active:scale-95"
                             >
                                 <Download size={14} className="text-indigo-400" /> PDF
                             </button>
                             <button
                                 onClick={handleDownloadExcel}
-                                className="bg-white text-slate-900 hover:bg-slate-50 border border-slate-200 shadow-sm transition-all px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 active:scale-95"
+                                className="bg-white text-slate-900 hover:bg-slate-50 border border-slate-200 shadow-sm transition-all px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 active:scale-95"
                             >
                                 <FileSpreadsheet size={14} className="text-emerald-500" /> CSV
                             </button>
@@ -621,7 +621,7 @@ const ReportsPage = () => {
                             {performanceData.length > 0 ? (
                                 performanceData.map((row, idx) => (
                                     <tr key={`${row.id}-${idx}`} className="hover:bg-slate-50/80 transition-all border-b border-slate-50 last:border-0 group">
-                                        <td className="px-4 py-3">
+                                        <td className="px-4 py-2">
                                             <div className="font-bold text-slate-800 group-hover:text-violet-600 transition-colors text-xs">{row.name}</div>
                                             <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{row.department}</div>
                                         </td>

@@ -66,7 +66,7 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('pms_user', JSON.stringify(normalizedUser));
             setUser(normalizedUser);
 
-            return { success: true };
+            return { success: true, role: normalizedUser.role };
         } catch (err) {
             // Clean up token if /auth/me failed after storing it
             localStorage.removeItem('pms_token');

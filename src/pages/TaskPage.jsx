@@ -73,24 +73,24 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
   }
 
   return (
-    <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-slate-200">
+    <div className="overflow-x-auto bg-white rounded-[1.5rem] shadow-sm border border-slate-100 mt-6">
       <table className="w-full text-left border-collapse text-xs">
-        <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase font-medium">
+        <thead className="bg-slate-50/30 text-slate-400 text-[12px] uppercase font-medium border-b border-slate-100">
           <tr>
-            <th className="p-3 w-10">No.</th>
-            <th className="p-3">Employee</th>
-            <th className="p-3">Role</th>
-            <th className="p-3">Dept</th>
-            <th className="p-3">Job Assignment</th>
-            <th className="p-3">Assigned By</th>
-            <th className="p-3">Date Assigned</th>
-            <th className="p-3">Due Date</th>
-            <th className="p-3">Severity</th>
-            <th className="p-3">Status</th>
-            <th className="p-3 text-right">Actions</th>
+            <th className="py-3 px-4 w-10">No.</th>
+            <th className="py-3 px-4">Employee</th>
+            <th className="py-3 px-4">Role</th>
+            <th className="py-3 px-4">Dept</th>
+            <th className="py-3 px-4">Job Assignment</th>
+            <th className="py-3 px-4">Assigned By</th>
+            <th className="py-3 px-4">Date Assigned</th>
+            <th className="py-3 px-4">Due Date</th>
+            <th className="py-3 px-4">Severity</th>
+            <th className="py-3 px-4 text-center">Status</th>
+            <th className="py-3 px-4 text-right">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100 text-slate-700">
+        <tbody className="divide-y divide-slate-50 text-slate-700">
           {tasks.map((task, idx) => {
             const today = new Date().toLocaleDateString('en-CA');
             const dueDateKey = toDateKey(task.due_date);
@@ -102,24 +102,24 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
             const taskKey = typeof task.id === 'object' ? (task.id.$oid || JSON.stringify(task.id)) : (task.id || `task-${idx}`);
 
             return (
-              <tr key={taskKey} className="hover:bg-slate-50 cursor-pointer" onClick={() => onViewDetails(task)}>
-                <td className="p-3 text-slate-400 font-medium">{idx + 1}</td>
+              <tr key={taskKey} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => onViewDetails(task)}>
+                <td className="py-2 px-4 text-slate-400 font-medium">{idx + 1}</td>
 
                 {/* Employee */}
-                <td className="p-3">
+                <td className="py-2 px-4">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-sm border border-white">
                       {(task.assigneeName || task.employee_id || '?').charAt(0)}
                     </div>
-                    <span className="truncate font-medium">{task.assigneeName || task.employee_id}</span>
+                    <span className="truncate font-semibold text-[13px]">{task.assigneeName || task.employee_id}</span>
                   </div>
                 </td>
 
                 {/* Role */}
-                <td className="p-3">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter ${(assignee?.role || task.assignee_role || '').toUpperCase() === 'MANAGER' ? 'bg-indigo-100 text-indigo-700' :
+                <td className="py-2 px-4">
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-tighter ${(assignee?.role || task.assignee_role || '').toUpperCase() === 'MANAGER' ? 'bg-indigo-100 text-indigo-700' :
                     (assignee?.role || task.assignee_role || '').toUpperCase() === 'EMPLOYEE' ? 'bg-slate-100 text-slate-600' :
-                      (assignee?.role || task.assignee_role || '').toUpperCase() === 'CFO' || (assignee?.role || task.assignee_role || '').toUpperCase() === 'ADMIN' ? 'bg-violet-100 text-violet-700' :
+                      (assignee?.role || task.assignee_role || '').toUpperCase() === 'CFO' || (assignee?.role || task.assignee_role || '').toUpperCase() === 'ADMIN' ? 'bg-[#9B51E0] text-white' :
                         'bg-slate-100 text-slate-400'
                     }`}>
                     {assignee?.role || task.assignee_role || task.role || '-'}
@@ -127,63 +127,66 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                 </td>
 
                 {/* Dept */}
-                <td className="p-3 max-w-[120px]">
-                  <span className="truncate block text-slate-500">{task.department}</span>
+                <td className="py-2 px-4 max-w-[120px]">
+                  <span className="truncate block font-medium text-slate-500">{task.department}</span>
                 </td>
 
                 {/* Job Assignment Name */}
-                <td className="p-3 max-w-[160px]">
-                  <div className="font-medium truncate">{task.title}</div>
-                  <div className="text-[10px] text-slate-400 truncate">{task.description}</div>
+                <td className="py-2 px-4 max-w-[160px]">
+                  <div className="font-semibold text-[13px] truncate">{task.title}</div>
+                  <div className="text-[11px] text-slate-400 truncate mt-0.5">{task.description}</div>
                 </td>
 
                 {/* Assigned By */}
-                <td className="p-3 text-slate-500 truncate">
+                <td className="py-2 px-4 text-slate-500 truncate font-medium">
                   {task.assignerName || task.assigned_by || 'System'}
                 </td>
 
                 {/* Date Assigned */}
-                <td className="p-3 text-slate-500 whitespace-nowrap">
+                <td className="py-2 px-4 text-slate-500 whitespace-nowrap font-medium">
                   {task.assigned_date || task.created_at
                     ? new Date(task.assigned_date || task.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
                     : '-'}
                 </td>
 
                 {/* Due Date */}
-                <td className={`p-3 whitespace-nowrap font-medium ${isOverdue ? 'text-red-600' : 'text-slate-600'}`}>
+                <td className={`p-4 whitespace-nowrap font-semibold text-[13px] ${isOverdue ? 'text-red-500' : 'text-slate-600'}`}>
                   {task.due_date}
                 </td>
 
                 {/* Severity */}
-                <td className="p-3">
+                <td className="p-4">
                   {task.severity ? (
-                    <Badge variant={task.severity}>{task.severity}</Badge>
+                    <div className="flex items-center gap-1.5 text-[12px] font-medium text-slate-600">
+                      <span className={`w-2 h-2 rounded-full ${task.severity === 'HIGH' ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]' : task.severity === 'MEDIUM' ? 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.5)]' : 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]'}`}></span>
+                      {task.severity}
+                    </div>
                   ) : (
                     <span className="text-slate-400 text-xs">-</span>
                   )}
                 </td>
 
                 {/* Status */}
-                <td className="p-3">
+                <td className="p-4 text-center">
                   <StatusCell task={task} />
                 </td>
 
                 {/* Actions — CFO state machine */}
-                <td className="p-3">
-                  <div className="flex justify-end gap-1 flex-wrap items-center">
+                <td className="p-4">
+                  <div className="flex justify-end gap-1.5 flex-wrap items-center">
 
                     {/* SUBMITTED → Approve / Rework */}
                     {task.status === 'SUBMITTED' && (
                       <>
                         <button
                           onClick={(e) => { e.stopPropagation(); onApprove(task.id); }}
-                          className="btn-action btn-action-success flex items-center gap-1"
+                          className="px-3 py-1.5 bg-[#10B981] text-white text-[11px] font-bold rounded-lg hover:bg-emerald-600 transition shadow-sm flex items-center gap-1"
                         >
                           <Check size={12} /> Approve
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); onRework(task); }}
-                          className="btn-action btn-action-warning flex items-center gap-1"
+                          className="px-3 py-1.5 bg-[#F59E0B] text-white text-[11px] font-bold rounded-lg hover:bg-amber-600 transition shadow-sm flex items-center gap-1"
                         >
                           <RotateCcw size={12} /> Rework
                         </button>
@@ -194,7 +197,7 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                     {!['APPROVED', 'CANCELLED'].includes(task.status) && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onReassign(task); }}
-                        className="btn-action btn-action-primary flex items-center gap-1"
+                        className="px-3 py-1.5 bg-[#4285F4] text-white text-[11px] font-bold rounded-lg hover:bg-blue-600 transition shadow-sm flex items-center gap-1"
                       >
                         <ArrowLeftRight size={12} /> Reassign
                       </button>
@@ -204,7 +207,7 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                     {!['APPROVED', 'CANCELLED'].includes(task.status) && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onCancel(task.id); }}
-                        className="btn-action btn-action-danger flex items-center gap-1"
+                        className="px-3 py-1.5 bg-rose-500 text-white text-[11px] font-bold rounded-lg hover:bg-rose-600 transition shadow-sm flex items-center gap-1"
                       >
                         <X size={12} /> Cancel
                       </button>
@@ -249,56 +252,70 @@ const ActionTaskTable = ({
   }
 
   return (
-    <div className="overflow-x-auto bg-white rounded-xl shadow-sm border border-slate-200">
+    <div className="overflow-x-auto bg-white rounded-[1.5rem] shadow-sm border border-slate-100 mt-6">
       <table className="w-full text-left border-collapse">
-        <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-medium">
+        <thead className="bg-slate-50/30 text-slate-400 text-[12px] uppercase font-medium border-b border-slate-100">
           <tr>
-            <th className="p-4">Task</th>
-            <th className="p-4">Assignee</th>
-            <th className="p-4">Assigned By</th>
-            <th className="p-4">Status</th>
-            <th className="p-4">Severity</th>
-            <th className="p-4">Due Date</th>
-            <th className="p-4 text-right">Actions</th>
+            <th className="py-3 px-4"><input type="checkbox" className="rounded text-violet-600 mr-3 border-slate-300" />Task</th>
+            <th className="py-3 px-4">Assignee</th>
+            <th className="py-3 px-4">Assigned By</th>
+            <th className="py-3 px-4 text-center">Status</th>
+            <th className="py-3 px-4 text-center">Severity</th>
+            <th className="py-3 px-4">Due Date</th>
+            <th className="py-3 px-4 text-right">Actions</th>
           </tr>
         </thead>
 
-        <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
+        <tbody className="divide-y divide-slate-50 text-[13px] text-slate-700">
           {tasks.map((task) => {
             const assigneeName = task.assigneeName || task.employee_id;
             const assignerName = task.assignerName || task.assigned_by || "System";
 
             return (
-              <tr key={task.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => onViewDetails(task)}>
-                <td className="p-4 min-w-0">
-                  <div className="truncate">{task.title}</div>
-                  <div className="text-xs text-slate-500">
-                    {task.description}
+              <tr key={task.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => onViewDetails(task)}>
+                <td className="p-4 min-w-0 flex items-center gap-3">
+                  <input type="checkbox" className="rounded border-slate-300 w-4 h-4" />
+                  <div>
+                    <div className="font-semibold text-slate-800 text-[13.5px] truncate max-w-[200px]">{task.title}</div>
+                    <div className="text-[11.5px] text-slate-400 truncate mt-0.5 max-w-[200px]">
+                      {task.description}
+                    </div>
                   </div>
                 </td>
 
-                <td className="p-4 truncate">{assigneeName}</td>
-                <td className="p-4 truncate">{assignerName}</td>
+                <td className="p-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-sm border border-white">
+                      {(assigneeName || '?').charAt(0)}
+                    </div>
+                    <span className="truncate font-medium">{assigneeName}</span>
+                  </div>
+                </td>
 
-                <td className="p-4 max-w-[160px]">
+                <td className="p-4 font-medium text-slate-600 truncate">{assignerName}</td>
+
+                <td className="p-4 text-center">
                   <StatusCell task={task} />
                 </td>
 
-                <td className="p-4 max-w-[90px] overflow-hidden">
+                <td className="p-4 text-center">
                   {(() => {
                     const sev = (task.priority || task.severity || '').toUpperCase();
                     return sev ? (
-                      <Badge variant={sev}>{sev}</Badge>
+                      <div className="flex items-center justify-center gap-1.5 text-[12px] font-medium text-slate-600">
+                        <span className={`w-2 h-2 rounded-full ${sev === 'HIGH' ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]' : sev === 'MEDIUM' ? 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.5)]' : 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]'}`}></span>
+                        {sev}
+                      </div>
                     ) : (
                       <span className="text-slate-400 text-xs">-</span>
                     );
                   })()}
                 </td>
 
-                <td className="p-4 text-slate-500">{task.due_date}</td>
+                <td className="p-4 font-semibold text-slate-600">{task.due_date}</td>
 
                 {/* ================= Actions ================= */}
-                <td className="p-4">
+                <td className="p-4 text-right">
                   <div className="flex justify-end gap-1.5 flex-wrap items-center">
 
                     {/* ── ASSIGNEE ACTIONS (Employee OR Manager in Personal View) ── */}
@@ -307,26 +324,29 @@ const ActionTaskTable = ({
                         {task.status === "NEW" && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, "START"); }}
-                            className="btn-action btn-action-violet flex items-center gap-1"
+                            className="px-4 py-1.5 bg-[#7B51ED] text-white text-[12px] font-bold rounded-lg hover:bg-violet-700 transition shadow-sm flex items-center gap-1.5"
                           >
-                            <Play size={12} fill="white" /> Start
+                            Start
                           </button>
                         )}
                         {task.status === "IN_PROGRESS" && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, "SUBMIT"); }}
-                            className="btn-action btn-action-warning flex items-center gap-1"
+                            className="px-4 py-1.5 bg-[#10B981] text-white text-[12px] font-bold rounded-lg hover:bg-emerald-600 transition shadow-sm flex items-center gap-1.5"
                           >
-                            <Upload size={12} /> Submit
+                            Submit
                           </button>
                         )}
                         {task.status === "REWORK" && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, "RESTART"); }}
-                            className="btn-action btn-action-violet flex items-center gap-1"
+                            className="px-4 py-1.5 bg-[#F59E0B] text-white text-[12px] font-bold rounded-lg hover:bg-amber-600 transition shadow-sm flex items-center gap-1.5"
                           >
-                            <RefreshCw size={12} /> Restart
+                            Restart
                           </button>
+                        )}
+                        {task.status === "SUBMITTED" && (
+                          <span className="text-[11px] text-slate-400 font-medium italic">Pending Review</span>
                         )}
                       </>
                     )}
@@ -338,13 +358,13 @@ const ActionTaskTable = ({
                           <>
                             <button
                               onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, "APPROVE"); }}
-                              className="btn-action btn-action-success flex items-center gap-1"
+                              className="px-3 py-1.5 bg-[#10B981] text-white text-[11px] font-bold rounded-lg hover:bg-emerald-600 transition shadow-sm flex items-center gap-1"
                             >
                               <Check size={12} /> Approve
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); onRework(task); }}
-                              className="btn-action btn-action-warning flex items-center gap-1"
+                              className="px-3 py-1.5 bg-[#F59E0B] text-white text-[11px] font-bold rounded-lg hover:bg-amber-600 transition shadow-sm flex items-center gap-1"
                             >
                               <RotateCcw size={12} /> Rework
                             </button>
@@ -353,7 +373,7 @@ const ActionTaskTable = ({
                         {!['APPROVED', 'CANCELLED'].includes(task.status) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onReassign(task); }}
-                            className="btn-action btn-action-primary flex items-center gap-1"
+                            className="px-3 py-1.5 bg-[#4285F4] text-white text-[11px] font-bold rounded-lg hover:bg-blue-600 transition shadow-sm flex items-center gap-1"
                           >
                             <ArrowLeftRight size={12} /> Reassign
                           </button>
@@ -361,7 +381,7 @@ const ActionTaskTable = ({
                         {!["APPROVED", "CANCELLED"].includes(task.status) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onCancel(task.id); }}
-                            className="btn-action btn-action-danger flex items-center gap-1"
+                            className="px-3 py-1.5 bg-rose-500 text-white text-[11px] font-bold rounded-lg hover:bg-rose-600 transition shadow-sm flex items-center gap-1"
                           >
                             <X size={12} /> Cancel
                           </button>
@@ -416,6 +436,10 @@ const TaskPage = () => {
   // Rework comment modal state
   const [reworkModalOpen, setReworkModalOpen] = useState(false);
   const [taskForRework, setTaskForRework] = useState(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -505,8 +529,9 @@ const TaskPage = () => {
   };
 
   useEffect(() => {
+    setCurrentPage(1);
     fetchTasks();
-  }, [user, viewMode, filter.status, filter.severity, filter.department, filter.employeeId]);
+  }, [user, viewMode, filter.status, filter.severity, filter.department, filter.employeeId, filter.search, filter.fromDate, filter.toDate]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
@@ -544,6 +569,13 @@ const TaskPage = () => {
       return matchesSearch && matchesStatus && matchesPriority && matchesDept && matchesFrom && matchesTo && matchesEmployee && !shouldExcludeCancelled;
     });
   }, [tasks, filter, isCFO]);
+
+  const paginatedTasks = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredTasks.slice(start, start + itemsPerPage);
+  }, [filteredTasks, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
 
   const handleStatusChange = async (taskId, action, comment = "") => {
     if (!taskId && taskId !== 0) return;
@@ -647,91 +679,100 @@ const TaskPage = () => {
 
       {/* â•â• TASK MANAGEMENT PREMIUM HERO â•â• */}
       <div
-        className="rounded-3xl overflow-hidden shadow-2xl relative mb-6"
+        className="rounded-3xl overflow-hidden shadow-2xl relative mb-1 max-w-5xl mx-auto"
         style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #334155 100%)' }}
       >
         {/* Decorative Premium Blobs */}
-        <div className="glass-circle w-64 h-64 bg-white/5 -top-10 -right-10 animate-blob" />
-        <div className="glass-circle w-48 h-48 bg-white/5 bottom-0 left-1/4 animate-blob [animation-delay:2s]" />
+        <div className="absolute glass-circle w-40 h-40 bg-white/5 -top-6 -right-6 animate-blob" />
+        <div className="absolute glass-circle w-32 h-32 bg-white/5 bottom-0 left-1/4 animate-blob [animation-delay:2s]" />
 
-        <div className="relative z-10 px-8 py-10 flex flex-col items-center text-center gap-6">
-          <div className="flex flex-col items-center gap-4">
-            <div className="bg-white/10 backdrop-blur-xl p-4 rounded-3xl shadow-2xl border border-white/20 animate-float">
-              <CheckSquare size={32} className="text-white" />
+        <div className="relative z-10 w-full px-4 py-2 flex flex-col items-center text-center gap-2">
+          <div className="flex flex-col items-center gap-2">
+
+            <div className="bg-white/10 backdrop-blur-xl p-1.5 rounded-xl shadow-xl border border-white/20 animate-float invisible sm:visible h-0 sm:h-auto overflow-hidden">
+              <CheckSquare size={16} className="text-white" />
             </div>
+
             <div>
-              <h2 className="text-3xl font-black text-white tracking-tight drop-shadow-lg">
-                {isCFO ? 'Global Task Hub' : (viewMode === 'team' ? 'Team Task Index' : 'Personal Task Workspace')}
+              <h2 className="text-xl font-black text-white tracking-tight drop-shadow-lg">
+                {isCFO
+                  ? 'Global Task Hub'
+                  : viewMode === 'team'
+                    ? 'Team Task Index'
+                    : 'Personal Task Workspace'}
               </h2>
-              <p className="text-slate-300 font-bold uppercase tracking-[0.3em] text-[10px] mt-2 opacity-80">
-                {isCFO ? 'Strategic Oversight & Lifecycle Management' : (viewMode === 'team' ? 'Department Performance & Team Oversight' : 'Workflow Execution & Performance Tracking')}
+
+              <p className="text-slate-300 font-bold uppercase tracking-[0.25em] text-[9px] mt-1 opacity-80">
+                {isCFO
+                  ? 'Strategic Oversight & Lifecycle Management'
+                  : viewMode === 'team'
+                    ? 'Department Performance & Team Oversight'
+                    : 'Workflow Execution & Performance Tracking'}
               </p>
             </div>
-          </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 w-full max-w-3xl">
-            {/* Summary Stats in Hero */}
-            <div className="flex items-center bg-white/5 backdrop-blur-md rounded-2xl p-1.5 border border-white/10 shadow-inner flex-1 min-w-[280px] text-white">
-              <div className="flex-1 flex flex-col px-4 py-1 border-r border-white/10 text-center">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Tasks</span>
-                <span className="text-lg font-black">{tasks.filter(t => !['APPROVED', 'CANCELLED'].includes(t.status)).length}</span>
-              </div>
-              <div className="flex-1 flex flex-col px-4 py-1 text-center">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Overdue</span>
-                <span className="text-lg font-black text-rose-400">
-                  {tasks.filter(t => { const dueDateKey = toDateKey(t.due_date); return dueDateKey && dueDateKey < new Date().toLocaleDateString('en-CA') && !['APPROVED', 'CANCELLED'].includes(t.status); }).length}
-                </span>
-              </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-4 w-full max-w-2xl">
+          {/* Summary Stats in Hero */}
+          <div className="flex items-center bg-white/5 backdrop-blur-md rounded-2xl p-1.5 border border-white/10 shadow-inner flex-1 min-w-[280px] text-white">
+            <div className="flex-1 flex flex-col px-4 py-1 border-r border-white/10 text-center">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Tasks</span>
+              <span className="text-lg font-black">{tasks.filter(t => !['APPROVED', 'CANCELLED'].includes(t.status)).length}</span>
             </div>
-
-            {/* Primary Action - New Task (if allowed) */}
-            {(isCFO || (role === "MANAGER" && viewMode === "team")) && (
-              <button
-                onClick={() => navigate('/tasks/assign')}
-                className="bg-white text-slate-900 hover:bg-slate-100 hover:scale-[1.03] active:scale-[0.97] transition-all px-8 py-4 rounded-2xl font-black text-sm shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] flex items-center gap-3 group whitespace-nowrap"
-              >
-                <Plus size={18} /> Assign New Task
-              </button>
-            )}
-
-            <button
-              onClick={() => fetchTasks()}
-              className="bg-white/5 hover:bg-white/10 text-white text-xs font-bold px-6 py-4 rounded-2xl border border-white/5 backdrop-blur-sm transition-all flex items-center gap-2 group"
-            >
-              <History size={16} className="group-hover:rotate-[-45deg] transition-transform" /> Sync
-            </button>
+            <div className="flex-1 flex flex-col px-4 py-1 text-center">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Overdue</span>
+              <span className="text-lg font-black text-rose-400">
+                {tasks.filter(t => { const dueDateKey = toDateKey(t.due_date); return dueDateKey && dueDateKey < new Date().toLocaleDateString('en-CA') && !['APPROVED', 'CANCELLED'].includes(t.status); }).length}
+              </span>
+            </div>
           </div>
+
+          {/* Primary Action - New Task (if allowed) */}
+          {(isCFO || (role === "MANAGER" && viewMode === "team")) && (
+            <button
+              onClick={() => navigate('/tasks/assign')}
+              className="bg-white text-slate-900 hover:bg-slate-100 hover:scale-[1.03] active:scale-[0.97] transition-all px-6 py-2 rounded-xl font-black text-xs shadow-lg flex items-center gap-2 group whitespace-nowrap"
+            >
+              <Plus size={16} /> Assign New Task
+            </button>
+          )}
+
+          <button
+            onClick={() => fetchTasks()}
+            className="bg-white/5 hover:bg-white/10 text-white text-[10px] font-bold px-4 py-2 rounded-xl border border-white/5 backdrop-blur-sm transition-all flex items-center gap-2 group"
+          >
+            <History size={14} className="group-hover:rotate-[-45deg] transition-transform" /> Sync
+          </button>
         </div>
       </div>
 
       {/* View Toggle — Manager only */}
-      {
-        user.role === "MANAGER" && (
-          <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
-            <button
-              onClick={() => setViewMode("team")}
-              className={`px-5 py-2 text-sm font-semibold rounded-md transition ${viewMode === "team"
-                ? "bg-white text-slate-800 shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
-                }`}
-            >
-              Team Tasks
-            </button>
-            <button
-              onClick={() => setViewMode("personal")}
-              className={`px-5 py-2 text-sm font-semibold rounded-md transition ${viewMode === "personal"
-                ? "bg-white text-slate-800 shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
-                }`}
-            >
-              My Tasks
-            </button>
-          </div>
-        )
-      }
+      {user.role === "MANAGER" && (
+        <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
+          <button
+            onClick={() => setViewMode("team")}
+            className={`px-5 py-2 text-sm font-semibold rounded-md transition ${viewMode === "team"
+              ? "bg-white text-slate-800 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+              }`}
+          >
+            Team Tasks
+          </button>
+          <button
+            onClick={() => setViewMode("personal")}
+            className={`px-5 py-2 text-sm font-semibold rounded-md transition ${viewMode === "personal"
+              ? "bg-white text-slate-800 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+              }`}
+          >
+            My Tasks
+          </button>
+        </div>
+      )}
 
       {/* Filters & Search — Premium Spacing */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-row flex-wrap items-center gap-4">
+      <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex flex-row flex-wrap items-center gap-4 max-w-5xl mx-auto">
         <div className="relative flex-1 min-w-0 flex flex-wrap gap-3">
           <div className="relative flex-1" style={{ minWidth: '450px' }}>
             <Search
@@ -860,42 +901,90 @@ const TaskPage = () => {
         )}
       </div>
 
-      {
-        loading ? (
-          <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border border-slate-200 shadow-sm">
-            <Loader2 className="w-8 h-8 text-violet-500 animate-spin mb-2" />
-            <p className="text-slate-500">Loading tasks...</p>
-          </div>
-        ) : (
-          <>
-            {/* Task Table */}
-            {isCFO ? (
-              <CFOTaskTable
-                tasks={filteredTasks}
-                users={users}
-                onAssign={handleAssign}
-                onApprove={handleApprove}
-                onRework={handleReworkRequest}
-                onReassign={openReassignModal}
-                onCancel={handleCancel}
-                onViewDetails={openDetailModal}
-                onStatusChange={(id, action) => handleStatusChange(id, action)}
-              />
-            ) : (
-              <ActionTaskTable
-                tasks={filteredTasks}
-                users={users}
-                user={user}
-                onStatusChange={(id, action) => handleStatusChange(id, action)}
-                onReassign={openReassignModal}
-                onCancel={handleCancel}
-                onViewDetails={openDetailModal}
-                onRework={handleReworkRequest}
-                viewMode={viewMode}
-              />
-            )}
-          </>
-        )
+      {loading ? (
+        <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border border-slate-200 shadow-sm">
+          <Loader2 className="w-8 h-8 text-violet-500 animate-spin mb-2" />
+          <p className="text-slate-500">Loading tasks...</p>
+        </div>
+      ) : (
+        <>
+          {/* Task Table */}
+          {isCFO ? (
+            <CFOTaskTable
+              tasks={paginatedTasks}
+              users={users}
+              onAssign={handleAssign}
+              onApprove={handleApprove}
+              onRework={handleReworkRequest}
+              onReassign={openReassignModal}
+              onCancel={handleCancel}
+              onViewDetails={openDetailModal}
+              onStatusChange={(id, action) => handleStatusChange(id, action)}
+            />
+          ) : (
+            <ActionTaskTable
+              tasks={paginatedTasks}
+              users={users}
+              user={user}
+              onStatusChange={(id, action) => handleStatusChange(id, action)}
+              onReassign={openReassignModal}
+              onCancel={handleCancel}
+              onViewDetails={openDetailModal}
+              onRework={handleReworkRequest}
+              viewMode={viewMode}
+            />
+          )}
+
+          {/* Pagination Controls */}
+          {filteredTasks.length > 0 && (
+            <div className="flex items-center justify-between px-6 py-6 bg-white/50 backdrop-blur-md rounded-2xl border border-white/20 mt-6 shadow-sm">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                Showing <span className="text-slate-900">{Math.min(filteredTasks.length, (currentPage - 1) * itemsPerPage + 1)}</span> to <span className="text-slate-900">{Math.min(filteredTasks.length, currentPage * itemsPerPage)}</span> of <span className="text-slate-900">{filteredTasks.length}</span> Objectives
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => p - 1)}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-600 hover:border-violet-300 hover:text-violet-600 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-sm active:scale-90"
+                >
+                  &lt;
+                </button>
+                <div className="flex items-center gap-1.5 mx-2">
+                  {[...Array(totalPages)].map((_, i) => {
+                    const pageNum = i + 1;
+                    // Basic logic to show limited page numbers if totalPages is large
+                    if (totalPages > 7) {
+                      if (pageNum !== 1 && pageNum !== totalPages && Math.abs(pageNum - currentPage) > 1) {
+                        if (pageNum === 2 || pageNum === totalPages - 1) return <span key={pageNum} className="text-slate-300">...</span>;
+                        return null;
+                      }
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-9 h-9 flex items-center justify-center rounded-xl text-xs font-black transition-all border ${currentPage === pageNum
+                          ? 'bg-violet-600 text-white border-violet-600 shadow-lg shadow-violet-200 scale-110'
+                          : 'bg-white text-slate-500 border-slate-200 hover:border-violet-200 hover:text-violet-600'
+                          }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-600 hover:border-violet-300 hover:text-violet-600 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-sm active:scale-90"
+                >
+                  &gt;
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )
       }
     </div>
   );

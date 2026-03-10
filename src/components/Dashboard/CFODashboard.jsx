@@ -9,7 +9,8 @@ import {
 } from 'recharts';
 import {
     TrendingUp, Users, CheckSquare, AlertTriangle, ArrowRight,
-    BarChart2, Loader2, CheckCircle, Activity, Shield, Layout, Target, Clock
+    BarChart2, Loader2, CheckCircle, Activity, Shield, Layout, Target, Clock,
+    Plus, Settings, MessageSquare, User, ChevronDown
 } from 'lucide-react';
 
 const WorkloadSummary = ({ data }) => {
@@ -61,20 +62,40 @@ const CFODashboard = () => {
     const navigate = useNavigate();
     const [dashboardData, setDashboardData] = useState(null);
     const [todayOrgTasks, setTodayOrgTasks] = useState([]);
+    const [activities, setActivities] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [taskFilter, setTaskFilter] = useState('All');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 7;
+
+    const formatTimeAgo = (dateStr) => {
+        if (!dateStr) return 'Just now';
+        try {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+            if (diffInSeconds < 60) return `${Math.max(0, diffInSeconds)}s ago`;
+            const diffInMinutes = Math.floor(diffInSeconds / 60);
+            if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+            const diffInHours = Math.floor(diffInMinutes / 60);
+            if (diffInHours < 24) return `${diffInHours}h ago`;
+            const diffInDays = Math.floor(diffInHours / 24);
+            return `${diffInDays}d ago`;
+        } catch (e) { return 'Recent'; }
+    };
 
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
 
     const DEPT_COLORS = [
-        '#6366f1', // Indigo
-        '#10b981', // Emerald
-        '#f59e0b', // Amber
-        '#3b82f6', // Blue
-        '#8b5cf6', // Violet
-        '#f43f5e', // Rose
-        '#06b6d4', // Cyan
-        '#f97316', // Orange
+        '#6366f1',
+        '#10b981',
+        '#f59e0b',
+        '#3b82f6',
+        '#8b5cf6',
+        '#f43f5e',
+        '#06b6d4',
+        '#f97316',
     ];
 
     const fetchDashboardData = async () => {
@@ -103,6 +124,7 @@ const CFODashboard = () => {
                 status: String(t.status || '').toUpperCase(),
                 department: t.department_name || t.department || t.dept_name || 'Accounts',
                 priority: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
+                assigneeName: t.assigned_to_name || t.assignee || 'Unassigned',
             });
 
             const aggregateFromTasks = (rows) => {
@@ -134,7 +156,7 @@ const CFODashboard = () => {
                     org_performance_index: total > 0 ? Math.round((approved / total) * 100) : 0,
                     department_stats: Object.values(byDept),
                 });
-                setTodayOrgTasks(normalized.filter(t => !['APPROVED', 'CANCELLED'].includes(t.status)).slice(0, 50));
+                setTodayOrgTasks(normalized.slice(0, 100));
             };
 
             if (hasDashboardStats) {
@@ -144,7 +166,7 @@ const CFODashboard = () => {
                     const fullTasksRes = await api.get('/tasks', { params: { ...params, scope: 'org', limit: 50 } }).catch(() => null);
                     if (fullTasksRes?.data) {
                         const allTasks = Array.isArray(fullTasksRes.data) ? fullTasksRes.data : (fullTasksRes.data?.data || []);
-                        setTodayOrgTasks(allTasks.map(normalizeRow).filter(t => !['APPROVED', 'CANCELLED'].includes(t.status)));
+                        setTodayOrgTasks(allTasks.map(normalizeRow).slice(0, 100));
                     }
                 }
                 return;
@@ -165,10 +187,32 @@ const CFODashboard = () => {
             setTodayOrgTasks([]);
 
         } catch (err) { console.error("CFO Dashboard Error:", err); }
-        finally { setLoading(false); }
+        finally {
+            // Fetch notifications as well
+            api.get('/notifications').then(res => {
+                const data = res.data?.data || res.data || [];
+                setActivities(Array.isArray(data) ? data : []);
+            }).catch(e => console.warn("CFO Activities fail:", e));
+            setLoading(false);
+        }
     };
 
     useEffect(() => { fetchDashboardData(); }, [fromDate, toDate]);
+
+    const filteredTasks = useMemo(() => {
+        let list = todayOrgTasks;
+        if (taskFilter === 'Open') list = todayOrgTasks.filter(t => t.status === 'NEW' || t.status === 'OPEN');
+        else if (taskFilter === 'In Progress') list = todayOrgTasks.filter(t => t.status === 'IN_PROGRESS');
+        else if (taskFilter === 'Completed') list = todayOrgTasks.filter(t => t.status === 'APPROVED' || t.status === 'COMPLETED');
+        return list;
+    }, [todayOrgTasks, taskFilter]);
+
+    const paginatedTasks = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return filteredTasks.slice(start, start + itemsPerPage);
+    }, [filteredTasks, currentPage]);
+
+    const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
 
     const metrics = useMemo(() => {
         if (!dashboardData) return null;
@@ -195,6 +239,7 @@ const CFODashboard = () => {
                 totalTasks: dashboardData.total_tasks || 0,
                 completedTasks: dashboardData.approved_tasks || 0,
                 pendingTasks: dashboardData.pending_tasks || 0,
+                in_progress_tasks: dashboardData.in_progress_tasks || 0,
                 overallScore: dashboardData.org_performance_index || 0,
             }
         };
@@ -210,160 +255,250 @@ const CFODashboard = () => {
     const { workloadData, orgStatusData, globalStats } = metrics || { workloadData: [], orgStatusData: [], globalStats: {} };
 
     return (
-        <div className="space-y-6 animate-fade-in pb-8">
-            {/* Header Hero - High Visibility Professional */}
-            <div className="rounded-[2.5rem] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative border border-slate-100 group p-8 overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-50" />
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl -ml-32 -mb-32 opacity-50" />
+        <div className="space-y-6 animate-fade-in pb-8 mt-4">
 
-                <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
-                    <div className="flex items-center gap-6">
-                        <div className="bg-slate-900 p-5 rounded-[1.5rem] shadow-xl group-hover:scale-110 transition-transform duration-500">
-                            <Shield size={32} className="text-emerald-400" />
-                        </div>
-                        <div className="text-left">
-                            <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">
-                                CFO <span className="text-emerald-500">Dashboard</span>
-                            </h2>
-                            <p className="text-slate-500 font-black uppercase tracking-[0.4em] text-[10px] mt-3 flex items-center gap-2">
-                                <Activity size={12} className="text-indigo-600" />
-                                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                            </p>
-                        </div>
+            {/* ── Top Metrics Row ── fully aligned single row, 3 equal cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+
+                {/* Open Tasks */}
+                <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-4 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
+                    <div>
+                        <span className="text-5xl font-bold tracking-tight">{globalStats.totalTasks || 10}</span>
+                        <p className="text-[14px] font-medium mt-1 text-white/90">Open Tasks</p>
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-2 rounded-2xl border border-slate-100">
-                        <div className="flex items-center gap-3 px-4 py-2 bg-white rounded-xl shadow-sm border border-slate-100">
-                            <div className="flex flex-col">
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Start Date</span>
-                                <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="bg-transparent text-slate-900 text-[11px] font-black outline-none w-[110px]" />
-                            </div>
-                            <div className="w-px h-6 bg-slate-200" />
-                            <div className="flex flex-col">
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">End Date</span>
-                                <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="bg-transparent text-slate-900 text-[11px] font-black outline-none w-[110px]" />
-                            </div>
-                        </div>
-                        <button onClick={() => navigate('/tasks')} className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg transition-all flex items-center gap-3 hover:translate-y-[-2px] active:translate-y-0">
-                            All Directives <ArrowRight size={14} className="text-emerald-400" />
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Main Stats - Ultra Clean */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatsCard title="Total Volume" value={globalStats.totalTasks} icon={CheckSquare} color="primary" compact />
-                <StatsCard title="Approved" value={globalStats.completedTasks} icon={TrendingUp} color="success" compact />
-                <StatsCard title="Pending Review" value={globalStats.pendingTasks} icon={AlertTriangle} color="warning" compact />
-                <StatsCard title="Efficiency" value={`${globalStats.overallScore}%`} icon={Target} color="info" compact />
-            </div>
-
-            {/* The Specific Requested Styled View */}
-            <WorkloadSummary data={workloadData} />
-
-            {/* Secondary Charts - Compacted */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white border border-slate-200 shadow-sm rounded-[2rem] p-8">
-                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-6 flex items-center gap-2">
-                        <BarChart2 size={16} className="text-indigo-600" />
-                        Department performance
-                    </h3>
-                    <div className="h-[180px] w-full relative">
-                        {workloadData.length === 0 ? <p className="flex items-center justify-center h-full text-slate-400 font-black uppercase tracking-widest text-[10px]">No Data Sync</p> :
-                            <ResponsiveContainer width="100%" height={180} debounce={100}>
-                                <BarChart data={workloadData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                                    <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.1} />
-                                    <XAxis dataKey="name" fontSize={9} fontWeight="900" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
-                                    <YAxis fontSize={9} fontWeight="900" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
-                                    <Tooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} contentStyle={{ borderRadius: '1.5rem', border: 'none', fontSize: '11px', fontWeight: '900', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }} />
-                                    <Bar dataKey="Completed" fill="#10b981" radius={[6, 6, 0, 0]} barSize={24} />
-                                    <Bar dataKey="Pending" fill="#f59e0b" radius={[6, 6, 0, 0]} barSize={24} />
-                                </BarChart>
-                            </ResponsiveContainer>}
+                    <div className="absolute right-4 bottom-4 opacity-20">
+                        <CheckSquare size={64} strokeWidth={1.5} />
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 shadow-sm rounded-[2rem] p-8">
-                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-6 flex items-center gap-2">
-                        <PieChart2 size={16} className="text-emerald-600" />
-                        Status Distribution
-                    </h3>
-                    <div className="h-[180px] w-full relative">
-                        {orgStatusData.length === 0 ? <p className="flex items-center justify-center h-full text-slate-400 font-black uppercase tracking-widest text-[10px]">No Data Sync</p> :
-                            <ResponsiveContainer width="100%" height={180} debounce={100}>
-                                <PieChart>
-                                    <Pie data={orgStatusData} innerRadius={55} outerRadius={75} paddingAngle={6} dataKey="value">
-                                        {orgStatusData.map((e, i) => <Cell key={i} fill={e.fill} stroke="#fff" strokeWidth={3} />)}
-                                    </Pie>
-                                    <Tooltip contentStyle={{ borderRadius: '1.5rem', border: 'none', fontSize: '11px', fontWeight: '900', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }} />
-                                    <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', paddingTop: '20px' }} />
-                                </PieChart>
-                            </ResponsiveContainer>}
-                    </div>
-                </div>
-            </div>
-
-            {/* Pending Table - Ultra Clean Professional */}
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
-                <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-5">
-                        <div className="bg-emerald-50 text-emerald-600 p-4 rounded-[1.25rem]">
-                            <Users size={24} />
-                        </div>
+                {/* In Progress */}
+                <div className="bg-[#9B51E0] text-white rounded-[1.5rem] p-4 shadow-sm relative overflow-hidden flex flex-col justify-between h-28 border border-[#a259e8]">
+                    <div className="flex items-start justify-between">
                         <div>
-                            <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Active Team Pipeline</h3>
-                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-1">Pending items for your immediate review</p>
+                            <span className="text-5xl font-bold tracking-tight">{globalStats.in_progress_tasks || 5}</span>
+                            <p className="text-[14px] font-medium mt-1 text-white/90">In Progress Tasks</p>
+                        </div>
+                        <div className="opacity-40 mt-2">
+                            <Activity size={28} />
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-50 rounded-full border border-emerald-100">
-                        <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Real-time update</span>
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <div className="absolute right-[-10px] bottom-[-10px] opacity-10">
+                        <div className="w-32 h-32 rounded-full border-[12px] border-white" />
                     </div>
                 </div>
 
-                {todayOrgTasks.length === 0 ? (
-                    <div className="py-24 bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-200 text-center">
-                        <CheckCircle size={48} className="text-emerald-500/30 mx-auto mb-4" />
-                        <p className="text-slate-400 font-black uppercase tracking-[0.3em] text-[11px]">Workflow is synchronized</p>
+                {/* Completed */}
+                <div className="bg-[#34D399] text-white rounded-[1.5rem] p-4 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <span className="text-5xl font-bold tracking-tight">{globalStats.completedTasks || 2}</span>
+                            <p className="text-[14px] font-medium mt-1 text-white/90">Completed Tasks</p>
+                        </div>
+                        <div className="opacity-40 mt-2">
+                            <CheckCircle size={28} />
+                        </div>
                     </div>
-                ) : (
-                    <div className="overflow-x-auto rounded-[1.5rem] border border-slate-100">
+                </div>
+            </div>
+
+            {/* ── Main Content + Right Sidebar ── */}
+            <div className="flex flex-col xl:flex-row gap-6 items-start">
+
+                {/* ── Task Table (left, grows to fill) ── */}
+                <div className="flex-1 min-w-0 bg-white rounded-[1.5rem] shadow-sm border border-slate-100 flex flex-col min-h-[500px]">
+
+                    {/* Table Header / Tabs */}
+                    <div className="flex items-center gap-6 pt-6 px-6 border-b border-slate-100 pb-0">
+                        <h2 className="text-[17px] font-bold text-slate-800 pb-4 whitespace-nowrap">Task Overview</h2>
+                        <div className="flex gap-5 ml-2">
+                            {['All', 'Open', 'In Progress', 'Submitted'].map(tab => (
+                                <button
+                                    key={tab}
+                                    onClick={() => { setTaskFilter(tab); setCurrentPage(1); }}
+                                    className={`text-sm font-semibold pb-4 -mb-[1px] transition-all ${taskFilter === tab ? 'text-violet-600 border-b-2 border-violet-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    {tab === 'All' ? 'All Tasks' : tab}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
                         <table className="w-full text-left">
-                            <thead className="bg-slate-50/80 text-[10px] uppercase font-black tracking-[0.15em] text-slate-500 border-b border-slate-100">
+                            <thead className="text-[12px] text-slate-400 border-b border-slate-100 bg-slate-50/30">
                                 <tr>
-                                    <th className="px-6 py-5">REF</th>
-                                    <th className="px-6 py-5">Task Details</th>
-                                    <th className="px-6 py-5">Department</th>
-                                    <th className="px-6 py-5 text-center">Status</th>
-                                    <th className="px-6 py-5 text-right">Review</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">
+                                        <input type="checkbox" className="rounded text-violet-600 mr-3 border-slate-300" />
+                                        Name
+                                    </th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">
+                                        Assignee <ChevronDown size={14} className="inline ml-1" />
+                                    </th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">
+                                        Priority <ChevronDown size={14} className="inline ml-1" />
+                                    </th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Due Date</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-center">Status</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-50 bg-white">
-                                {todayOrgTasks.map(task => (
-                                    <tr key={task.task_id} className="hover:bg-slate-50/50 transition-colors text-[11px] group">
-                                        <td className="px-6 py-6 font-black text-slate-400 tabular-nums">#{task.task_id}</td>
-                                        <td className="px-6 py-6 max-w-[320px]">
-                                            <div className="font-black text-slate-900 uppercase truncate group-hover:text-indigo-600 transition-colors">{task.title}</div>
-                                        </td>
-                                        <td className="px-6 py-6">
-                                            <Badge variant="outline" className="text-[9px] font-black px-3 py-1 rounded-lg bg-white border-slate-200 text-slate-600 uppercase tracking-wider">{task.department}</Badge>
-                                        </td>
-                                        <td className="px-6 py-6 text-center">
-                                            <Badge variant={task.status} className="text-[9px] font-black px-4 py-1.5 rounded-full shadow-sm">{task.status}</Badge>
-                                        </td>
-                                        <td className="px-6 py-6 text-right">
-                                            <button onClick={() => navigate('/tasks')} className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-slate-400 hover:bg-slate-900 hover:text-white transition-all group-hover:scale-105">
-                                                <ArrowRight size={16} />
-                                            </button>
+                            <tbody className="divide-y divide-slate-50">
+                                {paginatedTasks.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="6" className="py-20 text-center">
+                                            <div className="flex flex-col items-center gap-2 opacity-40">
+                                                <CheckSquare size={32} />
+                                                <p className="text-xs font-bold uppercase tracking-widest">No matching tasks</p>
+                                            </div>
                                         </td>
                                     </tr>
-                                ))}
+                                ) : (
+                                    paginatedTasks.map(task => (
+                                        <tr key={task.task_id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="py-2 px-6 flex items-center gap-3">
+                                                <input
+                                                    type="checkbox"
+                                                    className={`rounded ${task.task_id === 4 ? 'bg-violet-600 border-violet-600 text-white' : 'border-slate-300'} w-4 h-4`}
+                                                />
+                                                <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-sm border border-white">
+                                                    <User size={14} />
+                                                </div>
+                                                <span className="text-[13.5px] font-semibold text-slate-700 truncate">{task.title}</span>
+                                            </td>
+                                            <td className="py-2 px-6">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 rounded-full bg-slate-200 border-2 border-white shadow-sm overflow-hidden flex items-center justify-center shrink-0">
+                                                        <User size={14} className="text-slate-400" />
+                                                    </div>
+                                                    <span className="text-[13px] font-medium text-slate-600">{task.assigneeName || 'Unassigned'}</span>
+                                                </div>
+                                            </td>
+                                            <td className="py-2 px-6">
+                                                <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-600">
+                                                    <span className={`w-2 h-2 rounded-full ${task.priority === 'HIGH' ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]' : 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.5)]'}`} />
+                                                    {task.priority === 'HIGH' ? 'High' : 'Medium'}
+                                                </div>
+                                            </td>
+                                            <td className="py-2 px-6 text-[13px] text-slate-500">{task.due_date || '15 Sep, 2023'}</td>
+                                            <td className="py-2 px-6 text-center">
+                                                <span className={`px-4 py-1.5 rounded-full text-[11px] font-bold text-white shadow-sm inline-block min-w-[90px]
+                                                ${task.status === 'OPEN' ? 'bg-[#4285F4]' :
+                                                        task.status === 'IN_PROGRESS' ? 'bg-[#34D399]' :
+                                                            'bg-[#9B51E0]'}`}>
+                                                    {task.status === 'IN_PROGRESS' ? 'In Progress' :
+                                                        task.status === 'COMPLETED' ? 'Completed' : 'Open'}
+                                                </span>
+                                            </td>
+                                            <td className="py-3.5 px-6 text-right">
+                                                <button
+                                                    onClick={() => navigate('/tasks')}
+                                                    className="px-5 py-1.5 bg-[#7B51ED] text-white text-[12px] font-bold rounded-lg hover:bg-violet-700 transition-[transform,colors] active:scale-95 shadow-sm"
+                                                >
+                                                    View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
+
+                        {/* Pagination */}
+                        {filteredTasks.length > 0 && (
+                            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400 font-medium bg-slate-50/10">
+                                <span>Showing {Math.min(filteredTasks.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(filteredTasks.length, currentPage * itemsPerPage)} of {filteredTasks.length}</span>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        disabled={currentPage === 1}
+                                        onClick={() => setCurrentPage(p => p - 1)}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-all"
+                                    >
+                                        &lt;
+                                    </button>
+                                    {[...Array(totalPages)].map((_, i) => (
+                                        <button
+                                            key={i + 1}
+                                            onClick={() => setCurrentPage(i + 1)}
+                                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all border ${currentPage === i + 1 ? 'bg-violet-600 text-white font-bold border-violet-600 shadow-md shadow-violet-200' : 'bg-white text-slate-600 border-slate-100 hover:border-violet-200'}`}
+                                        >
+                                            {i + 1}
+                                        </button>
+                                    ))}
+                                    <button
+                                        disabled={currentPage === totalPages}
+                                        onClick={() => setCurrentPage(p => p + 1)}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-all"
+                                    >
+                                        &gt;
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
+
+                {/* ── Right Sidebar — Quick Actions + Recent Activity stacked ── */}
+                <div className="flex flex-col gap-6 w-full xl:w-[320px] shrink-0">
+
+                    {/* Quick Actions */}
+                    <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100">
+                        <h3 className="text-[15px] font-black text-slate-800 mb-4 tracking-tight uppercase">Quick Actions</h3>
+                        <div className="flex flex-col gap-3">
+                            <button className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
+                                <Plus size={18} strokeWidth={2.5} /> Create New Task
+                            </button>
+                            <button className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
+                                <BarChart2 size={18} strokeWidth={2.5} /> View Reports
+                            </button>
+                            <button className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
+                                <Users size={18} strokeWidth={2.5} /> Manage Team
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Recent Activity */}
+                    <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100">
+                        <div className="flex justify-between items-center mb-5">
+                            <h3 className="text-[15px] font-black text-slate-800 tracking-tight uppercase">Recent Activity</h3>
+                            <button className="text-slate-400 hover:text-slate-600 transition-colors">
+                                <Settings size={16} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-3">
+                            {activities.length === 0 ? (
+                                <div className="py-10 text-center">
+                                    <Activity className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">No recent activity</p>
+                                </div>
+                            ) : (
+                                activities.slice(0, 8).map((n, idx) => (
+                                    <div key={n.id || idx} className="flex gap-3 items-start border border-slate-100 p-3.5 rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                                        <div className={`w-9 h-9 border-2 border-white shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-bold text-sm ${n.type === 'SUCCESS' ? 'bg-emerald-100 text-emerald-600' :
+                                            n.type === 'WARNING' ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'
+                                            }`}>
+                                            {(n.actor_name || n.title || 'N').charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="flex-1 pt-0.5 min-w-0">
+                                            <p className="text-[13px] text-slate-600 leading-tight">
+                                                <span className="font-bold text-slate-800">{n.title || 'Activity'}</span>
+                                                <span className="block text-slate-500 mt-1 text-[12px]">{n.message}</span>
+                                            </p>
+                                            <p className="text-[11px] font-medium text-slate-400 mt-1">{formatTimeAgo(n.created_at)}</p>
+                                        </div>
+                                        <MessageSquare size={14} className="text-slate-300 mt-1 shrink-0" />
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                </div>
+                {/* ── End Right Sidebar ── */}
+
             </div>
+            {/* ── End Main Content ── */}
+
         </div>
     );
 };

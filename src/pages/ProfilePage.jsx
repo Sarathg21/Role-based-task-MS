@@ -143,26 +143,26 @@ const ProfilePage = () => {
     const totalStaff = orgStats ? orgStats.total : '—';
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-fade-in mt-4 max-w-5xl mx-auto">
             {/* Header */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4 bg-white/50 p-2 rounded-2xl border border-white/40 shadow-sm w-fit">
                 <button
                     onClick={() => navigate(-1)}
-                    className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shrink-0 transition"
+                    className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shrink-0 transition shadow-sm hover:shadow-md active:scale-95"
                 >
                     <ChevronLeft size={18} />
                 </button>
-                <div>
-                    <h1 className="text-xl font-semibold text-slate-800">My Profile</h1>
-                    <p className="text-sm text-slate-500">View your account details and organisation chart</p>
+                <div className="pr-4">
+                    <h1 className="text-xl font-black text-slate-800 tracking-tight">My Profile</h1>
+                    <p className="text-xs font-bold text-slate-400 mt-0.5 tracking-widest uppercase">View your account details and organisation chart</p>
                 </div>
             </div>
 
             {/* Profile Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-6 border-b border-slate-200 bg-slate-50/50">
+            <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden">
+                <div className="p-6 border-b border-slate-100 bg-slate-50/50">
                     <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 text-2xl font-bold">
+                        <div className="w-16 h-16 rounded-[1.25rem] bg-violet-100 flex items-center justify-center text-violet-600 text-2xl font-black shadow-sm">
                             {user.name?.charAt(0)}
                         </div>
                         <div>
@@ -216,18 +216,18 @@ const ProfilePage = () => {
             </div>
 
             {/* Org Hierarchy Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden">
                 <button
                     onClick={handleToggleOrg}
-                    className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors"
+                    className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
                 >
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-violet-100 rounded-lg">
-                            <Network size={18} className="text-violet-600" />
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-violet-100 rounded-xl shadow-sm">
+                            <Network size={20} className="text-violet-600" />
                         </div>
                         <div className="text-left">
-                            <p className="text-sm font-semibold text-slate-800">Organisation Hierarchy</p>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-sm font-black text-slate-800 tracking-tight">Organisation Hierarchy</p>
+                            <p className="text-[10px] font-bold tracking-widest uppercase text-slate-400 mt-0.5">
                                 {totalStaff === '—' ? 'Click to load' : `${totalStaff} staff (${orgStats?.managers || 0} Managers, ${orgStats?.employees || 0} Employees)`} · Click to {showOrg ? 'hide' : 'view'}
                             </p>
                         </div>
