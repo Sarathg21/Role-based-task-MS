@@ -1,10 +1,10 @@
-﻿import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import Badge from "../components/UI/Badge";
 import CustomSelect from "../components/UI/CustomSelect";
-import { Plus, Search, Loader2, History, Paperclip, ChevronDown, ChevronRight, CheckSquare, Check, X, ArrowLeftRight, RotateCcw, Play, Upload, RefreshCw } from "lucide-react";
+import { Plus, Search, Loader2, History, Paperclip, ChevronDown, ChevronRight, CheckSquare, Check, X, ArrowLeftRight, RotateCcw, Play, Upload, RefreshCw, AlertTriangle } from "lucide-react";
 import ReassignTaskModal from "../components/Modals/ReassignTaskModal";
 import TaskDetailModal from "../components/Modals/TaskDetailModal";
 import ReworkCommentModal from "../components/Modals/ReworkCommentModal";
@@ -77,7 +77,9 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
       <table className="w-full text-left border-collapse text-xs">
         <thead className="bg-slate-50/30 text-slate-400 text-[12px] uppercase font-medium border-b border-slate-100">
           <tr>
-            <th className="py-3 px-4 w-10">No.</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Task ID</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Parent Task ID</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Parent Task</th>
             <th className="py-3 px-4">Employee</th>
             <th className="py-3 px-4">Role</th>
             <th className="py-3 px-4">Dept</th>
@@ -103,7 +105,9 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
 
             return (
               <tr key={taskKey} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => onViewDetails(task)}>
-                <td className="py-2 px-4 text-slate-400 font-medium">{idx + 1}</td>
+                <td className="py-2 px-4 font-bold text-violet-600">#{task.id}</td>
+                <td className="py-2 px-4 text-slate-500 font-medium">{task.parent_task_id || '-'}</td>
+                <td className="py-2 px-4 text-slate-500 font-medium truncate max-w-[150px]">{task.parent_task_title || task.parent_task_name || '-'}</td>
 
                 {/* Employee */}
                 <td className="py-2 px-4">
@@ -256,13 +260,16 @@ const ActionTaskTable = ({
       <table className="w-full text-left border-collapse">
         <thead className="bg-slate-50/30 text-slate-400 text-[12px] uppercase font-medium border-b border-slate-100">
           <tr>
-            <th className="py-3 px-4"><input type="checkbox" className="rounded text-violet-600 mr-3 border-slate-300" />Task</th>
-            <th className="py-3 px-4">Assignee</th>
-            <th className="py-3 px-4">Assigned By</th>
-            <th className="py-3 px-4 text-center">Status</th>
-            <th className="py-3 px-4 text-center">Severity</th>
-            <th className="py-3 px-4">Due Date</th>
-            <th className="py-3 px-4 text-right">Actions</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Task ID</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Parent Task ID</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Parent Task</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Task</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Assignee</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Assigned By</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px] text-center">Status</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px] text-center">Severity</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Due Date</th>
+            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px] text-right">Actions</th>
           </tr>
         </thead>
 
@@ -273,12 +280,16 @@ const ActionTaskTable = ({
 
             return (
               <tr key={task.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => onViewDetails(task)}>
-                <td className="p-4 min-w-0 flex items-center gap-3">
-                  <input type="checkbox" className="rounded border-slate-300 w-4 h-4" />
-                  <div>
-                    <div className="font-semibold text-slate-800 text-[13.5px] truncate max-w-[200px]">{task.title}</div>
-                    <div className="text-[11.5px] text-slate-400 truncate mt-0.5 max-w-[200px]">
-                      {task.description}
+                <td className="p-4 font-bold text-violet-600">#{task.id}</td>
+                <td className="p-4 text-slate-500 font-medium">{task.parent_task_id || '-'}</td>
+                <td className="p-4 text-slate-500 font-medium truncate max-w-[150px]">{task.parent_task_title || task.parent_task_name || '-'}</td>
+                <td className="p-4 min-w-0">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <div className="font-semibold text-slate-800 text-[13.5px] truncate max-w-[200px]">{task.title}</div>
+                      <div className="text-[11.5px] text-slate-400 truncate mt-0.5 max-w-[200px]">
+                        {task.description}
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -352,7 +363,7 @@ const ActionTaskTable = ({
                     )}
 
                     {/* ── REVIEWER ACTIONS (Manager only, in Team View) ── */}
-                    {user.role === "Manager" && viewMode === "team" && (
+                    {user?.role?.toUpperCase() === "MANAGER" && viewMode === "team" && (
                       <>
                         {task.status === "SUBMITTED" && (
                           <>
@@ -419,6 +430,7 @@ const TaskPage = () => {
     fromDate: "",
     toDate: "",
     employeeId: "All",
+    taskId: "",
   });
   const role = (user.role || '').toUpperCase();
   const isCFO = role === 'CFO' || role === 'ADMIN';
@@ -445,13 +457,24 @@ const TaskPage = () => {
     const params = new URLSearchParams(location.search);
     const mode = params.get('mode');
     const searchParam = params.get('search');
+    const taskIdParam = params.get('taskId') || params.get('id');
+    const empIdParam = params.get('employeeId') || params.get('empId');
+    const statusParam = params.get('status');
+    const severityParam = params.get('severity') || params.get('priority');
 
     if (mode === 'personal' || mode === 'team' || mode === 'all') {
       setViewMode(mode);
     }
-    if (searchParam) {
-      setFilter(prev => ({ ...prev, search: searchParam }));
-    }
+
+    setFilter(prev => {
+      const next = { ...prev };
+      if (searchParam) { next.search = searchParam; next.taskId = ""; next.employeeId = "All"; }
+      if (taskIdParam) { next.taskId = taskIdParam; next.search = ""; next.employeeId = "All"; }
+      if (empIdParam) { next.employeeId = empIdParam; next.taskId = ""; next.search = ""; }
+      if (statusParam) { next.status = statusParam; next.taskId = ""; }
+      if (severityParam) { next.severity = severityParam; next.taskId = ""; }
+      return next;
+    });
   }, [location.search]);
 
   useEffect(() => {
@@ -519,6 +542,8 @@ const TaskPage = () => {
         department_id: t.department_id,
         department: t.department_name || t.department || '',
         assignee_role: t.assignee_role || t.role,
+        parent_task_id: t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null),
+        parent_task_title: t.parent_task_title || t.parent_task_name || t.parent_directive_title || (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : ''),
       }));
       setTasks(normalised);
     } catch (err) {
@@ -531,10 +556,28 @@ const TaskPage = () => {
   useEffect(() => {
     setCurrentPage(1);
     fetchTasks();
-  }, [user, viewMode, filter.status, filter.severity, filter.department, filter.employeeId, filter.search, filter.fromDate, filter.toDate]);
+  }, [user, viewMode, filter.status, filter.severity, filter.department, filter.employeeId, filter.search, filter.taskId, filter.fromDate, filter.toDate]);
+
+  // Auto-open task details if taskId is present in URL
+  useEffect(() => {
+    if (filter.taskId && tasks.length > 0) {
+      const task = tasks.find(t => String(t.id) === String(filter.taskId));
+      if (task) {
+        setSelectedTask(task);
+        setDetailModalOpen(true);
+      }
+    }
+  }, [filter.taskId, tasks]);
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
+      // If an exact taskId is provided via URL AND no other filters are set, prioritize it
+      const hasOtherFilters = filter.search || (filter.status !== "All") || (filter.severity !== "All") || filter.fromDate || filter.toDate;
+
+      if (filter.taskId && !hasOtherFilters) {
+        return String(task.id) === String(filter.taskId);
+      }
+
       const matchesSearch = !filter.search ||
         (task.title || '').toLowerCase().includes(filter.search.toLowerCase()) ||
         (task.description || '').toLowerCase().includes(filter.search.toLowerCase()) ||
@@ -543,12 +586,16 @@ const TaskPage = () => {
 
       const today = new Date().toLocaleDateString('en-CA');
       const dueDateKey = toDateKey(task.due_date);
-      const isOverdue = dueDateKey && dueDateKey < today && !['APPROVED', 'CANCELLED'].includes(task.status);
+      const taskStatus = String(task.status || '').toUpperCase();
+      const isOverdue = dueDateKey && dueDateKey < today && !['APPROVED', 'CANCELLED'].includes(taskStatus);
 
       const matchesStatus = filter.status === "All" ||
-        (filter.status === "Overdue" ? isOverdue : task.status === filter.status);
+        (filter.status === "Overdue" ? isOverdue : taskStatus === String(filter.status).toUpperCase());
 
-      const matchesPriority = filter.severity === "All" || String(task.severity).toUpperCase() === String(filter.severity).toUpperCase();
+      // Check both severity and priority for broader compatibility
+      const taskPriority = String(task.priority || task.severity || '').toUpperCase();
+      const matchesPriority = filter.severity === "All" || taskPriority === String(filter.severity).toUpperCase();
+
       const matchesDept = filter.department === "All" ||
         String(task.department_id) === String(filter.department) ||
         String(task.department).toLowerCase().includes(String(filter.department).toLowerCase());
@@ -559,11 +606,12 @@ const TaskPage = () => {
       const matchesTo = !filter.toDate || (taskDate && taskDate <= filter.toDate);
 
       // Employee filtering (for Managers in team view)
+      // Clear employee filter if taskId was explicitly requested or generic filters are active
       const matchesEmployee = filter.employeeId === "All" || String(task.employee_id) === String(filter.employeeId);
 
       // Exclude Cancelled tasks by default unless explicitly searching for them
-      const isCancelled = task.status === 'CANCELLED';
-      const isExplicitlyLookingForCancelled = filter.status === 'CANCELLED';
+      const isCancelled = taskStatus === 'CANCELLED';
+      const isExplicitlyLookingForCancelled = String(filter.status).toUpperCase() === 'CANCELLED';
       const shouldExcludeCancelled = isCancelled && !isExplicitlyLookingForCancelled;
 
       return matchesSearch && matchesStatus && matchesPriority && matchesDept && matchesFrom && matchesTo && matchesEmployee && !shouldExcludeCancelled;
@@ -678,72 +726,57 @@ const TaskPage = () => {
       />
 
       {/* â•â• TASK MANAGEMENT PREMIUM HERO â•â• */}
-      <div
-        className="rounded-3xl overflow-hidden shadow-2xl relative mb-1 max-w-5xl mx-auto"
-        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #334155 100%)' }}
-      >
-        {/* Decorative Premium Blobs */}
-        <div className="absolute glass-circle w-40 h-40 bg-white/5 -top-6 -right-6 animate-blob" />
-        <div className="absolute glass-circle w-32 h-32 bg-white/5 bottom-0 left-1/4 animate-blob [animation-delay:2s]" />
-
-        <div className="relative z-10 w-full px-4 py-2 flex flex-col items-center text-center gap-2">
-          <div className="flex flex-col items-center gap-2">
-
-            <div className="bg-white/10 backdrop-blur-xl p-1.5 rounded-xl shadow-xl border border-white/20 animate-float invisible sm:visible h-0 sm:h-auto overflow-hidden">
-              <CheckSquare size={16} className="text-white" />
-            </div>
-
-            <div>
-              <h2 className="text-xl font-black text-white tracking-tight drop-shadow-lg">
-                {isCFO
-                  ? 'Global Task Hub'
-                  : viewMode === 'team'
-                    ? 'Team Task Index'
-                    : 'Personal Task Workspace'}
-              </h2>
-
-              <p className="text-slate-300 font-bold uppercase tracking-[0.25em] text-[9px] mt-1 opacity-80">
-                {isCFO
-                  ? 'Strategic Oversight & Lifecycle Management'
-                  : viewMode === 'team'
-                    ? 'Department Performance & Team Oversight'
-                    : 'Workflow Execution & Performance Tracking'}
-              </p>
-            </div>
-
+      {/* ── METRIC WIDGETS ── */}
+      {/* PREMIUM METRIC WIDGETS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto">
+        {/* Active Tasks */}
+        <div className="bg-violet-50/50 p-4 rounded-2xl border border-violet-100 flex items-center gap-4 transition-all hover:shadow-md hover:bg-violet-100/50 group">
+          <div className="w-10 h-10 rounded-xl bg-violet-500 text-white flex items-center justify-center shadow-lg shadow-violet-200 shrink-0 group-hover:scale-110 transition-transform">
+            <CheckSquare size={20} />
+          </div>
+          <div>
+            <span className="text-[10px] font-black text-violet-400 uppercase tracking-widest block mb-0.5">Active Tasks</span>
+            <span className="text-2xl font-black text-slate-900 leading-none">{tasks.filter(t => !['APPROVED', 'CANCELLED', 'SUBMITTED'].includes(t.status)).length}</span>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-4 w-full max-w-2xl">
-          {/* Summary Stats in Hero */}
-          <div className="flex items-center bg-white/5 backdrop-blur-md rounded-2xl p-1.5 border border-white/10 shadow-inner flex-1 min-w-[280px] text-white">
-            <div className="flex-1 flex flex-col px-4 py-1 border-r border-white/10 text-center">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Tasks</span>
-              <span className="text-lg font-black">{tasks.filter(t => !['APPROVED', 'CANCELLED'].includes(t.status)).length}</span>
-            </div>
-            <div className="flex-1 flex flex-col px-4 py-1 text-center">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Overdue</span>
-              <span className="text-lg font-black text-rose-400">
-                {tasks.filter(t => { const dueDateKey = toDateKey(t.due_date); return dueDateKey && dueDateKey < new Date().toLocaleDateString('en-CA') && !['APPROVED', 'CANCELLED'].includes(t.status); }).length}
-              </span>
-            </div>
+
+        {/* In Progress */}
+        <div className="bg-orange-50/50 p-4 rounded-2xl border border-orange-100 flex items-center gap-4 transition-all hover:shadow-md hover:bg-orange-100/50 group">
+          <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-lg shadow-orange-200 shrink-0 group-hover:scale-110 transition-transform">
+            <Play size={20} />
           </div>
+          <div>
+            <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest block mb-0.5">In Progress</span>
+            <span className="text-2xl font-black text-slate-900 leading-none">{tasks.filter(t => t.status === 'IN_PROGRESS').length}</span>
+          </div>
+        </div>
 
-          {/* Primary Action - New Task (if allowed) */}
-          {(isCFO || (role === "MANAGER" && viewMode === "team")) && (
-            <button
-              onClick={() => navigate('/tasks/assign')}
-              className="bg-white text-slate-900 hover:bg-slate-100 hover:scale-[1.03] active:scale-[0.97] transition-all px-6 py-2 rounded-xl font-black text-xs shadow-lg flex items-center gap-2 group whitespace-nowrap"
-            >
-              <Plus size={16} /> Assign New Task
-            </button>
-          )}
+        {/* Pending Submission */}
+        <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100 flex items-center gap-4 transition-all hover:shadow-md hover:bg-amber-100/50 group">
+          <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-200 shrink-0 group-hover:scale-110 transition-transform">
+            <Upload size={20} />
+          </div>
+          <div>
+            <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block mb-0.5">Pending Submission</span>
+            <span className="text-2xl font-black text-slate-900 leading-none">{tasks.filter(t => t.status === 'NEW' || t.status === 'REWORK').length}</span>
+          </div>
+        </div>
 
-          <button
-            onClick={() => fetchTasks()}
-            className="bg-white/5 hover:bg-white/10 text-white text-[10px] font-bold px-4 py-2 rounded-xl border border-white/5 backdrop-blur-sm transition-all flex items-center gap-2 group"
-          >
-            <History size={14} className="group-hover:rotate-[-45deg] transition-transform" /> Sync
-          </button>
+        {/* Overdue */}
+        <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100 flex items-center gap-4 transition-all hover:shadow-md hover:bg-rose-100/50 group">
+          <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center shadow-lg shadow-rose-200 shrink-0 group-hover:scale-110 transition-transform">
+            <AlertTriangle size={20} />
+          </div>
+          <div>
+            <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest block mb-0.5">Overdue</span>
+            <span className="text-2xl font-black text-slate-900 leading-none">
+              {tasks.filter(t => {
+                const today = new Date().toLocaleDateString('en-CA');
+                const dueDateKey = toDateKey(t.due_date);
+                return dueDateKey && dueDateKey < today && !['APPROVED', 'CANCELLED'].includes(t.status);
+              }).length}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -751,7 +784,7 @@ const TaskPage = () => {
       {user.role === "MANAGER" && (
         <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
           <button
-            onClick={() => setViewMode("team")}
+            onClick={() => { setViewMode("team"); setFilter(prev => ({ ...prev, taskId: "", employeeId: "All" })); }}
             className={`px-5 py-2 text-sm font-semibold rounded-md transition ${viewMode === "team"
               ? "bg-white text-slate-800 shadow-sm"
               : "text-slate-500 hover:text-slate-700"
@@ -760,7 +793,7 @@ const TaskPage = () => {
             Team Tasks
           </button>
           <button
-            onClick={() => setViewMode("personal")}
+            onClick={() => { setViewMode("personal"); setFilter(prev => ({ ...prev, taskId: "", employeeId: "All" })); }}
             className={`px-5 py-2 text-sm font-semibold rounded-md transition ${viewMode === "personal"
               ? "bg-white text-slate-800 shadow-sm"
               : "text-slate-500 hover:text-slate-700"
@@ -772,132 +805,132 @@ const TaskPage = () => {
       )}
 
       {/* Filters & Search — Premium Spacing */}
-      <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex flex-row flex-wrap items-center gap-4 max-w-5xl mx-auto">
-        <div className="relative flex-1 min-w-0 flex flex-wrap gap-3">
-          <div className="relative flex-1" style={{ minWidth: '450px' }}>
-            <Search
-              size={18}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-            />
-            <input
-              type="text"
-              placeholder="Search tasks..."
-              className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300 text-sm font-medium transition-all placeholder:text-slate-400 shadow-inner"
-              value={filter.search}
-              onChange={(e) => setFilter({ ...filter, search: e.target.value })}
+      {/* ── UNIFIED SEARCH & FILTERS ── */}
+      <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 flex flex-row flex-nowrap items-center gap-2 max-w-7xl mx-auto overflow-visible relative">
+
+        {/* Unified Search Bar Group */}
+        <div className="flex-1 flex items-center bg-slate-50 rounded-xl border border-slate-100 focus-within:bg-white focus-within:ring-2 focus-within:ring-violet-400/20 transition-all shrink-0 min-w-[300px]">
+          <input
+            type="text"
+            placeholder="Search tasks..."
+            className="flex-1 min-w-[100px] bg-transparent border-none py-2.5 px-5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-0 placeholder:text-slate-400 placeholder:font-bold"
+            value={filter.search}
+            onChange={(e) => setFilter({ ...filter, search: e.target.value, taskId: "" })}
+          />
+
+          <div className="w-px h-6 bg-slate-200 mx-1 shrink-0" />
+
+          {/* Severity Select */}
+          <div className="shrink-0 relative">
+            <CustomSelect
+              options={[
+                { value: 'All', label: 'Severity: All' },
+                { value: 'HIGH', label: 'High' },
+                { value: 'MEDIUM', label: 'Medium' },
+                { value: 'LOW', label: 'Low' },
+              ]}
+              value={filter.severity}
+              onChange={(val) => setFilter({ ...filter, severity: val, taskId: "" })}
+              variant="borderless"
+              style={{ minWidth: '130px' }}
             />
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-50 px-4 py-1.5 rounded-xl border border-slate-200">
-            <div className="flex flex-col">
-              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">From</span>
-              <input
-                type="date"
-                className="bg-transparent text-xs font-bold outline-none cursor-pointer"
-                value={filter.fromDate}
-                onChange={(e) => setFilter({ ...filter, fromDate: e.target.value })}
-              />
-            </div>
-            <div className="w-px h-6 bg-slate-200 mx-1" />
-            <div className="flex flex-col">
-              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">To</span>
-              <input
-                type="date"
-                className="bg-transparent text-xs font-bold outline-none cursor-pointer"
-                value={filter.toDate}
-                onChange={(e) => setFilter({ ...filter, toDate: e.target.value })}
-              />
-            </div>
+          <div className="w-px h-6 bg-slate-200 mx-1 shrink-0" />
+
+          {/* Status Select */}
+          <div className="shrink-0 relative">
+            <CustomSelect
+              options={[
+                { value: 'All', label: 'Status: All' },
+                { value: 'Overdue', label: 'Overdue' },
+                { value: 'NEW', label: 'New' },
+                { value: 'IN_PROGRESS', label: 'In Progress' },
+                { value: 'SUBMITTED', label: 'Submitted' },
+                { value: 'APPROVED', label: 'Approved' },
+                { value: 'REWORK', label: 'Rework' },
+              ]}
+              value={filter.status}
+              onChange={(val) => setFilter({ ...filter, status: val, taskId: "" })}
+              variant="borderless"
+              style={{ minWidth: '140px' }}
+            />
           </div>
 
-          <button
-            onClick={() => fetchTasks()}
-            className="px-6 py-3 bg-violet-600 text-white rounded-xl text-xs font-black hover:bg-violet-700 transition active:scale-95 shadow-md whitespace-nowrap"
-          >
-            Sync Data
-          </button>
-
-          {(filter.search || filter.fromDate || filter.toDate || filter.status !== 'All' || filter.severity !== 'All' || filter.department !== 'All' || filter.employeeId !== 'All') && (
-            <button
-              onClick={() => setFilter({
-                status: "All",
-                severity: "All",
-                department: "All",
-                search: "",
-                fromDate: "",
-                toDate: "",
-                employeeId: "All",
-              })}
-              className="px-4 py-3 bg-slate-100 text-slate-400 hover:text-slate-600 rounded-xl text-[10px] font-black hover:bg-slate-200 transition uppercase tracking-widest flex items-center gap-1.5"
-            >
-              <X size={13} /> Reset
-            </button>
+          {/* CFO Departments Filter - inside the bar if isCFO */}
+          {isCFO && (
+            <>
+              <div className="w-px h-6 bg-slate-200 mx-1 shrink-0" />
+              <div className="shrink-0 relative">
+                <CustomSelect
+                  options={[
+                    { value: 'All', label: 'Dept: All' },
+                    ...departments.map((dept, idx) => {
+                      const val = typeof dept === 'string' ? dept : (dept.department_id || dept.id || dept.name || `dept-${idx}`);
+                      const label = typeof dept === 'string' ? dept : (dept.name || dept.department_id || dept.id || 'Unknown');
+                      return { value: String(val), label: String(label) };
+                    })
+                  ]}
+                  value={filter.department}
+                  onChange={(val) => setFilter({ ...filter, department: val, taskId: "" })}
+                  variant="borderless"
+                  style={{ minWidth: '120px' }}
+                />
+              </div>
+            </>
           )}
         </div>
 
-        <CustomSelect
-          options={[
-            { value: 'All', label: 'Status: All' },
-            { value: 'Overdue', label: 'Overdue' },
-            { value: 'NEW', label: 'New' },
-            { value: 'IN_PROGRESS', label: 'In Progress' },
-            { value: 'SUBMITTED', label: 'Submitted' },
-            { value: 'APPROVED', label: 'Approved' },
-            { value: 'REWORK', label: 'Rework' },
-            { value: 'CANCELLED', label: 'Cancelled' },
-          ]}
-          value={filter.status}
-          onChange={(val) => setFilter({ ...filter, status: val })}
-          style={{ minWidth: '160px' }}
-        />
-
-        <CustomSelect
-          options={[
-            { value: 'All', label: 'Severity: All' },
-            { value: 'HIGH', label: 'High' },
-            { value: 'MEDIUM', label: 'Medium' },
-            { value: 'LOW', label: 'Low' },
-          ]}
-          value={filter.severity}
-          onChange={(val) => setFilter({ ...filter, severity: val })}
-          style={{ minWidth: '140px' }}
-        />
-
-        {/* Departments filter — only for CFO/Admin */}
-        {isCFO && (
-          <div className="flex items-center gap-2">
-            <CustomSelect
-              options={[
-                { value: 'All', label: 'Dept: All' },
-                ...departments.map((dept, idx) => {
-                  const val = typeof dept === 'string' ? dept : (dept.department_id || dept.id || dept.name || `dept-${idx}`);
-                  const label = typeof dept === 'string' ? dept : (dept.name || dept.department_id || dept.id || 'Unknown');
-                  return { value: String(val), label: String(label) };
-                })
-              ]}
-              value={filter.department}
-              onChange={(val) => setFilter({ ...filter, department: val })}
-              style={{ minWidth: '160px' }}
+        {/* Date Range - Adjacent to unified bar */}
+        <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 shrink-0 overflow-visible">
+          <div className="flex flex-col">
+            <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">From</span>
+            <input
+              type="date"
+              className="bg-transparent text-[10px] font-bold outline-none cursor-pointer text-slate-600"
+              value={filter.fromDate}
+              onChange={(e) => setFilter({ ...filter, fromDate: e.target.value, taskId: "" })}
             />
-
-
           </div>
-        )}
+          <div className="w-px h-6 bg-slate-200 mx-2" />
+          <div className="flex flex-col">
+            <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">To</span>
+            <input
+              type="date"
+              className="bg-transparent text-[10px] font-bold outline-none cursor-pointer text-slate-600"
+              value={filter.toDate}
+              onChange={(e) => setFilter({ ...filter, toDate: e.target.value, taskId: "" })}
+            />
+          </div>
+        </div>
 
-        {/* Employee Filter — for Managers in Team view */}
-        {isManager && viewMode === 'team' && (
-          <CustomSelect
-            options={[
-              { value: 'All', label: 'Staff: All' },
-              ...users.filter(u => u.department === user.department).map(u => ({
-                value: String(u.emp_id || u.id),
-                label: u.name
-              }))
-            ]}
-            value={filter.employeeId}
-            onChange={(val) => setFilter({ ...filter, employeeId: val })}
-            style={{ minWidth: '160px' }}
-          />
+        {/* Sync Data Button */}
+        <button
+          onClick={() => fetchTasks()}
+          className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white text-xs font-bold rounded-xl hover:bg-violet-700 transition-all shadow-lg shadow-violet-200 active:scale-95 group shrink-0"
+        >
+          <RefreshCw size={14} className={`group-hover:rotate-180 transition-transform duration-500 ${loading ? 'animate-spin' : ''}`} />
+          <span>Sync Data</span>
+        </button>
+
+        {/* Reset Button */}
+        {(filter.search || filter.fromDate || filter.toDate || filter.status !== 'All' || filter.severity !== 'All' || (isCFO && filter.department !== 'All')) && (
+          <button
+            onClick={() => setFilter({
+              status: "All",
+              severity: "All",
+              department: "All",
+              search: "",
+              fromDate: "",
+              toDate: "",
+              employeeId: "All",
+              taskId: (new URLSearchParams(location.search)).get('taskId') || "",
+            })}
+            className="p-3 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-xl transition-all border border-rose-100 shrink-0 shadow-sm"
+            title="Clear all filters"
+          >
+            <X size={18} />
+          </button>
         )}
       </div>
 
@@ -986,7 +1019,7 @@ const TaskPage = () => {
         </>
       )
       }
-    </div>
+    </div >
   );
 };
 

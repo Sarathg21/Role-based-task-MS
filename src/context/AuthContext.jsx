@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }) => {
         department: u.department_id || u.department || '',
         manager_id: u.manager_emp_id || u.manager_id || null,
         active: u.active,
+        gender: u.gender || 'male',    // Default to 'male' if not provided
     });
 
     // Restore and validate session from localStorage on app start

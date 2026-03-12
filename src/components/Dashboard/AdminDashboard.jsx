@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { TASKS, USERS, DEPARTMENTS } from '../../data/mockData';
 import { getEmployeeRankings, getManagerRankings } from '../../utils/rankingEngine';
@@ -8,6 +9,7 @@ import { Users, Briefcase, Activity, Award, Building2, Shield, Plus, Settings, M
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 
 const AdminDashboard = () => {
+    const navigate = useNavigate();
     const [activities, setActivities] = useState([]);
     const [loadingActivities, setLoadingActivities] = useState(false);
     const [filters, setFilters] = useState({
@@ -203,7 +205,7 @@ const AdminDashboard = () => {
                         <table className="w-full text-left">
                             <thead className="text-[12px] text-slate-400 border-b border-slate-100 bg-slate-50/30">
                                 <tr>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap"><input type="checkbox" className="rounded text-violet-600 mr-3 border-slate-300" />Name</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Name</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap">Role <ChevronDown size={14} className="inline ml-1" /></th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap">Open Tasks <ChevronDown size={14} className="inline ml-1" /></th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap text-center">Status</th>
@@ -220,7 +222,6 @@ const AdminDashboard = () => {
                                 ].map(member => (
                                     <tr key={member.id} className="hover:bg-slate-50/50 transition-colors">
                                         <td className="py-2 px-6 flex items-center gap-3">
-                                            <input type="checkbox" className={`rounded border-slate-300 w-4 h-4`} />
                                             <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-500 font-bold overflow-hidden flex items-center justify-center shrink-0 shadow-sm border border-white text-xs">
                                                 {member.char}
                                             </div>
@@ -271,7 +272,7 @@ const AdminDashboard = () => {
                             <button className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
                                 <User size={18} strokeWidth={2.5} /> Add User
                             </button>
-                            <button className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
+                            <button onClick={() => navigate('/reports')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
                                 <Activity size={18} strokeWidth={2.5} /> View Reports
                             </button>
                         </div>

@@ -54,7 +54,7 @@
   --radius-xl: 1rem;
 
   /* Layout */
-  --width-page: 1280px;
+  --width-page: 1600px;
 }
 
 /* Base Styles */
@@ -73,7 +73,7 @@
   }
 
   body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Aptos', 'Inter', system-ui, -apple-system, sans-serif;
     background-color: var(--color-bg-body);
     color: var(--color-text-primary);
     line-height: 1.5;
@@ -359,6 +359,10 @@
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
+  .sidebar.collapsed {
+    width: 80px;
+  }
+
   .nav-item {
     display: flex;
     align-items: center;
@@ -392,6 +396,10 @@
     flex-direction: column;
     min-height: 100vh;
     transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .content-column.collapsed {
+    margin-left: 80px;
   }
 
   .main-layout {

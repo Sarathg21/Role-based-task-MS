@@ -41,17 +41,8 @@ const fetchTasksForReports = async (isCFO) => {
 
     for (const path of candidates) {
         try {
-            const res = await fetch(`${baseURL}${path}`, {
-                headers: {
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                    'ngrok-skip-browser-warning': 'true',
-                },
-            });
-            if (res.status === 422 || res.status === 404 || res.status === 405) {
-                continue;
-            }
-            if (!res.ok) continue;
-            const data = await res.json();
+            const res = await api.get(path);
+            const data = res.data;
             const rows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
             if (rows.length > 0) return rows;
         } catch (_) {
@@ -74,6 +65,7 @@ const ReportsPage = () => {
     const [availableEmployees, setAvailableEmployees] = useState([]);
 
     const [reportData, setReportData] = useState(null);
+    const [globalReportData, setGlobalReportData] = useState([]); // Unfiltered by Dept/Emp
     const [loading, setLoading] = useState(false);
 
     const fetchReportData = async () => {
@@ -81,10 +73,12 @@ const ReportsPage = () => {
         try {
             const role = (user?.role || '').toUpperCase();
             const isCFO = role === 'CFO' || role === 'ADMIN';
+            const isManager = role === 'MANAGER';
+            const isEmployee = role === 'EMPLOYEE';
 
-            const endpoint = isCFO
-                ? '/dashboard/cfo'
-                : '/manager/reports';
+            let endpoint = '/dashboard/employee';
+            if (isCFO) endpoint = '/dashboard/cfo';
+            else if (isManager) endpoint = '/manager/reports';
 
             const start_date = filters.fromDate;
             const end_date = filters.toDate;
@@ -106,12 +100,28 @@ const ReportsPage = () => {
             const payload = data?.data || data;
 
             // Comprehensive stat extraction
-            const stats = payload?.department_stats
+            // Handle single object (Employee/Dashboard) or array (CFO/Manager)
+            let stats = payload?.department_stats
                 || payload?.manager_stats
                 || payload?.performance_data
                 || payload?.team_stats
-                || payload?.stats
-                || (Array.isArray(payload) ? payload : (payload?.items || []));
+                || payload?.stats;
+
+            // If payload itself looks like an individual's stats (for Employee)
+            if (!stats && payload?.performance_index !== undefined) {
+                stats = [{
+                    emp_id: user?.id,
+                    name: user?.name || 'Me',
+                    department: user?.department || 'My Unit',
+                    total_tasks: payload.total_tasks || payload.tasks_count || 0,
+                    approved_tasks: payload.approved_tasks || payload.tasks_completed || 0,
+                    pending_tasks: payload.pending_tasks || 0,
+                    performance_index: payload.performance_index || 0,
+                    avg_reworks: payload.avg_reworks || 0
+                }];
+            }
+
+            if (!stats) stats = (Array.isArray(payload) ? payload : (payload?.items || []));
 
             if (Array.isArray(stats) && stats.length > 0) {
                 setReportData(stats);
@@ -119,8 +129,20 @@ const ReportsPage = () => {
                 return;
             }
 
-            // Fallback: derive report rows from real DB tasks when report endpoint is empty.
+        } catch (err) {
+            console.error("Primary report fetch failed/empty, trying fallback:", err);
+        }
+
+        // Fallback: derive report rows from real DB tasks when report endpoint is empty.
+        try {
+            const role = (user?.role || '').toUpperCase();
+            const isCFO = role === 'CFO' || role === 'ADMIN';
             const rawTasks = await fetchTasksForReports(isCFO);
+
+            if (!rawTasks || rawTasks.length === 0) {
+                setReportData([]);
+                return;
+            }
 
             const normalizedTasks = rawTasks.map((t) => ({
                 id: t.task_id || t.id,
@@ -143,16 +165,31 @@ const ReportsPage = () => {
 
             if (isCFO) {
                 const byDept = new Map();
+                const globalByDept = new Map();
+
+                // Seed with ALL available departments
+                availableDepartments.forEach(d => {
+                    const name = typeof d === 'string' ? d : (d.name || d.department_id);
+                    const entry = { department_id: name, total_tasks: 0, approved_tasks: 0, pending_tasks: 0, avg_reworks: 0, _reworks: 0 };
+                    byDept.set(name, { ...entry });
+                    globalByDept.set(name, { ...entry });
+                });
+
+                // Global Stats (Date filter only)
+                normalizedTasks.filter(t => inRange(t.dateKey, filters.fromDate, filters.toDate)).forEach(t => {
+                    const key = t.departmentName || 'N/A';
+                    const existing = globalByDept.get(key) || { department_id: key, total_tasks: 0, approved_tasks: 0, pending_tasks: 0, avg_reworks: 0, _reworks: 0 };
+                    existing.total_tasks += 1;
+                    if (t.status === 'APPROVED') existing.approved_tasks += 1;
+                    if (!TERMINAL_STATUSES.has(t.status)) existing.pending_tasks += 1;
+                    if (t.status === 'REWORK') existing._reworks += 1;
+                    globalByDept.set(key, existing);
+                });
+
+                // Filtered Stats (Dept/Emp/Date filters)
                 filtered.forEach((t) => {
-                    const key = t.departmentId || t.departmentName || 'N/A';
-                    const existing = byDept.get(key) || {
-                        department_id: t.departmentName || key,
-                        total_tasks: 0,
-                        approved_tasks: 0,
-                        pending_tasks: 0,
-                        avg_reworks: 0,
-                        _reworks: 0,
-                    };
+                    const key = t.departmentName || 'N/A';
+                    const existing = byDept.get(key) || { department_id: key, total_tasks: 0, approved_tasks: 0, pending_tasks: 0, avg_reworks: 0, _reworks: 0 };
                     existing.total_tasks += 1;
                     if (t.status === 'APPROVED') existing.approved_tasks += 1;
                     if (!TERMINAL_STATUSES.has(t.status)) existing.pending_tasks += 1;
@@ -160,8 +197,8 @@ const ReportsPage = () => {
                     byDept.set(key, existing);
                 });
 
-                const deptRows = Array.from(byDept.values());
-                setReportData(deptRows);
+                setReportData(Array.from(byDept.values()).filter(d => d.total_tasks > 0 || !filters.departmentId));
+                setGlobalReportData(Array.from(globalByDept.values()));
             } else {
                 const byEmp = new Map();
                 filtered.forEach((t) => {
@@ -185,10 +222,12 @@ const ReportsPage = () => {
 
                 const empRows = Array.from(byEmp.values());
                 setReportData(empRows);
+                setGlobalReportData(empRows);
             }
         } catch (err) {
             console.error("Failed to fetch reports", err);
             setReportData([]);
+            setGlobalReportData([]);
         } finally {
             setLoading(false);
         }
@@ -260,19 +299,38 @@ const ReportsPage = () => {
             };
         });
 
+        const globalMapped = (Array.isArray(globalReportData) && globalReportData.length > 0 ? globalReportData : []).map(item => {
+            const total = Number(item.total_tasks || item.total || item.tasks_assigned || item.tasks_count || 0);
+            const completed = Number(item.approved_tasks || item.approved || item.tasks_completed || item.tasks_done || item.completed || 0);
+            const pending = Number(item.pending_tasks || item.pending || (total - completed) || 0);
+
+            let onTimePct = Number(item.on_time_pct || item.performance || item.performance_index || item.completion_rate || 0);
+            if (onTimePct === 0 && total > 0) {
+                onTimePct = Math.round((completed / total) * 100);
+            }
+
+            return {
+                name: item.name || item.employee_name || item.department_name || item.department_id || 'Unit',
+                total,
+                completed,
+                pending: Math.max(0, pending),
+                onTimePct
+            };
+        });
+
         const sorted = [...mapped].sort((a, b) => b.onTimePct - a.onTimePct);
 
         return {
             performanceData: mapped,
             topList: sorted.slice(0, 5),
-            deptScores: isDeptShape ? mapped.map(d => ({ name: d.name, Performance: d.onTimePct })) : [],
+            deptScores: isDeptShape ? globalMapped.map(d => ({ name: d.name, Performance: d.onTimePct })) : [],
             topDept: sorted[0] ? { name: sorted[0].name, Performance: sorted[0].onTimePct, Tasks: sorted[0].total } : null,
             underperformingDept: sorted.length > 1 ? { name: sorted[sorted.length - 1].name, Performance: sorted[sorted.length - 1].onTimePct, Tasks: sorted[sorted.length - 1].total } : null,
-            workloadData: mapped.map(d => ({ name: d.name, Total: d.total, Completed: d.completed, Pending: d.pending })),
+            workloadData: isDeptShape ? globalMapped.map(d => ({ name: d.name, Total: d.total, Completed: d.completed, Pending: d.pending })) : mapped.map(d => ({ name: d.name, Total: d.total, Completed: d.completed, Pending: d.pending })),
             empWorkloadData: !isDeptShape ? mapped.map(u => ({ name: u.name, Completed: u.completed, Pending: u.pending })) : [],
             empPerformanceData: !isDeptShape ? mapped.map(u => ({ name: u.name, Performance: u.onTimePct })) : [],
         };
-    }, [reportData, user?.role, filters.employeeId]);
+    }, [reportData, globalReportData, user?.role, filters.employeeId, availableDepartments]);
 
 
     const downloadFile = async (format) => {
@@ -334,37 +392,29 @@ const ReportsPage = () => {
     }
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-3" style={{ fontFamily: "'Aptos', sans-serif" }}>
             {/* ══ ANALYTICS EXECUTIVE LIGHT HERO ══ */}
-            <div className="rounded-[2.5rem] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative border border-slate-100 p-6 overflow-hidden mb-4 group">
+            <div className="rounded-[1.2rem] bg-white shadow-sm relative border border-slate-100 px-4 py-2 overflow-hidden mb-2 group">
                 {/* Clean Accents */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-40 group-hover:opacity-70 transition-opacity" />
                 <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl -ml-32 -mb-32 opacity-40 group-hover:opacity-70 transition-opacity" />
 
-                <div className="relative z-10 flex flex-col items-center text-center gap-8">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="bg-slate-900 p-5 rounded-[1.5rem] shadow-xl group-hover:scale-110 transition-all duration-500">
-                            <TrendingUp size={32} className="text-emerald-400" />
-                        </div>
-                        <div>
-                            <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">
-                                Performance <span className="text-emerald-500">Analytics</span>
-                            </h2>
-                            <p className="text-slate-500 font-black uppercase tracking-[0.4em] text-[10px] mt-4 opacity-70">
-                                {(user?.role || '').toUpperCase() === 'MANAGER' ? 'UNIT METRICS & KPI CAPTURE' : 'SYSTEM INTELLIGENCE & GLOBAL REPORTS'}
-                            </p>
+                <div className="relative z-10 flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-slate-900 p-1.5 rounded-[0.6rem] shadow-sm">
+                            <TrendingUp size={14} className="text-emerald-400" />
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-center gap-4 bg-slate-50 p-2.5 rounded-[2rem] border border-slate-100 shadow-sm w-full max-w-5xl">
+                    <div className="flex flex-wrap items-center gap-1.5 bg-slate-50 p-1 rounded-[0.8rem] border border-slate-100 shadow-sm transition-all max-w-5xl">
                         {(user?.role === 'CFO' || user?.role === 'ADMIN') && (
                             <select
-                                className="pl-6 pr-12 py-2.5 bg-white text-slate-900 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-emerald-500/10 appearance-none cursor-pointer hover:border-emerald-500/30 transition-all min-w-[180px] shadow-sm"
+                                className="pl-4 pr-10 py-1.5 bg-white text-slate-900 border border-slate-200 rounded-xl text-[10px] font-bold capitalize tracking-wider focus:outline-none focus:ring-4 focus:ring-emerald-500/10 appearance-none cursor-pointer hover:border-emerald-500/30 transition-all min-w-[150px] shadow-sm"
                                 value={filters.departmentId}
                                 onChange={(e) => setFilters({ ...filters, departmentId: e.target.value })}
-                                style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1.25rem center', backgroundSize: '1rem' }}
+                                style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.8rem' }}
                             >
-                                <option value="">Global Units</option>
+                                <option value="">Department All</option>
                                 {availableDepartments.map((d, idx) => {
                                     const val = typeof d === 'string' ? d : (d.department_id || d.id);
                                     const label = typeof d === 'string' ? d : (d.name || d.department_id);
@@ -374,10 +424,10 @@ const ReportsPage = () => {
                         )}
 
                         <select
-                            className="pl-6 pr-12 py-2.5 bg-white text-slate-900 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-indigo-500/10 appearance-none cursor-pointer hover:border-indigo-500/30 transition-all min-w-[180px] shadow-sm"
+                            className="pl-4 pr-10 py-1.5 bg-white text-slate-900 border border-slate-200 rounded-xl text-[10px] font-bold capitalize tracking-wider focus:outline-none focus:ring-4 focus:ring-indigo-500/10 appearance-none cursor-pointer hover:border-indigo-500/30 transition-all min-w-[150px] shadow-sm"
                             value={filters.employeeId}
                             onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
-                            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1.25rem center', backgroundSize: '1rem' }}
+                            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.8rem' }}
                         >
                             <option value="">All Personnel</option>
                             {availableEmployees.map((u, idx) => (
@@ -385,106 +435,88 @@ const ReportsPage = () => {
                             ))}
                         </select>
 
-                        <div className="flex items-center gap-4 bg-white px-6 py-2.5 rounded-2xl border border-slate-200 shadow-sm">
-                            <div className="flex flex-col">
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">Start</span>
+                        <div className="flex items-center gap-3 bg-white px-4 py-1.5 rounded-xl border border-slate-200 shadow-sm">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[8px] font-bold text-slate-400 capitalize tracking-widest">From</span>
                                 <input
                                     type="date"
-                                    className="bg-transparent text-[11px] font-black outline-none cursor-pointer text-slate-900 border-none p-0 focus:ring-0"
+                                    className="bg-transparent text-[10px] font-bold outline-none cursor-pointer text-slate-900 border-none p-0 focus:ring-0"
                                     value={filters.fromDate}
                                     onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
                                 />
                             </div>
-                            <div className="w-px h-8 bg-slate-100" />
-                            <div className="flex flex-col">
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">End</span>
+                            <div className="w-px h-6 bg-slate-100" />
+                            <div className="flex items-center gap-2">
+                                <span className="text-[8px] font-bold text-slate-400 capitalize tracking-widest">To</span>
                                 <input
                                     type="date"
-                                    className="bg-transparent text-[11px] font-black outline-none cursor-pointer text-slate-900 border-none p-0 focus:ring-0"
+                                    className="bg-transparent text-[10px] font-bold outline-none cursor-pointer text-slate-900 border-none p-0 focus:ring-0"
                                     value={filters.toDate}
                                     onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
                                 />
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                             <button
                                 onClick={handleDownloadPDF}
-                                className="bg-slate-900 text-white hover:bg-slate-800 transition-all px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-3 active:scale-95"
+                                className="bg-slate-900 text-white hover:bg-slate-800 transition-all px-3 py-1 rounded-lg font-bold text-[8.5px] capitalize tracking-widest shadow-sm flex items-center gap-1.5 active:scale-95"
                             >
-                                <Download size={14} className="text-indigo-400" /> PDF
+                                <Download size={11} className="text-indigo-400" /> PDF
                             </button>
                             <button
                                 onClick={handleDownloadExcel}
-                                className="bg-white text-slate-900 hover:bg-slate-50 border border-slate-200 shadow-sm transition-all px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 active:scale-95"
+                                className="bg-white text-slate-900 hover:bg-slate-50 border border-slate-200 shadow-sm transition-all px-3 py-1 rounded-lg font-bold text-[8.5px] capitalize tracking-widest flex items-center gap-1.5 active:scale-95"
                             >
-                                <FileSpreadsheet size={14} className="text-emerald-500" /> CSV
+                                <FileSpreadsheet size={11} className="text-emerald-500" /> CSV
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* ── INSIGHT CARDS - PREMIUM REVAMP ── */}
-            {(['ADMIN', 'CFO'].includes((user?.role || '').toUpperCase())) && (topList.length > 0 || workloadData?.length > 0) && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+            {/* ── INSIGHT CARDS ── */}
+            {(['ADMIN', 'CFO', 'MANAGER', 'EMPLOYEE'].includes((user?.role || '').toUpperCase())) && (topList.length > 0 || workloadData?.length > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
                     {topDept && (
-                        <div className="mesh-gradient-emerald rounded-3xl p-6 border border-emerald-200/50 shadow-xl shadow-emerald-900/5 flex flex-col justify-center relative overflow-hidden group/top card-gloss">
-                            <div className="absolute top-4 right-4 bg-emerald-500/10 p-2 rounded-xl group-hover/top:scale-110 transition-transform">
-                                <TrendingUp size={24} className="text-emerald-600" />
+                        <div className="mesh-gradient-emerald rounded-2xl p-4 border border-emerald-200/50 shadow-md flex flex-col justify-center relative overflow-hidden group/top card-gloss h-24">
+                            <div className="absolute top-2 right-2 bg-emerald-500/10 p-1.5 rounded-lg">
+                                <TrendingUp size={18} className="text-emerald-600" />
                             </div>
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600/70 mb-2">Performance Leader</span>
-                                <div className="flex flex-col">
-                                    <span className="text-xl font-black text-emerald-900 uppercase tracking-tight leading-none mb-1 group-hover/top:translate-x-1 transition-transform">{topDept.name}</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-3xl font-black text-emerald-600 tabular-nums">{topDept.Performance}%</span>
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    </div>
-                                </div>
+                            <div className="flex flex-col">
+                                <span className="text-[9px] font-bold capitalize tracking-[0.1em] text-emerald-600/70 mb-1">Leader</span>
+                                <span className="text-sm font-bold text-emerald-900 capitalize tracking-tight leading-none mb-1">{topDept.name}</span>
+                                <span className="text-2xl font-bold text-emerald-600 tabular-nums">{topDept.Performance}%</span>
                             </div>
                         </div>
                     )}
 
                     {underperformingDept && underperformingDept.name !== topDept?.name && (
-                        <div className="mesh-gradient-rose rounded-3xl p-6 border border-rose-200/50 shadow-xl shadow-rose-900/5 flex flex-col justify-center relative overflow-hidden group/needs card-gloss">
-                            <div className="absolute top-4 right-4 bg-rose-500/10 p-2 rounded-xl group-hover/needs:scale-110 transition-transform">
-                                <TrendingDown size={24} className="text-rose-600" />
+                        <div className="mesh-gradient-rose rounded-2xl p-4 border border-rose-200/50 shadow-md flex flex-col justify-center relative overflow-hidden group/needs card-gloss h-24">
+                            <div className="absolute top-2 right-2 bg-rose-500/10 p-1.5 rounded-lg">
+                                <TrendingDown size={18} className="text-rose-600" />
                             </div>
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-600/70 mb-2">Needs Intervention</span>
-                                <div className="flex flex-col">
-                                    <span className="text-xl font-black text-rose-900 uppercase tracking-tight leading-none mb-1 group-hover/needs:translate-x-1 transition-transform">{underperformingDept.name}</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-3xl font-black text-rose-600 tabular-nums">{underperformingDept.Performance}%</span>
-                                        <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                                    </div>
-                                </div>
+                            <div className="flex flex-col">
+                                <span className="text-[9px] font-bold capitalize tracking-[0.1em] text-rose-600/70 mb-1">Intervention</span>
+                                <span className="text-sm font-bold text-rose-900 capitalize tracking-tight leading-none mb-1">{underperformingDept.name}</span>
+                                <span className="text-2xl font-bold text-rose-600 tabular-nums">{underperformingDept.Performance}%</span>
                             </div>
                         </div>
                     )}
 
                     {workloadData?.length > 0 && (
-                        <div className="md:col-span-2 bg-white rounded-3xl p-6 border border-slate-200/60 shadow-lg relative overflow-hidden group/work mesh-gradient">
-                            <div className="flex items-center justify-between mb-4">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Workload Summary</span>
-                                <div className="flex gap-1">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                {workloadData.map((d, idx) => (
-                                    <div key={`${d.name}-${idx}`} className="flex flex-col gap-1 group/item cursor-default">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full bg-violet-500 group-hover/item:scale-125 transition-transform" />
-                                            <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight truncate">{d.name}</span>
+                        <div className="md:col-span-2 bg-white rounded-2xl p-4 border border-slate-200/60 shadow-md relative overflow-hidden mesh-gradient h-24 flex items-center">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full">
+                                {workloadData.slice(0, 4).map((d, idx) => (
+                                    <div key={`${d.name}-${idx}`} className="flex flex-col">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+                                            <span className="text-[10px] font-bold text-slate-800 capitalize tracking-tight truncate">{d.name}</span>
                                         </div>
-                                        <div className="flex flex-col items-baseline gap-0.5 pl-4">
-                                            <span className="text-lg font-black text-slate-900">{d.Total}</span>
-                                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md">
-                                                {d.Pending} Pending
+                                        <div className="flex items-center gap-2 pl-3">
+                                            <span className="text-lg font-bold text-slate-900">{d.Total}</span>
+                                            <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 rounded-md">
+                                                {d.Pending} P
                                             </span>
                                         </div>
                                     </div>
@@ -515,7 +547,7 @@ const ReportsPage = () => {
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
                                     <CheckSquare size={32} className="opacity-20 mb-2" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest">No workload data</span>
+                                    <span className="text-[10px] font-bold capitalize tracking-widest">No workload data</span>
                                 </div>
                             )}
                         </ChartPanel>
@@ -532,7 +564,48 @@ const ReportsPage = () => {
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
                                     <TrendingUp size={32} className="opacity-20 mb-2" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest">No performance data</span>
+                                    <span className="text-[10px] font-bold capitalize tracking-widest">No performance data</span>
+                                </div>
+                            )}
+                        </ChartPanel>
+                    </>
+                )}
+
+                {/* ── Employee: personal charts ── */}
+                {(user?.role || '').toUpperCase() === 'EMPLOYEE' && (
+                    <>
+                        <ChartPanel title="Personal Performance Trend">
+                            {performanceData.length > 0 ? (
+                                <BarChart data={performanceData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" hide />
+                                    <YAxis domain={[0, 100]} />
+                                    <Tooltip formatter={v => [`${v}%`, 'Score']} />
+                                    <Bar dataKey="onTimePct" fill="#8b5cf6" name="Performance %" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                    <TrendingUp size={32} className="opacity-20 mb-2" />
+                                    <span className="text-[10px] font-bold capitalize tracking-widest">No trend data</span>
+                                </div>
+                            )}
+                        </ChartPanel>
+
+                        <ChartPanel title="Task Distribution (Personal)">
+                            {performanceData.length > 0 ? (
+                                <BarChart data={performanceData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" hide />
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Legend wrapperStyle={{ fontSize: '10px' }} />
+                                    <Bar dataKey="completed" fill="#10b981" name="Completed" />
+                                    <Bar dataKey="pending" fill="#f59e0b" name="Pending" />
+                                </BarChart>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                    <CheckSquare size={32} className="opacity-20 mb-2" />
+                                    <span className="text-[10px] font-bold capitalize tracking-widest">No task data</span>
                                 </div>
                             )}
                         </ChartPanel>
@@ -556,7 +629,7 @@ const ReportsPage = () => {
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
                                     <CheckSquare size={32} className="opacity-20 mb-2" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest">No workload data</span>
+                                    <span className="text-[10px] font-bold capitalize tracking-widest">No workload data</span>
                                 </div>
                             )}
                         </ChartPanel>
@@ -573,7 +646,7 @@ const ReportsPage = () => {
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
                                     <TrendingUp size={32} className="opacity-20 mb-2" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest">No performance data</span>
+                                    <span className="text-[10px] font-bold capitalize tracking-widest">No performance data</span>
                                 </div>
                             )}
                         </ChartPanel>
@@ -581,131 +654,104 @@ const ReportsPage = () => {
                 )}
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
-                        <div className="flex-shrink-0">
-                            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-tight">Performance Report</h3>
-                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest mt-0.5">Filter and download metrics</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-800 capitalize tracking-tight">Performance Report</h3>
                         </div>
+                        <button
+                            onClick={() => setFilters({ employeeId: '', departmentId: '', fromDate: '', toDate: '' })}
+                            className="text-[9px] font-bold text-violet-600 bg-violet-50 px-2 py-1 rounded-lg hover:bg-violet-100 transition-colors"
+                        >
+                            RESET
+                        </button>
+                    </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 flex-1 lg:flex-none">
-                            <div className="flex items-center gap-3">
-                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    Filters active in Global Analytics Header
-                                </div>
-                                <button
-                                    onClick={() => setFilters({ employeeId: '', departmentId: '', fromDate: '', toDate: '' })}
-                                    className="text-[10px] font-black text-violet-600 bg-violet-50 px-3 py-1.5 rounded-lg hover:bg-violet-100 transition-colors"
-                                >
-                                    RESET ALL
-                                </button>
-                            </div>
-                        </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50/80 text-slate-500 text-[9px] capitalize font-bold tracking-widest border-b border-slate-200/60">
+                                <tr>
+                                    <th className="px-3 py-2">Employee</th>
+                                    <th className="px-3 py-2 text-center">Total</th>
+                                    <th className="px-3 py-3 text-center">Done</th>
+                                    <th className="px-3 py-2 text-center">On-Time %</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-[11px] text-slate-700">
+                                {performanceData.length > 0 ? (
+                                    performanceData.map((row, idx) => (
+                                        <tr key={`${row.id}-${idx}`} className="hover:bg-slate-50/80 transition-all border-b border-slate-50 last:border-0 group">
+                                            <td className="px-3 py-1.5">
+                                                <div className="font-bold text-slate-800 group-hover:text-violet-600 transition-colors">{row.name}</div>
+                                                <div className="text-[8px] text-slate-400 font-bold capitalize tracking-widest">{row.department}</div>
+                                            </td>
+                                            <td className="px-3 py-1.5 text-center font-extrabold text-slate-600 tabular-nums">{row.total}</td>
+                                            <td className="px-3 py-1.5 text-center">
+                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-bold text-[9px]">
+                                                    {row.completed}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-1.5">
+                                                <div className="flex items-center gap-2 justify-center">
+                                                    <span className="text-[9px] font-extrabold text-slate-700 tabular-nums">{row.onTimePct}%</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="4" className="py-4 text-center text-slate-400 italic">No data found</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="bg-slate-50/80 text-slate-500 text-[10px] uppercase font-bold tracking-widest border-b border-slate-200/60">
-                            <tr>
-                                <th className="px-4 py-3">Employee</th>
-                                <th className="px-4 py-3 text-center">Total</th>
-                                <th className="px-4 py-3 text-center">Done</th>
-                                <th className="px-4 py-3 text-center">Pending</th>
-                                <th className="px-4 py-3 text-center font-bold">On-Time %</th>
-                                <th className="px-4 py-3 text-right pr-6">Avg Reworks</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
-                            {performanceData.length > 0 ? (
-                                performanceData.map((row, idx) => (
-                                    <tr key={`${row.id}-${idx}`} className="hover:bg-slate-50/80 transition-all border-b border-slate-50 last:border-0 group">
-                                        <td className="px-4 py-2">
-                                            <div className="font-bold text-slate-800 group-hover:text-violet-600 transition-colors text-xs">{row.name}</div>
-                                            <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{row.department}</div>
-                                        </td>
-                                        <td className="px-4 py-3 text-center font-extrabold text-slate-600 tabular-nums text-xs">{row.total}</td>
-                                        <td className="px-4 py-3 text-center">
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 font-bold text-[10px]">
-                                                {row.completed}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-3 text-center font-bold text-orange-500 tabular-nums text-xs">{row.pending}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2 justify-center max-w-[120px] mx-auto">
-                                                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                    <div
-                                                        className={`h-full transition-all duration-700 ${row.onTimePct >= 80 ? 'bg-emerald-500' : row.onTimePct >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                                                        style={{ width: `${row.onTimePct}%` }}
-                                                    ></div>
-                                                </div>
-                                                <span className="text-[10px] font-extrabold text-slate-700 tabular-nums">{row.onTimePct}%</span>
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/30">
+                        <h3 className="text-sm font-bold text-slate-800 capitalize tracking-tight">Top High Performers</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50/50 text-slate-500 text-[9px] capitalize font-bold tracking-widest border-b border-slate-100">
+                                <tr>
+                                    <th className="px-3 py-2">Rank</th>
+                                    <th className="px-3 py-2">Entity</th>
+                                    <th className="px-3 py-2 text-right">Score</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-[11px] text-slate-700">
+                                {topList.length > 0 ? topList.map((emp, i) => (
+                                    <tr key={`${emp.id}-${i}`} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="px-3 py-1.5">
+                                            <div className={`w-5 h-5 rounded flex items-center justify-center font-bold text-[9px] ${i === 0 ? 'bg-amber-100 text-amber-600' :
+                                                i === 1 ? 'bg-slate-100 text-slate-500' :
+                                                    i === 2 ? 'bg-orange-50 text-orange-600' :
+                                                        'bg-slate-50 text-slate-400'
+                                                }`}>
+                                                {i + 1}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3 text-right font-bold text-slate-500 tabular-nums pr-6 text-xs">{row.avgReworks}</td>
+                                        <td className="px-3 py-1.5">
+                                            <div className="font-bold text-slate-800">{emp.name}</div>
+                                            <div className="text-[8px] text-slate-400 font-bold capitalize tracking-tighter">{emp.role}</div>
+                                        </td>
+                                        <td className="px-3 py-1.5 text-right font-bold text-violet-600 tabular-nums">
+                                            {emp.score}%
+                                        </td>
                                     </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan="6" className="p-8 text-center text-slate-500">
-                                        No performance data found for the selected filters.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/30">
-                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-tight">Top High Performers</h3>
-                    <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest mt-0.5">Top performing entities by completion rate</p>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="bg-slate-50/50 text-slate-500 text-[10px] uppercase font-bold tracking-widest border-b border-slate-100">
-                            <tr>
-                                <th className="px-4 py-3">Rank</th>
-                                <th className="px-4 py-3">Entity</th>
-                                <th className="px-4 py-3">Dept</th>
-                                <th className="px-4 py-3">Supervisor</th>
-                                <th className="px-4 py-3 text-right">Score</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                            {topList.length > 0 ? topList.map((emp, i) => (
-                                <tr key={`${emp.id}-${i}`} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="px-4 py-2">
-                                        <div className={`w-6 h-6 rounded flex items-center justify-center font-bold text-[10px] ${i === 0 ? 'bg-amber-100 text-amber-600' :
-                                            i === 1 ? 'bg-slate-100 text-slate-500' :
-                                                i === 2 ? 'bg-orange-50 text-orange-600' :
-                                                    'bg-slate-50 text-slate-400'
-                                            }`}>
-                                            {i + 1}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                        <div className="font-bold text-slate-800">{emp.name}</div>
-                                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">{emp.role}</div>
-                                    </td>
-                                    <td className="px-4 py-2 text-slate-500">{emp.department}</td>
-                                    <td className="px-4 py-2 text-slate-400 italic text-[10px]">{emp.manager || 'No Data'}</td>
-                                    <td className="px-4 py-2 text-right font-bold text-violet-600 tabular-nums">
-                                        {emp.score}%
-                                    </td>
-                                </tr>
-                            )) : (
-                                <tr>
-                                    <td colSpan="5" className="px-6 py-10 text-center text-slate-400 italic">
-                                        No ranking data available.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                                )) : (
+                                    <tr>
+                                        <td colSpan="3" className="px-4 py-10 text-center text-slate-400 italic">
+                                            No ranking data available.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

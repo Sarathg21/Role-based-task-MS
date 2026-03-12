@@ -8,7 +8,7 @@ import ChartPanel from '../Charts/ChartPanel';
 import {
     TrendingUp, CheckCircle, Clock, AlertCircle,
     ThumbsUp, Calendar, ArrowRight, ChevronRight, CalendarCheck, Loader2,
-    Search as SearchIcon, Plus, Settings, MessageSquare, ChevronDown, User, Edit2, Activity, CheckSquare, BarChart2
+    Search as SearchIcon, Plus, Settings, MessageSquare, ChevronDown, User, Edit2, Activity, CheckSquare, BarChart2, PlusCircle
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -45,25 +45,37 @@ const toDateKey = (value) => {
     return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
 };
 
-const fetchEmployeeTasksFallback = async () => {
-    const baseURL = api.defaults.baseURL || '';
-    const token = localStorage.getItem('pms_token');
+const formatDisplayDate = (d) => {
+    if (!d) return '-';
+    // If it's already a formatted string like "11 Mar 2026", just return it
+    if (typeof d === 'string' && d.match(/^\d{2} [A-Z][a-z]{2} \d{4}$/)) return d;
+    
+    try {
+        // Try local helper first
+        const key = toDateKey(d);
+        const date = new Date(key || d);
+        if (Number.isNaN(date.getTime())) return d;
+        
+        return date.toLocaleDateString('en-GB', { 
+            day: '2-digit', 
+            month: 'short', 
+            year: 'numeric' 
+        });
+    } catch (_) {
+        return d;
+    }
+};
+
+const fetchEmployeeTasksFallback = async (params = {}) => {
     const candidates = ['/tasks', '/tasks?scope=mine', '/tasks?scope=personal'];
     for (const path of candidates) {
         try {
-            const res = await fetch(`${baseURL}${path}`, {
-                headers: {
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                    'ngrok-skip-browser-warning': 'true',
-                },
-            });
-            if (res.status === 422 || res.status === 404 || res.status === 405) continue;
-            if (!res.ok) continue;
-            const data = await res.json();
+            const res = await api.get(path, { params });
+            const data = res.data;
             const rows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
             if (rows.length > 0) return rows;
         } catch (_) {
-            // try next
+            // try next candidate
         }
     }
     return [];
@@ -110,14 +122,14 @@ const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
                     <Icon size={24} className="text-white drop-shadow-sm" strokeWidth={2.5} />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="text-3xl font-black text-white tabular-nums tracking-tighter leading-none drop-shadow">
+                    <div className="text-3xl font-bold text-white tabular-nums tracking-tighter leading-none drop-shadow">
                         {value ?? '-'}
                     </div>
-                    <div className="text-[11px] font-bold text-white/80 uppercase tracking-widest leading-tight mt-1.5">
+                    <div className="text-[11px] font-bold text-white/80 leading-tight mt-1.5">
                         {label}
                     </div>
                     {sub && (
-                        <div className="text-[9px] text-white/60 font-semibold uppercase tracking-widest mt-0.5">
+                        <div className="text-[9px] text-white/60 font-semibold mt-0.5">
                             {sub}
                         </div>
                     )}
@@ -139,15 +151,20 @@ const EmployeeDashboard = () => {
 
     const [dashboardData, setDashboardData] = useState(null);
     const [todayTasks, setTodayTasks] = useState([]);
+    const [allTasks, setAllTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activities, setActivities] = useState([]);
     const [loadingActivities, setLoadingActivities] = useState(false);
+    const [activeTab, setActiveTab] = useState("TODAY");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     const fetchActivities = async () => {
         setLoadingActivities(true);
         try {
-            const res = await api.get('/notifications');
-            setActivities(Array.isArray(res.data) ? res.data : []);
+            const res = await api.get('/dashboard/employee/activities', { params: { limit: 10 } });
+            const data = res.data?.data || res.data || [];
+            setActivities(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error("Failed to fetch activities", err);
         } finally {
@@ -170,7 +187,7 @@ const EmployeeDashboard = () => {
 
             const [dataRes, todayRes] = await Promise.all([
                 api.get('/dashboard/employee', { params }),
-                api.get('/dashboard/employee/today')
+                api.get('/dashboard/employee/today', { params })
             ]);
             const dashboardPayload = dataRes?.data?.data || dataRes?.data || {};
             setDashboardData(dashboardPayload);
@@ -185,55 +202,67 @@ const EmployeeDashboard = () => {
                 assignerName: t.assigned_by_name,
                 severity: (t.priority || t.severity || 'LOW').toUpperCase(),
                 department: t.department_name || t.department_id,
+                parent_task_id: t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null),
+                parent_task_title: t.parent_task_title || t.parent_task_name || t.parent_directive_title || (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : ''),
             })));
-            const totalFromDashboard = dashboardPayload?.total_tasks ?? 0;
-            if (totalFromDashboard === 0 && todayT.length === 0) {
-                const rawTasks = await fetchEmployeeTasksFallback();
-                if (rawTasks.length > 0) {
-                    const filtered = rawTasks.filter((t) => {
-                        const k = toDateKey(t.assigned_date || t.created_at || t.due_date);
-                        if (fromDate && (!k || k < fromDate)) return false;
-                        if (toDate && (!k || k > toDate)) return false;
-                        return true;
-                    });
+            // Always fetch full task list to ensure "All" tab and Performance Index are accurate
+            const rawTasks = await fetchEmployeeTasksFallback(params);
+            const normalized = rawTasks.map((t) => ({
+                ...t,
+                id: t.task_id || t.id,
+                status: String(t.status || '').toUpperCase(),
+                severity: (t.priority || t.severity || 'LOW').toUpperCase(),
+                due_date: t.due_date,
+                title: t.title || 'Untitled',
+                assigneeName: t.assigned_to_name || user?.name || 'Me',
+                assignerName: t.assigned_by_name || 'Manager',
+                parent_task_id: t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null),
+                parent_task_title: t.parent_task_title || t.parent_task_name || t.parent_directive_title || (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : ''),
+            }));
 
-                    const normalized = filtered.map((t) => ({
-                        ...t,
-                        id: t.task_id || t.id,
-                        status: String(t.status || '').toUpperCase(),
-                        severity: (t.priority || t.severity || 'LOW').toUpperCase(),
-                        due_date: t.due_date,
-                        title: t.title || 'Untitled',
-                    }));
+            const counts = { NEW: 0, IN_PROGRESS: 0, SUBMITTED: 0, APPROVED: 0, REWORK: 0, CANCELLED: 0 };
+            normalized.forEach((t) => {
+                const s = t.status || '';
+                if (counts[s] !== undefined) counts[s] += 1;
+            });
 
-                    const counts = { NEW: 0, IN_PROGRESS: 0, SUBMITTED: 0, APPROVED: 0, REWORK: 0, CANCELLED: 0 };
-                    normalized.forEach((t) => {
-                        if (counts[t.status] !== undefined) counts[t.status] += 1;
-                    });
-                    const total = normalized.length;
-                    const approved = counts.APPROVED;
-                    const submitted = counts.SUBMITTED;
-                    const pending = normalized.filter(t => !TERMINAL_SET.has(t.status)).length;
-                    const overdue = normalized.filter((t) => {
-                        const due = toDateKey(t.due_date);
-                        return due && due < new Date().toLocaleDateString('en-CA') && !TERMINAL_SET.has(t.status);
-                    }).length;
-                    setDashboardData({
-                        total_tasks: total,
-                        approved_tasks: approved,
-                        submitted_tasks: submitted,
-                        pending_tasks: pending,
-                        overdue_tasks: overdue,
-                        in_progress_tasks: counts.IN_PROGRESS,
-                        rework_tasks: counts.REWORK,
-                        new_tasks: counts.NEW,
-                        cancelled_tasks: counts.CANCELLED,
-                        performance_index: total > 0 ? Math.round((approved / total) * 100) : 0,
-                        dept_avg_score: 0,
-                    });
-                    setTodayTasks(normalized);
-                }
-            }
+            const totalCount = normalized.length;
+            const approvedCount = counts.APPROVED;
+            
+            // Standardized Metrics Logic
+            const totalActive = normalized.filter(t => !TERMINAL_SET.has(t.status)).length; 
+            const pendingSubmission = counts.NEW + counts.REWORK;
+            const inProgress = counts.IN_PROGRESS;
+            const overdue = normalized.filter((t) => {
+                const due = toDateKey(t.due_date);
+                const today = new Date().toLocaleDateString('en-CA');
+                return due && due < today && !TERMINAL_SET.has(t.status);
+            }).length;
+
+            // Use the most generous performance index available (backend or local calculation)
+            const backendScore = dashboardPayload?.performance_index || dashboardPayload?.performanceScore || 0;
+            const localScore = totalCount > 0 ? Math.round((approvedCount / totalCount) * 100) : 0;
+            const finalScore = localScore > 0 ? localScore : backendScore;
+
+            setDashboardData({
+                ...dashboardPayload,
+                total_tasks: totalActive, // Standardized: only active tasks
+                approved_tasks: approvedCount,
+                submitted_tasks: counts.SUBMITTED,
+                pending_submission: pendingSubmission, // NEW + REWORK
+                overdue_tasks: overdue,
+                in_progress_tasks: inProgress,
+                rework_tasks: counts.REWORK,
+                new_tasks: counts.NEW,
+                cancelled_tasks: counts.CANCELLED,
+                performance_index: finalScore,
+                dept_avg_score: dashboardPayload?.dept_avg_score || 0,
+            });
+            setAllTasks(normalized);
+            // Do not overwrite todayTasks with normalized here, 
+            // instead merge them or ensure normalized is derived correctly above.
+            // Actually, fetchDashboardData already sets todayTasks at line 183.
+            // Let's ensure normalized is used for counts only.
         } catch (err) {
             console.error("Failed to fetch dashboard data", err);
         } finally {
@@ -288,9 +317,8 @@ const EmployeeDashboard = () => {
             score: currentScore,
             stats: {
                 total: dashboardData.total_tasks || 0,
-                completedOrSub: (dashboardData.approved_tasks || 0) + (dashboardData.submitted_tasks || 0),
+                pendingSubmission: dashboardData.pending_submission || 0,
                 approved: dashboardData.approved_tasks || 0,
-                pending: dashboardData.pending_tasks || 0,
                 overdue: dashboardData.overdue_tasks || 0,
                 dateRangeSub: 'Global Metrics',
             },
@@ -301,15 +329,24 @@ const EmployeeDashboard = () => {
 
     const { score, stats, performanceTrend, statusDistribution } = metrics || {
         score: 0,
-        stats: { total: 0, completedOrSub: 0, approved: 0, pending: 0, overdue: 0, dateRangeSub: '' },
+        stats: { total: 0, pendingSubmission: 0, approved: 0, overdue: 0, dateRangeSub: '' },
         performanceTrend: [],
         statusDistribution: []
     };
 
-    // Derive pending tasks list from todayTasks (non-terminal)
-    const filteredTodayTasks = useMemo(() => {
-        return todayTasks.filter(t => {
-            const isTerminal = TERMINAL.includes(t.status);
+    // Derive tasks list from source (either specialized todayTasks or full allTasks)
+    const filteredTasksSource = useMemo(() => {
+        const source = activeTab === "TODAY" ? todayTasks : allTasks;
+        return source.filter(t => {
+            const isCancelled = t.status === 'CANCELLED';
+            const isApproved = t.status === 'APPROVED';
+            
+            // Never show cancelled tasks in the dashboard table
+            if (isCancelled) return false;
+
+            // In "ALL" tab, we show Approved tasks. In other tabs, we hide them.
+            const shouldShowBasedOnStatus = activeTab === "ALL" || !isApproved;
+
             const matchesSearch = !searchTerm ||
                 t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 String(t.id).toLowerCase().includes(searchTerm.toLowerCase());
@@ -319,11 +356,31 @@ const EmployeeDashboard = () => {
             const matchesFrom = !fromDate || taskDate >= fromDate;
             const matchesTo = !toDate || taskDate <= toDate;
 
-            return !isTerminal && matchesSearch && matchesFrom && matchesTo;
+            return shouldShowBasedOnStatus && matchesSearch && matchesFrom && matchesTo;
         });
-    }, [todayTasks, searchTerm, fromDate, toDate]);
+    }, [todayTasks, allTasks, searchTerm, fromDate, toDate, activeTab]);
+    const pendingTasks = useMemo(() => {
+        return filteredTasksSource.filter(t => {
+            if (activeTab === "TODAY") return true;
+            if (activeTab === "NEW") return t.status === "NEW";
+            if (activeTab === "IN_PROGRESS") return t.status === "IN_PROGRESS" || t.status === "STARTED";
+            if (activeTab === "SUBMITTED") return t.status === "SUBMITTED";
+            if (activeTab === "REWORK") return t.status === "REWORK";
+            if (activeTab === "ALL") return true;
+            return true;
+        });
+    }, [filteredTasksSource, activeTab]);
 
-    const pendingTasks = filteredTodayTasks;
+    const totalPages = Math.ceil(pendingTasks.length / itemsPerPage);
+    const paginatedTasks = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return pendingTasks.slice(start, start + itemsPerPage);
+    }, [pendingTasks, currentPage]);
+
+    // Reset pagination when tab or filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeTab, fromDate, toDate, searchTerm]);
 
     const dateLabel = new Date().toLocaleDateString('en-US', {
         weekday: 'long', month: 'long', day: 'numeric'
@@ -334,64 +391,81 @@ const EmployeeDashboard = () => {
             <div className="flex flex-col items-center justify-center p-20 bg-white rounded-[2rem] border border-slate-100 shadow-xl overflow-hidden relative">
                 <div className="absolute inset-0 bg-slate-50/50 backdrop-blur-sm -z-10" />
                 <Loader2 className="w-12 h-12 text-violet-600 animate-spin mb-6 drop-shadow-glow-sm" />
-                <p className="text-slate-800 font-black text-xl uppercase tracking-widest animate-pulse">Syncing Dashboard...</p>
-                <p className="text-slate-400 text-xs mt-2 font-bold uppercase tracking-[0.3em]">Preparing Executive Insights</p>
+                <p className="text-slate-800 font-bold text-xl animate-pulse">Syncing Dashboard...</p>
+                <p className="text-slate-400 text-xs mt-2 font-bold">Preparing Executive Insights</p>
             </div>
         );
     }
 
     return (
         <div className="space-y-6 animate-fade-in pb-8 mt-4">
-            {/* Top Metrics Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
-                    <div>
-                        <span className="text-5xl font-bold tracking-tight">{stats.total || 0}</span>
-                        <p className="text-[15px] font-medium mt-1 text-white/90">Total Assignments</p>
+
+
+            {/* Top Metrics Row - Aligned with below */}
+            <div className="flex flex-col xl:flex-row gap-6">
+                {/* Left Widgets - Aligned with Task Table */}
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
+                        <div>
+                            <span className="text-5xl font-bold tracking-tight">{stats.total || 0}</span>
+                            <p className="text-[15px] font-medium mt-1 text-white/90">Total Tasks</p>
+                        </div>
+                        <div className="absolute right-4 bottom-4 opacity-20">
+                            <CheckSquare size={72} strokeWidth={1.5} />
+                        </div>
                     </div>
-                    <div className="absolute right-4 bottom-4 opacity-20">
-                        <CheckSquare size={72} strokeWidth={1.5} />
+
+                    <div className="bg-[#34D399] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
+                        <div className="flex items-start justify-between">
+                            <div>
+                                <span className="text-5xl font-bold tracking-tight">{score || 0}%</span>
+                                <p className="text-[15px] font-medium mt-1 text-white/90">Performance Index</p>
+                            </div>
+                            <div className="opacity-40 mt-2">
+                                <TrendingUp size={32} />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="bg-[#9B51E0] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28 border border-[#a259e8]">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <span className="text-5xl font-bold tracking-tight">{stats.pending || 0}</span>
-                            <p className="text-[15px] font-medium mt-1 text-white/90">Pending Tasks</p>
+                {/* Right Widget - Aligned with Sidebar */}
+                <div className="w-full xl:w-[320px] shrink-0">
+                    <div className="bg-[#9B51E0] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28 border border-[#a259e8]">
+                        <div className="flex items-start justify-between">
+                            <div>
+                                <span className="text-5xl font-bold tracking-tight">{stats.pendingSubmission || 0}</span>
+                                <p className="text-[15px] font-medium mt-1 text-white/90">Pending Submission</p>
+                            </div>
+                            <div className="opacity-40 mt-2">
+                                <Activity size={32} />
+                            </div>
                         </div>
-                        <div className="opacity-40 mt-2">
-                            <Activity size={32} />
-                        </div>
-                    </div>
-                    <div className="absolute right-[-10px] bottom-[-10px] opacity-10">
-                        <div className="w-32 h-32 rounded-full border-[12px] border-white"></div>
-                    </div>
-                </div>
-
-                <div className="bg-[#34D399] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <span className="text-5xl font-bold tracking-tight">{score || 0}%</span>
-                            <p className="text-[15px] font-medium mt-1 text-white/90">Performance Index</p>
-                        </div>
-                        <div className="opacity-40 mt-2">
-                            <TrendingUp size={32} />
+                        <div className="absolute right-[-10px] bottom-[-10px] opacity-10">
+                            <div className="w-32 h-32 rounded-full border-[12px] border-white"></div>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Main Content Split */}
-            <div className="flex flex-col xl:flex-row gap-6">
-                {/* Left Side - Task Table */}
-                <div className="flex-[7] bg-white rounded-[1.5rem] p-0 shadow-sm border border-slate-100 flex flex-col min-h-[500px]">
+            <div className="flex flex-col xl:flex-row gap-6 items-start">
+                {/* Left Side - Task Table (grows to fill) */}
+                <div className="flex-1 min-w-0 bg-white rounded-[1.5rem] p-0 shadow-sm border border-slate-100 flex flex-col min-h-[500px]">
                     <div className="flex items-center gap-6 pt-6 px-6 border-b border-slate-100 pb-0">
                         <h2 className="text-[17px] font-bold text-slate-800 pb-4">My Task List</h2>
-                        <div className="flex gap-5 ml-2">
-                            <span className="text-sm font-semibold text-violet-600 border-b-2 border-violet-600 pb-4 -mb-[1px]">All Tasks</span>
-                            <span className="text-sm font-medium text-slate-400 pb-4">In Progress</span>
-                            <span className="text-sm font-medium text-slate-400 pb-4">Completed</span>
+                        <div className="flex gap-10 ml-2">
+                            {['Today\'s Tasks', 'New', 'In Progress', 'Submitted', 'Reworks', 'All'].map((tab) => {
+                                const tabKey = tab === 'Today\'s Tasks' ? 'TODAY' : tab.toUpperCase().replace(' ', '_');
+                                return (
+                                    <span
+                                        key={tab}
+                                        onClick={() => setActiveTab(tabKey)}
+                                        className={`text-sm pb-4 cursor-pointer whitespace-nowrap ${activeTab === tabKey ? "text-violet-600 border-b-2 border-violet-600 font-semibold" : "text-slate-400"}`}
+                                    >
+                                        {tab}
+                                    </span>
+                                );
+                            })}
                         </div>
                     </div>
 
@@ -399,33 +473,45 @@ const EmployeeDashboard = () => {
                         <table className="w-full text-left">
                             <thead className="text-[12px] text-slate-400 border-b border-slate-100 bg-slate-50/30">
                                 <tr>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap"><input type="checkbox" className="rounded text-violet-600 mr-3 border-slate-300" />Directives</th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Assigned By <ChevronDown size={14} className="inline ml-1" /></th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Priority <ChevronDown size={14} className="inline ml-1" /></th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-center">Status</th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-right">Actions</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Directives</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Parent Task ID</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Parent Task</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Assigned Date <ChevronDown size={14} className="inline ml-1" /></th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Priority <ChevronDown size={14} className="inline ml-1" /></th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-center text-slate-400">Status</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-right text-slate-400">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {pendingTasks.length === 0 ? (
-                                    <tr><td colSpan="5" className="py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No pending tasks present</td></tr>
+                                    <tr><td colSpan="7" className="py-12 text-center text-slate-400 font-bold text-xs">No tasks present</td></tr>
                                 ) : (
-                                    pendingTasks.slice(0, 6).map(task => (
+                                    paginatedTasks.map(task => (
                                         <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="py-2 px-6 flex items-center gap-3">
-                                                <input type="checkbox" className="rounded border-slate-300 w-4 h-4" />
-                                                <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-sm border border-white">
-                                                    <CheckSquare size={13} />
-                                                </div>
-                                                <span className="text-[13.5px] font-semibold text-slate-700 truncate max-w-[180px]">{task.title}</span>
+                                            <td className="py-2 px-6">
+                                                <span className="text-[13.5px] font-semibold text-slate-700 truncate max-w-[200px] block">{task.title}</span>
                                             </td>
                                             <td className="py-2 px-6">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-6 h-6 rounded-full bg-slate-200 border-2 border-white shadow-sm overflow-hidden flex items-center justify-center shrink-0">
-                                                        <User size={14} className="text-slate-400" />
-                                                    </div>
-                                                    <span className="text-[13px] font-medium text-slate-600">{task.assignerName || 'Manager'}</span>
-                                                </div>
+                                                <span className="text-[13px] font-medium text-slate-500">#{task.parent_task_id || '-'}</span>
+                                            </td>
+                                            <td className="py-2 px-6">
+                                                <span className="text-[13px] font-medium text-slate-500 truncate max-w-[150px] block">
+                                                    {task.parent_task_title || '-'}
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-6">
+                                                <span className="text-[13px] font-medium text-slate-600">
+                                                    {formatDisplayDate(
+                                                        task.assigned_date || 
+                                                        task.assigned_at || 
+                                                        task.created_at || 
+                                                        task.updated_at || 
+                                                        task.assignedAt || 
+                                                        task.createdAt || 
+                                                        task.due_date || 
+                                                        task.dueDate
+                                                    )}
+                                                </span>
                                             </td>
                                             <td className="py-2 px-6">
                                                 <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-600">
@@ -434,145 +520,170 @@ const EmployeeDashboard = () => {
                                                 </div>
                                             </td>
                                             <td className="py-2 px-6 text-center">
-                                                <span className={`px-4 py-1.5 rounded-full text-[11px] font-bold shadow-sm inline-block min-w-[90px] ${task.status === 'SUBMITTED' ? 'bg-[#9B51E0] text-white' : task.status === 'IN_PROGRESS' ? 'bg-[#34D399] text-white' : 'bg-[#4285F4] text-white'}`}>
-                                                    {task.status === 'SUBMITTED' ? 'Review' : task.status === 'IN_PROGRESS' ? 'In Progress' : 'Open'}
-                                                </span>
-                                            </td>
-                                            <td className="py-2 px-6 text-right">
-                                                <div className="flex justify-end gap-1.5">
-                                                    {task.status === "NEW" && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, "START"); }}
-                                                            className="px-5 py-1.5 bg-[#7B51ED] text-white text-[12px] font-bold rounded-lg hover:bg-violet-700 transition-[transform,colors] active:scale-95 shadow-sm inline-flex items-center gap-1.5"
-                                                        >
-                                                            Start
-                                                        </button>
-                                                    )}
-                                                    {task.status === "IN_PROGRESS" && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, "SUBMIT"); }}
-                                                            className="px-5 py-1.5 bg-[#10B981] text-white text-[12px] font-bold rounded-lg hover:bg-emerald-600 transition-[transform,colors] active:scale-95 shadow-sm inline-flex items-center gap-1.5"
-                                                        >
-                                                            Submit
-                                                        </button>
-                                                    )}
-                                                    {task.status === "REWORK" && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleStatusChange(task.id, "RESTART"); }}
-                                                            className="px-5 py-1.5 bg-[#F59E0B] text-white text-[12px] font-bold rounded-lg hover:bg-amber-600 transition-[transform,colors] active:scale-95 shadow-sm inline-flex items-center gap-1.5"
-                                                        >
-                                                            Restart
-                                                        </button>
-                                                    )}
-                                                    {task.status === "SUBMITTED" && (
-                                                        <button onClick={() => navigate('/tasks')} className="px-5 py-1.5 bg-[#4285F4] text-white text-[12px] font-bold rounded-lg hover:bg-blue-600 transition-[transform,colors] active:scale-95 shadow-sm inline-flex items-center gap-1.5">
-                                                            View
-                                                        </button>
+                                                <div className="flex justify-center">
+                                                    {task.status === 'SUBMITTED' ? (
+                                                        <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-violet-50 text-violet-600 border border-violet-100 flex items-center gap-1.5 min-w-[100px] justify-center shadow-sm">
+                                                            <CheckCircle size={12} /> Submitted
+                                                        </span>
+                                                    ) : task.status === 'IN_PROGRESS' || task.status === 'STARTED' ? (
+                                                        <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center gap-1.5 min-w-[100px] justify-center shadow-sm">
+                                                            <Clock size={12} /> In Progress
+                                                        </span>
+                                                    ) : task.status === 'NEW' ? (
+                                                        <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-600 border border-blue-100 flex items-center gap-1.5 min-w-[100px] justify-center shadow-sm">
+                                                            <PlusCircle size={12} /> New
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-slate-50 text-slate-600 border border-slate-100 flex items-center gap-1.5 min-w-[100px] justify-center shadow-sm">
+                                                            <Activity size={12} /> {task.status}
+                                                        </span>
                                                     )}
                                                 </div>
                                             </td>
+                                            <td className="py-2 px-6 text-right">
+                                                <button
+                                                    onClick={() => navigate(`/tasks?taskId=${task.id}`)}
+                                                    className="px-5 py-1.5 bg-[#4285F4] text-white text-[12px] font-bold rounded-lg hover:bg-blue-600 transition active:scale-95 shadow-sm inline-flex items-center gap-1.5"
+                                                >
+                                                    View
+                                                </button>
+                                            </td>
                                         </tr>
+
                                     ))
                                 )}
                             </tbody>
                         </table>
+
+                        {/* Pagination */}
+                        {pendingTasks.length > 0 && (
+                            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400 font-medium bg-slate-50/10">
+                                <span>Showing {Math.min(pendingTasks.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(pendingTasks.length, currentPage * itemsPerPage)} of {pendingTasks.length}</span>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        disabled={currentPage === 1}
+                                        onClick={() => setCurrentPage(p => p - 1)}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-all"
+                                    >
+                                        &lt;
+                                    </button>
+                                    {[...Array(totalPages)].map((_, i) => (
+                                        <button
+                                            key={i + 1}
+                                            onClick={() => setCurrentPage(i + 1)}
+                                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all border ${currentPage === i + 1 ? 'bg-violet-600 text-white font-bold border-violet-600 shadow-md shadow-violet-200' : 'bg-white text-slate-600 border-slate-100 hover:border-violet-200'}`}
+                                        >
+                                            {i + 1}
+                                        </button>
+                                    ))}
+                                    <button
+                                        disabled={currentPage === totalPages}
+                                        onClick={() => setCurrentPage(p => p + 1)}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-all"
+                                    >
+                                        &gt;
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Right Side - Actions & Activity */}
-                <div className="flex-[2.5] flex flex-col gap-6">
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-800 mb-4 ml-1">Quick Actions</h3>
+                {/* Right Sidebar - Quick Actions + Recent Activity stacked */}
+                <div className="flex flex-col gap-6 w-full xl:w-[320px] shrink-0">
+
+                    {/* Quick Actions */}
+                    <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100">
+                        <h3 className="text-[15px] font-bold text-slate-800 mb-4 tracking-tight">Quick Actions</h3>
                         <div className="flex flex-col gap-3">
                             <button onClick={() => navigate('/tasks')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
                                 <CheckSquare size={18} strokeWidth={2.5} /> View All Tasks
                             </button>
-                            <button className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
-                                <BarChart2 size={18} strokeWidth={2.5} /> View Reports
+                            <button onClick={() => navigate('/reports')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
+                                <Activity size={18} strokeWidth={2.5} /> View Reports
                             </button>
                         </div>
                     </div>
 
-                    <div className="flex-1 min-h-[300px]">
-                        <div className="flex justify-between items-center mb-4 ml-1">
-                            <h3 className="text-lg font-bold text-slate-800">Recent Activity</h3>
-                            <button className="text-slate-400 hover:text-slate-600"><Settings size={16} /></button>
+                    {/* Recent Activity */}
+                    <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100">
+                        <div className="flex justify-between items-center mb-5">
+                            <h3 className="text-[15px] font-bold text-slate-800 tracking-tight">Recent Activity</h3>
+                            <button className="text-slate-400 hover:text-slate-600 transition-colors">
+                                <Settings size={16} />
+                            </button>
                         </div>
 
                         <div className="space-y-3">
                             {loadingActivities ? (
                                 <div className="flex flex-col items-center justify-center p-8">
                                     <Loader2 className="w-6 h-6 text-violet-500 animate-spin mb-2" />
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Loading Activity...</p>
+                                    <p className="text-[10px] text-slate-400 font-bold">Loading Activity...</p>
                                 </div>
                             ) : activities.length === 0 ? (
-                                <div className="text-center p-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No Recent Activity</div>
-                            ) : activities.map((i, idx) => (
-                                <div key={idx} className="flex gap-3 items-start border border-slate-100 p-3.5 rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                                    <div className={`w-9 h-9 border-2 border-white shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-bold text-white text-sm ${i.type === 'SUCCESS' ? 'bg-emerald-500' : i.type === 'WARNING' ? 'bg-amber-500' : 'bg-indigo-500'}`}>
-                                        {(i.title || 'S').charAt(0)}
+                                <div className="text-center p-6 text-slate-400 text-xs font-bold">No Recent Activity</div>
+                            ) : activities.map((i, idx) => {
+                                const renderMessage = () => {
+                                    // Robust title resolution: check common fields, then fallback to lookup
+                                    let displayTitle = i.task_title || i.title || i.task_name || i.directive_name || i.directive_title || i.task?.title;
+                                    
+                                    if (!displayTitle && (i.task_id || i.id)) {
+                                        const tid = i.task_id || i.id;
+                                        const foundTask = allTasks.find(t => String(t.id) === String(tid));
+                                        if (foundTask) displayTitle = foundTask.title;
+                                    }
+
+                                    if (!displayTitle) displayTitle = i.task_id ? `Task #${i.task_id}` : 'this task';
+                                    
+                                    const title = <span className="font-bold text-violet-600">"{displayTitle}"</span>;
+                                    const actor = <span className="font-bold text-slate-800">{i.actor_name || 'Manager'}</span>;
+
+                                    switch (i.type) {
+                                        case 'TASK_CREATED':
+                                        case 'TASK_REASSIGNED':
+                                            return <>Task {title} assigned to you</>;
+                                        case 'TASK_STARTED':
+                                            return <>You started task {title}</>;
+                                        case 'TASK_SUBMITTED':
+                                            return <>You submitted task {title}</>;
+                                        case 'TASK_REWORK':
+                                            return <>{actor} requested rework on task {title}</>;
+                                        case 'TASK_APPROVED':
+                                            return <>Task {title} approved</>;
+                                        case 'TASK_CANCELLED':
+                                            return <>Task {title} cancelled</>;
+                                        default:
+                                            return <>{actor} {i.message}</>;
+                                    }
+                                };
+
+                                return (
+                                    <div key={i.id || idx} className="flex gap-3 items-start border border-slate-100 p-3.5 rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                                        <div className={`w-9 h-9 border-2 border-white shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-bold text-white text-sm ${i.type === 'TASK_APPROVED' || i.type === 'SUCCESS' ? 'bg-emerald-500' :
+                                            i.type === 'TASK_REWORK' || i.type === 'TASK_CANCELLED' || i.type === 'WARNING' ? 'bg-rose-500' :
+                                                i.type === 'TASK_SUBMITTED' || i.type === 'TASK_REASSIGNED' ? 'bg-amber-500' :
+                                                    'bg-indigo-500'
+                                            }`}>
+                                            {(i.actor_name || i.title || 'S').charAt(0)}
+                                        </div>
+                                        <div className="flex-1 pt-0.5">
+                                            <p className="text-[13px] text-slate-600 leading-tight">
+                                                {renderMessage()}
+                                                {i.comment && <span className="block text-slate-400 mt-1 italic text-[12px] border-l-2 border-slate-100 pl-2">"{i.comment}"</span>}
+                                            </p>
+                                            <p className="text-[11px] font-medium text-slate-400 mt-1.5">{formatTimeAgo(i.created_at)}</p>
+                                        </div>
                                     </div>
-                                    <div className="flex-1 pt-0.5">
-                                        <p className="text-[13px] text-slate-600 leading-tight">
-                                            <span className="font-bold text-slate-800">{i.title}</span> {i.message && <span className="block text-slate-400 mt-0.5">{i.message}</span>}
-                                        </p>
-                                        <p className="text-[11px] font-medium text-slate-400 mt-1">{formatTimeAgo(i.created_at)}</p>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 p-6">
-                    <h3 className="text-[16px] font-bold text-slate-800 mb-1">Performance Score</h3>
-                    <p className="text-[12px] text-slate-400 mb-6 font-medium">Score vs target vs dept average</p>
-                    <ResponsiveContainer width="100%" height={260}>
-                        <BarChart data={performanceTrend} margin={{ top: 20, right: 10, left: 0, bottom: 0 }} barSize={36}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                            <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                            <Tooltip
-                                formatter={v => [`${v}`, 'Score']}
-                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: '12px', fontWeight: 500 }}
-                            />
-                            <Bar dataKey="score" radius={[6, 6, 0, 0]}>
-                                {performanceTrend.map((entry, i) => (
-                                    <Cell key={i} fill={entry.fill} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
 
-                <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 p-6">
-                    <h3 className="text-[16px] font-bold text-slate-800 mb-1">Task Status Breakdown</h3>
-                    <p className="text-[12px] text-slate-400 mb-6 font-medium">Your tasks by current status</p>
-                    <div className="flex items-center justify-center h-[260px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={statusDistribution}
-                                    cx="50%" cy="50%"
-                                    outerRadius={90}
-                                    innerRadius={55}
-                                    paddingAngle={3}
-                                    dataKey="value"
-                                    label={false}
-                                >
-                                    {statusDistribution.map((entry, i) => (
-                                        <Cell key={i} fill={entry.color} />
-                                    ))}
-                                </Pie>
-                                <Tooltip formatter={(v, n) => [v, n]} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: '12px', fontWeight: 500 }} />
-                                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px', fontWeight: 500, color: '#64748b' }} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
+            {/* Action Bar - Moved View Reports to Recent Activity */}
+            <div className="flex justify-end h-8">
             </div>
         </div>
     );

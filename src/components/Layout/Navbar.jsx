@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Bell, Search, CheckCircle, AlertCircle } from 'lucide-react';
+import { Bell, Search, CheckCircle, AlertCircle, Calendar } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 
 const Navbar = () => {
@@ -12,6 +13,17 @@ const Navbar = () => {
     const notifRef = useRef(null);
 
     const [searchTerm, setSearchTerm] = useState('');
+    const location = useLocation();
+    const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
+
+    const [fromDate, setFromDate] = useState(localStorage.getItem('dashboard_from_date') || '');
+    const [toDate, setToDate] = useState(localStorage.getItem('dashboard_to_date') || '');
+
+    useEffect(() => {
+        localStorage.setItem('dashboard_from_date', fromDate);
+        localStorage.setItem('dashboard_to_date', toDate);
+        window.dispatchEvent(new Event('dashboard-filter-change'));
+    }, [fromDate, toDate]);
 
     const fetchNotifications = async () => {
         if (!user) return;
@@ -80,14 +92,41 @@ const Navbar = () => {
     };
 
     return (
-        <header className="navbar cfo-navbar">
-            <div className="flex-1 max-w-xl transition-all duration-300 group">
-                <div className="cfo-search flex items-center gap-3 px-5 py-3 rounded-full border border-slate-200 transition-all bg-slate-50">
-                    <Search className="text-slate-400 group-focus-within:text-violet-500 transition-colors shrink-0" size={18} strokeWidth={1.8} />
+        <header className="navbar cfo-navbar sticky top-0 bg-white/100 backdrop-blur-md z-40 border-b border-slate-100 flex items-center justify-between px-6 py-4">
+            {/* Left Side: FJ Logo & CFO Title */}
+            <div className="flex items-center gap-4 w-[400px]">
+                <div className="w-10 h-10 flex-shrink-0 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex items-center justify-center">
+                    <img src="/images/fj.png.png" alt="FJ Group" className="w-8 h-8 object-contain" />
+                </div>
+                <div className="flex flex-col">
+                    <h1 className="text-[17px] font-bold text-slate-900 leading-tight tracking-tight">
+                        {(() => {
+                            const role = (user?.role || '').toUpperCase();
+                            if (role === 'CFO') {
+                                if (location.pathname === '/reports') return 'CFO Reports';
+                                if (location.pathname === '/tasks/team') return 'CFO Team Tasks';
+                                return 'CFO Dashboard';
+                            }
+                            if (role === 'ADMIN') return 'Admin Control';
+                            if (role === 'MANAGER') return 'Manager Hub';
+                            return 'Employee Dashboard';
+                        })()}
+                    </h1>
+                    <p className="text-[10px] font-bold text-slate-400 leading-none mt-1">
+                        {user?.role === 'CFO' ? 'Monitor Work Execution & Business Performance' : 
+                         'Enterprise Resource & Task Management System'}
+                    </p>
+                </div>
+            </div>
+
+            {/* Center Side: Search Bar */}
+            <div className={`flex-1 ${isDashboard && (user?.role || '').toUpperCase() === 'CFO' ? 'max-w-4xl' : 'max-w-4xl'} flex items-center gap-4`}>
+                <div className="cfo-search flex items-center gap-3 px-6 py-2.5 rounded-full border border-slate-200 transition-all bg-slate-50/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-violet-400/20 shadow-sm w-full mx-auto">
+                    <Search className="text-slate-400 shrink-0" size={20} strokeWidth={2.4} />
                     <input
                         type="text"
-                        placeholder="Search tasks..."
-                        className="w-full bg-transparent border-none focus:outline-none text-sm font-medium placeholder:text-slate-400"
+                        placeholder="Search for tasks or employees..."
+                        className="w-full bg-transparent border-none focus:outline-none text-sm font-semibold text-slate-700 placeholder:text-slate-400"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         onKeyDown={handleSearch}
@@ -95,7 +134,28 @@ const Navbar = () => {
                 </div>
             </div>
 
-            <div className="flex items-center gap-3 shrink-0">
+            {/* Right Side: Notifications & Profile */}
+            <div className="flex items-center gap-4 shrink-0 justify-end">
+                {isDashboard && user?.role === 'CFO' && (
+                    <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-2xl border border-slate-200 focus-within:bg-white focus-within:ring-2 focus-within:ring-violet-400/20 transition-all shadow-sm">
+                        <Calendar size={14} className="text-violet-500" />
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="date"
+                                className="bg-transparent border-none text-[10px] font-bold text-slate-600 focus:outline-none w-24"
+                                value={fromDate}
+                                onChange={(e) => setFromDate(e.target.value)}
+                            />
+                            <span className="text-slate-300 font-bold">-</span>
+                            <input
+                                type="date"
+                                className="bg-transparent border-none text-[10px] font-bold text-slate-600 focus:outline-none w-24"
+                                value={toDate}
+                                onChange={(e) => setToDate(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                )}
                 <div className="relative" ref={notifRef}>
                     <button
                         onClick={() => {
@@ -107,8 +167,8 @@ const Navbar = () => {
                     >
                         <Bell size={19} />
                         {unreadCount > 0 && (
-                            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-rose-500 text-white text-[10px] font-bold rounded-full border-2 border-white px-0.5">
-                                {unreadCount > 99 ? '99+' : unreadCount}
+                            <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] flex items-center justify-center bg-rose-500 text-white text-[9px] font-bold rounded-full border border-white px-0.5 animate-pulse">
+                                {unreadCount > 9 ? '9+' : unreadCount}
                             </span>
                         )}
                     </button>
@@ -143,10 +203,33 @@ const Navbar = () => {
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between mb-0.5">
-                                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{n.title || n.subject || 'Notification'}</span>
+                                                        <span className="text-[10px] font-bold text-slate-400">{n.title || n.subject || 'Notification'}</span>
                                                         <span className="text-[9px] text-slate-400">{n.time || (n.created_at ? new Date(n.created_at).toLocaleDateString() : 'Just now')}</span>
                                                     </div>
-                                                    <p className={`text-[11px] leading-tight ${!isRead ? 'text-slate-800 font-bold' : 'text-slate-500 font-medium'}`}>{n.message || n.text || n.body}</p>
+                                                    <p className={`text-[11px] leading-tight ${!isRead ? 'text-slate-800 font-bold' : 'text-slate-500 font-medium'}`}>
+                                                        {(() => {
+                                                            const title = n.task_title ? <span className="font-bold text-violet-600">"{n.task_title}"</span> : <span className="italic">this task</span>;
+                                                            const actor = <span className="font-bold text-slate-800">{n.actor_name || 'Manager'}</span>;
+                                                            switch (n.type) {
+                                                                case 'TASK_CREATED':
+                                                                case 'TASK_REASSIGNED':
+                                                                    return <>Task {title} assigned to you</>;
+                                                                case 'TASK_STARTED':
+                                                                    return <>You started task {title}</>;
+                                                                case 'TASK_SUBMITTED':
+                                                                    return <>You submitted task {title}</>;
+                                                                case 'TASK_REWORK':
+                                                                    return <>{actor} requested rework on task {title}</>;
+                                                                case 'TASK_APPROVED':
+                                                                    return <>Task {title} approved</>;
+                                                                case 'TASK_CANCELLED':
+                                                                    return <>Task {title} cancelled</>;
+                                                                default:
+                                                                    return <>{actor} {n.message}</>;
+                                                            }
+                                                        })()}
+                                                    </p>
+                                                    {n.comment && <span className="block text-[10px] text-slate-400 mt-1 italic pl-2 border-l-2 border-slate-100">"{n.comment}"</span>}
                                                 </div>
                                             </div>
                                         );
@@ -166,19 +249,17 @@ const Navbar = () => {
 
                 <button
                     onClick={() => navigate('/profile')}
-                    className="flex items-center gap-3 px-2 py-1.5 rounded-2xl hover:bg-slate-50 transition-all group active:scale-[0.98]"
+                    className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-slate-200 bg-white transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] shadow-sm group"
                 >
-                    <div className="relative w-9 h-9 rounded-full bg-slate-200 border-2 border-white shadow-sm overflow-hidden flex items-center justify-center shrink-0">
-                        <User size={18} className="text-slate-400" />
-                    </div>
-                    <div className="text-left hidden sm:block">
-                        <p className="text-sm font-black text-slate-800 leading-tight">{user?.name || 'John Doe'}</p>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-widest font-black mt-0.5">{user?.role || 'CFO'}</p>
-                    </div>
-                    <ChevronDown size={14} className="text-slate-400 ml-1" />
+                    {user?.gender?.toLowerCase() === 'female' ? (
+                        <UserFemale size={18} className="text-violet-600" />
+                    ) : (
+                        <User size={18} className="text-violet-600" />
+                    )}
+                    <span className="text-[13px] font-bold text-slate-700 leading-none group-hover:text-violet-600 transition-colors tracking-tight">{user?.name || 'AP Exec 1'}</span>
                 </button>
             </div>
-        </header>
+        </header >
     );
 };
 
@@ -188,9 +269,11 @@ const User = ({ size, className }) => (
     </svg>
 );
 
-const ChevronDown = ({ size, className }) => (
+const UserFemale = ({ size, className }) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-        <path d="m6 9 6 6 6-6" />
+        <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" />
+        <path d="m11 12-2 4h6l-2-4" />
+        <path d="M9 16l-1 5h8l-1-5" />
     </svg>
 );
 

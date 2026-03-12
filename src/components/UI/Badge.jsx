@@ -56,8 +56,7 @@ const Badge = ({ children, variant = 'default', className = '', dot = false, siz
                 inline-flex items-center gap-1.5
                 ${sizeClass}
                 rounded-full
-                font-black
-                uppercase
+                font-bold
                 tracking-tight
                 border
                 whitespace-nowrap

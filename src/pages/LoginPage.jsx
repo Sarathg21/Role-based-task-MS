@@ -119,7 +119,7 @@ const S = {
     },
     card: {
         width: '100%',
-        maxWidth: '440px',
+        maxWidth: '540px',
         background: '#ffffff',
         borderRadius: '24px',
         padding: '3rem 2.75rem 2.5rem 2.75rem',
@@ -339,7 +339,7 @@ const LoginPage = () => {
                 <div style={S.card}>
                     <div style={S.cardBrand}>
                         <img
-                            src="/images/fj.png"
+                            src="/images/fj.png.png"
                             alt="FJ Group"
                             style={S.cardLogoImg}
                             onError={e => { e.currentTarget.style.display = 'none'; }}

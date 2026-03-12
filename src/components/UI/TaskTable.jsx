@@ -57,7 +57,7 @@ const TaskTable = ({ tasks = [] }) => {
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                     <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-200/60 text-xs uppercase tracking-wider text-slate-500 font-medium">
+                        <tr className="bg-slate-50/50 border-b border-slate-200/60 text-[11px] text-slate-500 font-bold">
                             <th className="p-5 pl-6">Task Title</th>
                             <th className="p-5">Assignee</th>
                             <th className="p-5">Severity</th>

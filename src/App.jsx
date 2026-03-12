@@ -14,6 +14,8 @@ import AdminPage from './pages/AdminPage';
 import ReportsPage from './pages/ReportsPage';
 import ProfilePage from './pages/ProfilePage';
 import OrgTreePage from './pages/OrgTreePage';
+import TeamTasksPage from './pages/TeamTasksPage';
+import DeptHealthMatrixPage from './pages/DeptHealthMatrixPage';
 import AccessDeniedPage from './pages/AccessDeniedPage';
 
 function App() {
@@ -54,9 +56,18 @@ function App() {
           />
 
           <Route
+            path="tasks/team"
+            element={
+              <ProtectedRoute allowedRoles={['CFO', 'Admin', 'Manager']}>
+                <TeamTasksPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="reports"
             element={
-              <ProtectedRoute allowedRoles={['Manager', 'Admin', 'CFO']}>
+              <ProtectedRoute allowedRoles={['Employee', 'Manager', 'Admin', 'CFO']}>
                 <ReportsPage />
               </ProtectedRoute>
             }
@@ -75,6 +86,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['Admin', 'CFO']}>
                 <OrgTreePage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="health-matrix"
+            element={
+              <ProtectedRoute allowedRoles={['CFO', 'Admin']}>
+                <DeptHealthMatrixPage />
               </ProtectedRoute>
             }
           />

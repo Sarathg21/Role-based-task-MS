@@ -7,7 +7,8 @@ const CustomSelect = ({
     onChange,
     placeholder = "Select option",
     className = "",
-    style = {}
+    style = {},
+    variant = "default"
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef(null);
@@ -26,6 +27,10 @@ const CustomSelect = ({
     const selectedOption = options.find(opt => opt.value === value) || options.find(opt => opt.label === value);
     const displayLabel = selectedOption ? selectedOption.label : placeholder;
 
+    const buttonClasses = variant === 'borderless'
+        ? "w-full flex items-center justify-between px-4 py-2 bg-transparent border-none rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 focus:outline-none transition-all"
+        : "w-full flex items-center justify-between px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-violet-500/20 transition-all shadow-sm";
+
     return (
         <div
             ref={containerRef}
@@ -35,7 +40,7 @@ const CustomSelect = ({
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center justify-between px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-violet-500/20 transition-all shadow-sm"
+                className={buttonClasses}
             >
                 <span className="truncate">{displayLabel}</span>
                 <ChevronDown

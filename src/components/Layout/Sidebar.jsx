@@ -42,7 +42,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
 
     const SectionLabel = ({ label }) => (
         !isCollapsed ? (
-            <div className="px-7 pt-6 pb-2 text-[10px] font-bold text-violet-100/50 uppercase tracking-widest">{label}</div>
+            <div className="px-7 pt-6 pb-2 text-[10px] font-bold text-violet-100/50 tracking-wider">{label}</div>
         ) : <div className="h-6" />
     );
 
@@ -53,7 +53,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
             <div className={`sidebar-header flex items-center ${isCollapsed ? 'justify-center px-0 flex-col gap-4' : 'justify-between'}`}>
                 <div className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'gap-3 ml-2'}`}>
                     <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center overflow-hidden rounded-xl">
-                        <img src="/images/fj.png" alt="FJ Group" className="w-full h-full object-contain" />
+                        <img src="/images/fj.png.png" alt="FJ Group" className="w-full h-full object-contain" />
                     </div>
                     {!isCollapsed && (
                         <div className="overflow-hidden">
@@ -86,8 +86,8 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
                     <>
                         <SectionLabel label="General" />
                         <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-                        <NavItem to="/tasks?mode=personal" icon={CheckSquare} label="My Tasks" />
-                        <NavItem to="/tasks?mode=team" icon={Users} label="Team Tasks" />
+                        <NavItem to="/tasks/team" icon={Users} label="Team Tasks" />
+                        <NavItem to="/health-matrix" icon={Network} label="Health Matrix" />
                         <NavItem to="/reports" icon={BarChart3} label="Reports" />
                     </>
                 )}
@@ -101,7 +101,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
                         {userRole === 'MANAGER' && (
                             <>
                                 <SectionLabel label="Team Management" />
-                                <NavItem to="/tasks?mode=team" icon={Users} label="Team Tasks" />
+                                <NavItem to="/tasks/team" icon={Users} label="Team Tasks" />
                                 <SectionLabel label="Analytics" />
                                 <NavItem to="/reports" icon={BarChart3} label="Reports & Insights" />
                             </>

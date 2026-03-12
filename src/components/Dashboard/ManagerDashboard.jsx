@@ -84,9 +84,9 @@ const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
                     <Icon size={22} className="text-white drop-shadow-sm" strokeWidth={2.5} />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="text-3xl font-black text-white tabular-nums tracking-tighter leading-none drop-shadow">{value ?? '—'}</div>
-                    <div className="text-[11px] font-bold text-white/80 uppercase tracking-widest truncate mt-1.5">{label}</div>
-                    {sub && <div className="text-[9px] text-white/60 font-semibold truncate uppercase tracking-widest mt-0.5">{sub}</div>}
+                    <div className="text-3xl font-bold text-white tabular-nums tracking-tighter leading-none drop-shadow">{value ?? '—'}</div>
+                    <div className="text-[11px] font-bold text-white/80 truncate mt-1.5">{label}</div>
+                    {sub && <div className="text-[9px] text-white/60 font-semibold truncate mt-0.5">{sub}</div>}
                 </div>
             </div>
         </div>
@@ -106,7 +106,7 @@ const ManagerDashboard = () => {
     const [activities, setActivities] = useState([]);
     const [reportTeam, setReportTeam] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [taskFilter, setTaskFilter] = useState('All');
+    const [taskFilter, setTaskFilter] = useState("Today's Tasks");
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 7;
     const [reworkModalOpen, setReworkModalOpen] = useState(false);
@@ -153,6 +153,8 @@ const ManagerDashboard = () => {
                 assignerName: t.assigned_by_name,
                 severity: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
                 department: t.department_name || t.department_id,
+                parent_task_id: t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null),
+                parent_task_title: t.parent_task_title || t.parent_task_name || t.parent_directive_title || (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : ''),
             }));
             setTodayTeamTasks(mappedTasks);
 
@@ -195,6 +197,8 @@ const ManagerDashboard = () => {
                         severity: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
                         employee_id: t.assigned_to_emp_id || t.employee_id,
                         assigneeName: t.assigned_to_name || t.assignee_name || t.employee_name || 'Unassigned',
+                        parent_task_id: t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null),
+                        parent_task_title: t.parent_task_title || t.parent_task_name || t.parent_directive_title || (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : ''),
                     }));
 
                     const statusCounts = { NEW: 0, IN_PROGRESS: 0, SUBMITTED: 0, APPROVED: 0, REWORK: 0 };
@@ -214,19 +218,30 @@ const ManagerDashboard = () => {
                         byEmp.set(key, row);
                     });
 
-                    const total = normalized.length;
-                    const approved = statusCounts.APPROVED;
-                    const pending = normalized.filter(t => !TERMINAL_STATUSES.has(t.status)).length;
-                    const rework = statusCounts.REWORK;
+                    const totalCount = normalized.length;
+                    const approvedCount = statusCounts.APPROVED;
+                    
+                    // Standardized Metrics Logic
+                    const totalActive = normalized.filter(t => !TERMINAL_STATUSES.has(t.status)).length; 
+                    const pendingSubmission = statusCounts.NEW + statusCounts.REWORK;
+                    const inProgress = statusCounts.IN_PROGRESS;
+                    const overdue = normalized.filter((t) => {
+                        const due = toDateKey(t.due_date);
+                        const today = new Date().toLocaleDateString('en-CA');
+                        return due && due < today && !TERMINAL_STATUSES.has(t.status);
+                    }).length;
+
                     setDashboardData({
-                        total_tasks: total,
-                        approved_tasks: approved,
-                        pending_tasks: pending,
-                        rework_tasks: rework,
+                        total_tasks: totalActive, // Standardized: only active tasks
+                        approved_tasks: approvedCount,
+                        pending_submission: pendingSubmission, // NEW + REWORK
+                        pending_tasks: totalActive, // For backward compatibility if needed
+                        rework_tasks: statusCounts.REWORK,
                         new_tasks: statusCounts.NEW,
-                        in_progress_tasks: statusCounts.IN_PROGRESS,
+                        in_progress_tasks: inProgress,
                         submitted_tasks: statusCounts.SUBMITTED,
-                        team_performance_index: total > 0 ? Math.round((approved / total) * 100) : 0,
+                        overdue_tasks: overdue,
+                        team_performance_index: totalCount > 0 ? Math.round((approvedCount / totalCount) * 100) : 0,
                     });
                     setTodayTeamTasks(normalized.slice(0, 100));
                     setReportTeam(Array.from(byEmp.values()));
@@ -277,9 +292,8 @@ const ManagerDashboard = () => {
 
     const filteredTasks = useMemo(() => {
         let list = todayTeamTasks;
-        if (taskFilter === 'Needs Review') list = todayTeamTasks.filter(t => t.status === 'SUBMITTED');
+        if (taskFilter === 'Submitted') list = todayTeamTasks.filter(t => t.status === 'SUBMITTED');
         else if (taskFilter === 'In Progress') list = todayTeamTasks.filter(t => t.status === 'IN_PROGRESS');
-        else if (taskFilter === 'Completed') list = todayTeamTasks.filter(t => t.status === 'APPROVED');
         return list;
     }, [todayTeamTasks, taskFilter]);
 
@@ -299,8 +313,8 @@ const ManagerDashboard = () => {
             score: dashboardData.team_performance_index ?? dashboardData.performanceScore ?? 0,
             completionRate: total > 0 ? Math.round((approved / total) * 100) : 0,
             totalReworks: dashboardData.rework_tasks ?? dashboardData.reworks ?? 0,
-            pending: dashboardData.pending_tasks ?? dashboardData.pending ?? 0,
-            total: total
+            pendingSubmission: dashboardData.pending_submission ?? ( (dashboardData.new_tasks||0) + (dashboardData.rework_tasks||0) ),
+            totalActive: dashboardData.total_tasks || 0
         };
     }, [dashboardData]);
 
@@ -313,7 +327,7 @@ const ManagerDashboard = () => {
         );
     }
 
-    const stats = metrics || { score: 0, completionRate: 0, totalReworks: 0, pending: 0, total: 0 };
+    const stats = metrics || { score: 0, completionRate: 0, totalReworks: 0, pendingSubmission: 0, totalActive: 0 };
 
     const rawStatusData = dashboardData ? [
         { name: 'New', value: dashboardData.new_tasks || 0, fill: '#3b82f6' },
@@ -345,7 +359,7 @@ const ManagerDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
                     <div>
-                        <span className="text-5xl font-bold tracking-tight">{stats.total || 0}</span>
+                        <span className="text-5xl font-bold tracking-tight">{stats.totalActive || 0}</span>
                         <p className="text-[15px] font-medium mt-1 text-white/90">Managed Directives</p>
                     </div>
                     <div className="absolute right-4 bottom-4 opacity-20">
@@ -356,7 +370,7 @@ const ManagerDashboard = () => {
                 <div className="bg-[#9B51E0] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28 border border-[#a259e8]">
                     <div className="flex items-start justify-between">
                         <div>
-                            <span className="text-5xl font-bold tracking-tight">{stats.pending || 0}</span>
+                            <span className="text-5xl font-bold tracking-tight">{stats.pendingSubmission || 0}</span>
                             <p className="text-[15px] font-medium mt-1 text-white/90">Pending Actions</p>
                         </div>
                         <div className="opacity-40 mt-2">
@@ -382,13 +396,13 @@ const ManagerDashboard = () => {
             </div>
 
             {/* Main Content Split */}
-            <div className="flex flex-col xl:flex-row gap-6">
-                {/* Left Side - Task Table */}
-                <div className="flex-[7] bg-white rounded-[1.5rem] p-0 shadow-sm border border-slate-100 flex flex-col min-h-[500px]">
+            <div className="flex flex-col xl:flex-row gap-6 items-start">
+                {/* Left Side - Task Table (grows to fill) */}
+                <div className="flex-1 min-w-0 bg-white rounded-[1.5rem] p-0 shadow-sm border border-slate-100 flex flex-col min-h-[500px]">
                     <div className="flex items-center gap-6 pt-6 px-6 border-b border-slate-100 pb-0">
                         <h2 className="text-[17px] font-bold text-slate-800 pb-4">Team Task Overview</h2>
                         <div className="flex gap-5 ml-2">
-                            {['All', 'Needs Review', 'In Progress', 'Completed'].map(tab => (
+                            {["Today's Tasks", "In Progress", "Submitted"].map(tab => (
                                 <button
                                     key={tab}
                                     onClick={() => { setTaskFilter(tab); setCurrentPage(1); }}
@@ -404,7 +418,9 @@ const ManagerDashboard = () => {
                         <table className="w-full text-left">
                             <thead className="text-[12px] text-slate-400 border-b border-slate-100 bg-slate-50/30">
                                 <tr>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap"><input type="checkbox" className="rounded text-violet-600 mr-3 border-slate-300" />Directives</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Directives</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Parent Task ID</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Parent Task</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap">Assignee <ChevronDown size={14} className="inline ml-1" /></th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap">Priority <ChevronDown size={14} className="inline ml-1" /></th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap text-center">Status</th>
@@ -414,10 +430,10 @@ const ManagerDashboard = () => {
                             <tbody className="divide-y divide-slate-50">
                                 {paginatedTasks.length === 0 ? (
                                     <tr>
-                                        <td colSpan="5" className="py-20 text-center">
+                                        <td colSpan="7" className="py-20 text-center">
                                             <div className="flex flex-col items-center gap-2 opacity-40">
                                                 <CheckSquare size={32} />
-                                                <p className="text-xs font-bold uppercase tracking-widest">No matching team objectives</p>
+                                                <p className="text-xs font-bold">No matching team objectives</p>
                                             </div>
                                         </td>
                                     </tr>
@@ -425,11 +441,18 @@ const ManagerDashboard = () => {
                                     paginatedTasks.map(task => (
                                         <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="py-2 px-6 flex items-center gap-3">
-                                                <input type="checkbox" className="rounded border-slate-300 w-4 h-4" />
                                                 <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-sm border border-white">
                                                     <User size={14} />
                                                 </div>
-                                                <span className="text-[13.5px] font-semibold text-slate-700 truncate max-w-[200px]">{task.title}</span>
+                                                <span className="text-[13.5px] font-semibold text-slate-700 truncate max-w-[250px]">{task.title}</span>
+                                            </td>
+                                            <td className="py-2 px-6">
+                                                <span className="text-[13px] font-medium text-slate-500">#{task.parent_task_id || task.parent_id || (task.parent_task ? (task.parent_task.task_id || task.parent_task.id) : '-')}</span>
+                                            </td>
+                                            <td className="py-2 px-6">
+                                                <span className="text-[13px] font-medium text-slate-500 truncate max-w-[150px] block">
+                                                    {task.parent_task_title || task.parent_task_name || task.parent_directive_title || (task.parent_task ? (task.parent_task.task_title || task.parent_task.title) : '-')}
+                                                </span>
                                             </td>
                                             <td className="py-2 px-6">
                                                 <div className="flex items-center gap-2">
@@ -446,8 +469,8 @@ const ManagerDashboard = () => {
                                                 </div>
                                             </td>
                                             <td className="py-2 px-6 text-center">
-                                                <span className={`px-4 py-1.5 rounded-full text-[11px] font-bold shadow-sm inline-block min-w-[90px] ${task.status === 'SUBMITTED' ? 'bg-[#9B51E0] text-white' : task.status === 'IN_PROGRESS' ? 'bg-[#34D399] text-white' : 'bg-[#4285F4] text-white'}`}>
-                                                    {task.status === 'SUBMITTED' ? 'Review' : task.status === 'IN_PROGRESS' ? 'In Progress' : 'Open'}
+                                                <span className={`px-4 py-1.5 rounded-full text-[11px] font-bold shadow-sm inline-block min-w-[90px] ${task.status === 'SUBMITTED' ? 'bg-[#9B51E0] text-white' : task.status === 'IN_PROGRESS' ? 'bg-[#34D399] text-white' : task.status === 'APPROVED' ? 'bg-emerald-500 text-white' : 'bg-[#4285F4] text-white'}`}>
+                                                    {task.status === 'SUBMITTED' ? 'Review' : task.status === 'IN_PROGRESS' ? 'In Progress' : task.status === 'APPROVED' ? 'Approved' : 'New'}
                                                 </span>
                                             </td>
                                             <td className="py-2 px-6 text-right">
@@ -457,10 +480,11 @@ const ManagerDashboard = () => {
                                                         <button onClick={() => handleReworkRequest(task)} className="w-7 h-7 flex items-center justify-center bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-600 hover:text-white transition-all"><AlertTriangle size={14} /></button>
                                                     </div>
                                                 ) : (
-                                                    <button onClick={() => navigate('/tasks')} className="px-5 py-1.5 bg-[#7B51ED] text-white text-[12px] font-bold rounded-lg hover:bg-violet-700 transition-[transform,colors] active:scale-95 shadow-sm">
+                                                    <button onClick={() => navigate(`/tasks?taskId=${task.id}`)} className="px-5 py-1.5 bg-[#7B51ED] text-white text-[12px] font-bold rounded-lg hover:bg-violet-700 transition-[transform,colors] active:scale-95 shadow-sm">
                                                         View
                                                     </button>
                                                 )}
+
                                             </td>
                                         </tr>
                                     ))
@@ -502,34 +526,39 @@ const ManagerDashboard = () => {
                     </div>
                 </div>
 
-                {/* Right Side - Actions & Activity */}
-                <div className="flex-[2.5] flex flex-col gap-6">
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-800 mb-4 ml-1">Quick Actions</h3>
+                {/* Right Sidebar - Quick Actions + Recent Activity stacked */}
+                <div className="flex flex-col gap-6 w-full xl:w-[320px] shrink-0">
+
+                    {/* Quick Actions */}
+                    <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100">
+                        <h3 className="text-[15px] font-bold text-slate-800 mb-4 tracking-tight">Quick Actions</h3>
                         <div className="flex flex-col gap-3">
                             <button onClick={() => navigate('/tasks/assign')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
                                 <Plus size={18} strokeWidth={2.5} /> Assign Task
                             </button>
-                            <button onClick={() => navigate('/reports')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
-                                <BarChart2 size={18} strokeWidth={2.5} /> View Reports
-                            </button>
                             <button onClick={() => navigate('//tasks?mode=team')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
                                 <Users size={18} strokeWidth={2.5} /> Manage Team
+                            </button>
+                            <button onClick={() => navigate('/reports')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
+                                <Activity size={18} strokeWidth={2.5} /> View Reports
                             </button>
                         </div>
                     </div>
 
-                    <div className="flex-1 min-h-[300px]">
-                        <div className="flex justify-between items-center mb-4 ml-1">
-                            <h3 className="text-lg font-bold text-slate-800">Recent Activity</h3>
-                            <button className="text-slate-400 hover:text-slate-600"><Settings size={16} /></button>
+                    {/* Recent Activity */}
+                    <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100">
+                        <div className="flex justify-between items-center mb-5">
+                            <h3 className="text-[15px] font-bold text-slate-800 tracking-tight">Recent Activity</h3>
+                            <button className="text-slate-400 hover:text-slate-600 transition-colors">
+                                <Settings size={16} />
+                            </button>
                         </div>
 
                         <div className="space-y-3">
                             {activities.length === 0 ? (
                                 <div className="py-10 text-center">
                                     <Activity className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">No recent activity</p>
+                                    <p className="text-[10px] text-slate-400 font-bold">No recent activity</p>
                                 </div>
                             ) : (
                                 activities.slice(0, 8).map((n, idx) => (
@@ -541,8 +570,39 @@ const ManagerDashboard = () => {
                                         </div>
                                         <div className="flex-1 pt-0.5 min-w-0">
                                             <p className="text-[13px] text-slate-600 leading-tight">
-                                                <span className="font-bold text-slate-800">{n.title || 'Activity'}</span>
-                                                <span className="block text-slate-500 mt-1 text-[12px]">{n.message}</span>
+                                                {(() => {
+                                                    // Robust title resolution: check common fields, then fallback to lookup
+                                                    let displayTitle = n.task_title || n.title || n.task_name || n.directive_name || n.directive_title || n.task?.title;
+
+                                                    if (!displayTitle && (n.task_id || n.id)) {
+                                                        const tid = n.task_id || n.id;
+                                                        const foundTask = todayTeamTasks.find(t => String(t.id) === String(tid));
+                                                        if (foundTask) displayTitle = foundTask.title;
+                                                    }
+
+                                                    if (!displayTitle) displayTitle = n.task_id ? `Task #${n.task_id}` : 'this task';
+
+                                                    const title = <span className="font-bold text-violet-600">"{displayTitle}"</span>;
+                                                    const actor = <span className="font-bold text-slate-800">{n.actor_name || 'Member'}</span>;
+                                                    switch (n.type) {
+                                                        case 'TASK_CREATED':
+                                                        case 'TASK_REASSIGNED':
+                                                            return <>Task {title} assigned</>;
+                                                        case 'TASK_STARTED':
+                                                            return <>{actor} started task {title}</>;
+                                                        case 'TASK_SUBMITTED':
+                                                            return <>{actor} submitted task {title}</>;
+                                                        case 'TASK_REWORK':
+                                                            return <>{actor} requested rework on task {title}</>;
+                                                        case 'TASK_APPROVED':
+                                                            return <>Task {title} approved</>;
+                                                        case 'TASK_CANCELLED':
+                                                            return <>Task {title} cancelled</>;
+                                                        default:
+                                                            return <>{actor} {n.message}</>;
+                                                    }
+                                                })()}
+                                                {n.comment && <span className="block text-slate-400 mt-1 italic text-[12px] border-l-2 border-slate-100 pl-2">"{n.comment}"</span>}
                                             </p>
                                             <p className="text-[11px] font-medium text-slate-400 mt-1">{formatTimeAgo(n.created_at)}</p>
                                         </div>
@@ -573,7 +633,7 @@ const ManagerDashboard = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {finalRankingData.length === 0 ? (
-                                <tr><td colSpan="6" className="py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No ranking data available</td></tr>
+                                <tr><td colSpan="6" className="py-12 text-center text-slate-400 font-bold text-xs">No ranking data available</td></tr>
                             ) : (
                                 finalRankingData.slice(0, 5).map((member) => {
                                     const rate = member.assigned > 0 ? Math.round((member.completed / member.assigned) * 100) : 0;
@@ -594,7 +654,7 @@ const ManagerDashboard = () => {
                                                 </div>
                                             </td>
                                             <td className="py-3 px-6 text-right">
-                                                <button onClick={() => navigate('/tasks')} className="px-5 py-1.5 bg-[#7B51ED] text-white text-[12px] font-bold rounded-lg hover:bg-violet-700 transition-[transform,colors] active:scale-95 shadow-sm inline-flex items-center gap-1.5">
+                                                <button onClick={() => navigate(`/tasks?employeeId=${member.id}`)} className="px-5 py-1.5 bg-[#7B51ED] text-white text-[12px] font-bold rounded-lg hover:bg-violet-700 transition-[transform,colors] active:scale-95 shadow-sm inline-flex items-center gap-1.5">
                                                     View
                                                 </button>
                                             </td>
@@ -613,7 +673,7 @@ const ManagerDashboard = () => {
                 onConfirm={handleReworkConfirm}
                 taskTitle={taskForRework?.title || ''}
             />
-        </div>
+        </div >
     );
 };
 
