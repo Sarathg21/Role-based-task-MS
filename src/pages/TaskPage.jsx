@@ -531,20 +531,41 @@ const TaskPage = () => {
       const response = await api.get('/tasks', { params });
 
       const raw = Array.isArray(response.data) ? response.data : (Array.isArray(response.data?.data) ? response.data.data : []);
-      const normalised = raw.map(t => ({
-        ...t,
-        id: t.task_id || t.id,
-        employee_id: t.assigned_to_emp_id || t.employee_id,
-        assigned_by: t.assigned_by_emp_id || t.assigned_by,
-        assigneeName: t.assigned_to_name || t.assignee_name || t.employee_name,
-        assignerName: t.assigned_by_name || t.assigner_name || t.manager_name,
-        severity: (t.priority || t.severity || '').toUpperCase(),
-        department_id: t.department_id,
-        department: t.department_name || t.department || '',
-        assignee_role: t.assignee_role || t.role,
-        parent_task_id: t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null),
-        parent_task_title: t.parent_task_title || t.parent_task_name || t.parent_directive_title || (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : ''),
-      }));
+
+      // Build a lookup of task_id -> title so that when the API only returns a parent_task_id
+      // (without parent_task_title), we can still show the parent name in the grid.
+      const titleById = {};
+      raw.forEach(t => {
+        const id = t.task_id || t.id;
+        const title = t.task_title || t.title;
+        if (id && title) {
+          titleById[String(id)] = title;
+        }
+      });
+
+      const normalised = raw.map(t => {
+        const parentId = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+        const inlineParentTitle =
+          t.parent_task_title ||
+          t.parent_task_name ||
+          t.parent_directive_title ||
+          (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : '');
+
+        return {
+          ...t,
+          id: t.task_id || t.id,
+          employee_id: t.assigned_to_emp_id || t.employee_id,
+          assigned_by: t.assigned_by_emp_id || t.assigned_by,
+          assigneeName: t.assigned_to_name || t.assignee_name || t.employee_name,
+          assignerName: t.assigned_by_name || t.assigner_name || t.manager_name,
+          severity: (t.priority || t.severity || '').toUpperCase(),
+          department_id: t.department_id,
+          department: t.department_name || t.department || '',
+          assignee_role: t.assignee_role || t.role,
+          parent_task_id: parentId,
+          parent_task_title: inlineParentTitle || (parentId ? (titleById[String(parentId)] || '') : ''),
+        };
+      });
       setTasks(normalised);
     } catch (err) {
       console.error("Failed to fetch tasks", err);

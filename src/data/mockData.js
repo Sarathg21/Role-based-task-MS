@@ -234,7 +234,9 @@ export const TASKS = [
         reworkCount: 1,
         assignedDate: '2023-11-01',
         dueDate: '2023-11-05',
-        completedDate: '2023-11-04' // On time
+        completedDate: '2023-11-04', // On time
+        parent_task_id: 'TSK-102',
+        parent_task_title: 'API Integration'
     },
     {
         id: 'TSK-109',
@@ -249,7 +251,8 @@ export const TASKS = [
         reworkCount: 0,
         assignedDate: '2023-11-05',
         dueDate: '2023-11-10',
-        completedDate: '2023-11-12' // Late
+        completedDate: '2023-11-12', // Late
+        parent_task_id: 'TSK-102'
     },
     {
         id: 'TSK-110',
@@ -518,6 +521,32 @@ export const TASKS = [
     // ── Cash Management Team Tasks ───────────────────────────────
     { id: 'TSK-211', title: 'Daily Cash Forecast', description: 'Prepare intraday cash position forecast', employeeId: 'EMP020', managerId: 'MGR008', assignedBy: 'MGR008', department: 'Cash Management Team', severity: 'High', status: 'NEW', reworkCount: 0, assignedDate: '2026-02-20', dueDate: '2026-02-20', completedDate: null },
     { id: 'TSK-212', title: 'Bank Reconciliation', description: 'Reconcile all bank accounts for Feb statement', employeeId: 'EMP021', managerId: 'MGR008', assignedBy: 'MGR008', department: 'Cash Management Team', severity: 'Medium', status: 'IN_PROGRESS', reworkCount: 0, assignedDate: '2026-02-19', dueDate: '2026-02-22', completedDate: null }
+];
+
+export const OKRS = [
+    {
+        id: 'OKR-1',
+        title: 'Bring a world class experience to our customers',
+        icon: '❤️',
+        progress: 40,
+        label: 'NCS',
+        daysLeft: 12,
+        keyResults: [
+            { id: 'KR-1-1', title: 'Reach a NPS of 60 or above', progress: 47, category: 'Retention', tasks: 3, completedTasks: 2, totalTasks: 5, team: ['EMP001', 'EMP002'], color: '#10b981' },
+            { id: 'KR-1-2', title: 'Increase the number of active users from 20K to 28K', progress: 49, completedTasks: 0, totalTasks: 1, team: ['EMP004'], color: '#f59e0b' }
+        ]
+    },
+    {
+        id: 'OKR-2',
+        title: 'Power up our growth loop',
+        icon: '⚡',
+        progress: 60,
+        keyResults: [
+            { id: 'KR-2-1', title: 'Get 75 new trials every week', progress: 80, category: 'Product', team: ['EMP005'], color: '#10b981' },
+            { id: 'KR-2-2', title: 'Reduce leads cost from $65 to $35/lead', progress: 53, category: 'Marketing', subCategory: 'Blog', tasks: 2, completedTasks: 1, totalTasks: 3, team: ['EMP010', 'EMP011', 'EMP012'], color: '#ef4444' },
+            { id: 'KR-2-3', title: 'Increase conversions to paid from 4% to 10%', progress: 70, category: 'GTM', tasks: 3, completedTasks: 0, totalTasks: 3, team: ['EMP016'], color: '#10b981' }
+        ]
+    }
 ];
 
 export const DEPARTMENTS = [

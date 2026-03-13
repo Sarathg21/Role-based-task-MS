@@ -139,6 +139,94 @@ const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
     );
 };
 
+const TaskDistributionCard = ({ data }) => {
+    if (!data || Object.keys(data).length === 0) return (
+        <div className="bg-white border border-slate-100 shadow-sm rounded-2xl p-8 text-center h-[320px] flex flex-col items-center justify-center">
+            <Activity className="w-10 h-10 text-slate-200 mb-4 opacity-50" />
+            <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Syncing Distribution...</p>
+        </div>
+    );
+
+    const COLORS = {
+        'New': '#3b82f6',
+        'In Progress': '#6366f1',
+        'Submitted': '#f59e0b',
+        'Approved': '#10b981',
+        'Rework': '#ea580c',
+        'Overdue': '#ef4444',
+        'Cancelled': '#94a3b8'
+    };
+
+    const displayData = [
+        { name: 'New', value: data.new_tasks || 0, color: COLORS['New'] },
+        { name: 'In Progress', value: data.in_progress_tasks || 0, color: COLORS['In Progress'] },
+        { name: 'Submitted', value: data.submitted_tasks || 0, color: COLORS['Submitted'] },
+        { name: 'Approved', value: data.approved_tasks || 0, color: COLORS['Approved'] },
+        { name: 'Rework', value: data.rework_tasks || 0, color: COLORS['Rework'] },
+        { name: 'Overdue', value: data.overdue_tasks || 0, color: COLORS['Overdue'] }
+    ].filter(d => d.value > 0);
+
+    const grandTotal = displayData.reduce((acc, d) => acc + d.value, 0) || 1;
+
+    return (
+        <div className="bg-white border border-slate-100 shadow-sm rounded-2xl p-6 transition-all hover:shadow-md h-full flex flex-col min-h-[320px]">
+            <h3 className="text-[13px] font-black text-slate-700 mb-6 flex items-center gap-2 uppercase tracking-tight">
+                <BarChart2 size={14} className="text-indigo-500" />
+                My Task Distribution
+            </h3>
+            
+            <div className="flex flex-1 items-center gap-8 px-2">
+                {/* Donut Chart */}
+                <div className="relative w-40 h-40 shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                            <Pie
+                                data={displayData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={48}
+                                outerRadius={75}
+                                paddingAngle={2}
+                                dataKey="value"
+                                stroke="none"
+                            >
+                                {displayData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                            </Pie>
+                            <Tooltip 
+                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '10px' }}
+                            />
+                        </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Total</span>
+                        <span className="text-2xl font-black text-slate-800 tabular-nums">{grandTotal === 1 && displayData.length === 0 ? 0 : grandTotal}</span>
+                    </div>
+                </div>
+
+                {/* Legend */}
+                <div className="flex-1 space-y-3.5">
+                    {displayData.map((item, idx) => {
+                        const pct = Math.round((item.value / grandTotal) * 100);
+                        return (
+                            <div key={idx} className="flex items-center justify-between group">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                                    <span className="text-[12px] font-bold text-slate-600 group-hover:text-slate-900 transition-colors uppercase tracking-tight">{item.name}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[13px] font-black text-slate-800 tabular-nums w-8 text-right">{pct}%</span>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 /* ─── Employee Dashboard ───────────────────────────────────── */
 const EmployeeDashboard = () => {
     const { user } = useAuth();
@@ -160,18 +248,71 @@ const EmployeeDashboard = () => {
     const itemsPerPage = 10;
 
     const fetchActivities = async () => {
-        setLoadingActivities(true);
-        try {
-            const res = await api.get('/dashboard/employee/activities', { params: { limit: 10 } });
-            const data = res.data?.data || res.data || [];
-            setActivities(Array.isArray(data) ? data : []);
-        } catch (err) {
-            console.error("Failed to fetch activities", err);
-        } finally {
-            setLoadingActivities(false);
-        }
-    };
+    setLoadingActivities(true);
 
+    try {
+        const res = await api.get('/notifications', { params: { limit: 10 } });
+
+        const data =
+            res.data?.data ||
+            res.data?.notifications ||
+            res.data ||
+            [];
+
+        if (Array.isArray(data) && data.length > 0) {
+            setActivities(data);
+        } else {
+            // fallback from tasks
+            const sourceTasks = todayTasks.length ? todayTasks : allTasks;
+
+            const fallback = sourceTasks.slice(0, 10).map((t, idx) => ({
+                id: `task-${t.id}-${idx}`,
+                actor_name: t.assignerName || "Manager",
+                task_title: t.title,
+                type:
+                    t.status === "APPROVED"
+                        ? "TASK_APPROVED"
+                        : t.status === "SUBMITTED"
+                        ? "TASK_SUBMITTED"
+                        : t.status === "REWORK"
+                        ? "TASK_REWORK"
+                        : t.status === "IN_PROGRESS"
+                        ? "TASK_STARTED"
+                        : "TASK_CREATED",
+                created_at:
+                    t.updated_at ||
+                    t.created_at ||
+                    t.assigned_date ||
+                    new Date().toISOString(),
+            }));
+
+            setActivities(fallback);
+        }
+
+    } catch (err) {
+        console.error("Failed to fetch activities", err);
+
+        // fallback if API fails
+        const sourceTasks = todayTasks.length ? todayTasks : allTasks;
+
+        const fallback = sourceTasks.slice(0, 10).map((t, idx) => ({
+            id: `task-${t.id}-${idx}`,
+            actor_name: t.assignerName || "Manager",
+            task_title: t.title,
+            type: "TASK_CREATED",
+            created_at:
+                t.updated_at ||
+                t.created_at ||
+                t.assigned_date ||
+                new Date().toISOString(),
+        }));
+
+        setActivities(fallback);
+
+    } finally {
+        setLoadingActivities(false);
+    }
+};
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
@@ -207,18 +348,39 @@ const EmployeeDashboard = () => {
             })));
             // Always fetch full task list to ensure "All" tab and Performance Index are accurate
             const rawTasks = await fetchEmployeeTasksFallback(params);
-            const normalized = rawTasks.map((t) => ({
-                ...t,
-                id: t.task_id || t.id,
-                status: String(t.status || '').toUpperCase(),
-                severity: (t.priority || t.severity || 'LOW').toUpperCase(),
-                due_date: t.due_date,
-                title: t.title || 'Untitled',
-                assigneeName: t.assigned_to_name || user?.name || 'Me',
-                assignerName: t.assigned_by_name || 'Manager',
-                parent_task_id: t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null),
-                parent_task_title: t.parent_task_title || t.parent_task_name || t.parent_directive_title || (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : ''),
-            }));
+
+            // Build lookup of task_id -> title so we can resolve parent names even when
+            // the API only sends parent_task_id without parent_task_title.
+            const titleById = {};
+            rawTasks.forEach((t) => {
+                const id = t.task_id || t.id;
+                const title = t.task_title || t.title;
+                if (id && title) {
+                    titleById[String(id)] = title;
+                }
+            });
+
+            const normalized = rawTasks.map((t) => {
+                const parentId = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+                const inlineParentTitle =
+                    t.parent_task_title ||
+                    t.parent_task_name ||
+                    t.parent_directive_title ||
+                    (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : '');
+
+                return {
+                    ...t,
+                    id: t.task_id || t.id,
+                    status: String(t.status || '').toUpperCase(),
+                    severity: (t.priority || t.severity || 'LOW').toUpperCase(),
+                    due_date: t.due_date,
+                    title: t.title || 'Untitled',
+                    assigneeName: t.assigned_to_name || user?.name || 'Me',
+                    assignerName: t.assigned_by_name || 'Manager',
+                    parent_task_id: parentId,
+                    parent_task_title: inlineParentTitle || (parentId ? (titleById[String(parentId)] || '') : ''),
+                };
+            });
 
             const counts = { NEW: 0, IN_PROGRESS: 0, SUBMITTED: 0, APPROVED: 0, REWORK: 0, CANCELLED: 0 };
             normalized.forEach((t) => {
@@ -284,12 +446,25 @@ const EmployeeDashboard = () => {
     };
 
     useEffect(() => {
-        if (user?.id) {
+        fetchDashboardData();
+        fetchActivities();
+
+        const dashInterval = setInterval(fetchDashboardData, 30000);
+        const actInterval = setInterval(fetchActivities, 15000);
+
+        const handleRefresh = () => {
             fetchDashboardData();
             fetchActivities();
-        }
-    }, [user?.id, fromDate, toDate]);
+        };
 
+        window.addEventListener('refresh-notifications', handleRefresh);
+
+        return () => {
+            clearInterval(dashInterval);
+            clearInterval(actInterval);
+            window.removeEventListener('refresh-notifications', handleRefresh);
+        };
+    }, [fromDate, toDate]);
     const metrics = useMemo(() => {
         if (!dashboardData) return null;
 
@@ -401,49 +576,55 @@ const EmployeeDashboard = () => {
         <div className="space-y-6 animate-fade-in pb-8 mt-4">
 
 
-            {/* Top Metrics Row - Aligned with below */}
-            <div className="flex flex-col xl:flex-row gap-6">
-                {/* Left Widgets - Aligned with Task Table */}
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
-                        <div>
-                            <span className="text-5xl font-bold tracking-tight">{stats.total || 0}</span>
-                            <p className="text-[15px] font-medium mt-1 text-white/90">Total Tasks</p>
-                        </div>
-                        <div className="absolute right-4 bottom-4 opacity-20">
-                            <CheckSquare size={72} strokeWidth={1.5} />
-                        </div>
-                    </div>
-
-                    <div className="bg-[#34D399] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
-                        <div className="flex items-start justify-between">
+            {/* Top Metrics Row - 3 equal cards, aligned with My Task List width */}
+            <div className="flex flex-col xl:flex-row gap-4">
+                {/* Left: metric cards, same flex-1 width as task table */}
+                <div className="flex-1">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-5 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
                             <div>
-                                <span className="text-5xl font-bold tracking-tight">{score || 0}%</span>
-                                <p className="text-[15px] font-medium mt-1 text-white/90">Performance Index</p>
+                                <span className="text-4xl font-bold tracking-tight">{stats.total || 0}</span>
+                                <p className="text-[14px] font-medium mt-1 text-white/90">Total Tasks</p>
                             </div>
-                            <div className="opacity-40 mt-2">
-                                <TrendingUp size={32} />
+                            <div className="absolute right-4 bottom-4 opacity-20">
+                                <CheckSquare size={56} strokeWidth={1.5} />
+                            </div>
+                        </div>
+
+                        <div className="bg-[#34D399] text-white rounded-[1.5rem] p-5 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <span className="text-4xl font-bold tracking-tight">{score || 0}%</span>
+                                    <p className="text-[14px] font-medium mt-1 text-white/90">Performance Index</p>
+                                </div>
+                                <div className="opacity-40 mt-2">
+                                    <TrendingUp size={28} />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-[#9B51E0] text-white rounded-[1.5rem] p-5 shadow-sm relative overflow-hidden flex flex-col justify-between h-28 border border-[#a259e8]">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <span className="text-4xl font-bold tracking-tight">{stats.pendingSubmission || 0}</span>
+                                    <p className="text-[14px] font-medium mt-1 text-white/90">Pending Submission</p>
+                                </div>
+                                <div className="opacity-40 mt-2">
+                                    <Activity size={28} />
+                                </div>
+                            </div>
+                            <div className="absolute right-[-10px] bottom-[-10px] opacity-10">
+                                <div className="w-24 h-24 rounded-full border-[10px] border-white"></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Right Widget - Aligned with Sidebar */}
-                <div className="w-full xl:w-[320px] shrink-0">
-                    <div className="bg-[#9B51E0] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28 border border-[#a259e8]">
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <span className="text-5xl font-bold tracking-tight">{stats.pendingSubmission || 0}</span>
-                                <p className="text-[15px] font-medium mt-1 text-white/90">Pending Submission</p>
-                            </div>
-                            <div className="opacity-40 mt-2">
-                                <Activity size={32} />
-                            </div>
-                        </div>
-                        <div className="absolute right-[-10px] bottom-[-10px] opacity-10">
-                            <div className="w-32 h-32 rounded-full border-[12px] border-white"></div>
-                        </div>
-                    </div>
+                {/* Right: spacer matching quick actions column so cards don't extend under it */}
+                <div className="hidden xl:flex w-[320px] shrink-0 gap-4">
+                     <div className="flex-1">
+                        <TaskDistributionCard data={dashboardData} />
+                     </div>
                 </div>
             </div>
 
@@ -614,64 +795,62 @@ const EmployeeDashboard = () => {
                             </button>
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="space-y-3 max-h-[480px] overflow-y-auto custom-scrollbar pr-1">
                             {loadingActivities ? (
-                                <div className="flex flex-col items-center justify-center p-8">
-                                    <Loader2 className="w-6 h-6 text-violet-500 animate-spin mb-2" />
-                                    <p className="text-[10px] text-slate-400 font-bold">Loading Activity...</p>
+                                <div className="flex flex-col items-center justify-center p-12 bg-slate-50/50 rounded-2xl border border-dashed border-slate-100">
+                                    <Loader2 className="w-8 h-8 text-violet-500 animate-spin mb-2" />
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Syncing Activity Stream...</p>
                                 </div>
                             ) : activities.length === 0 ? (
-                                <div className="text-center p-6 text-slate-400 text-xs font-bold">No Recent Activity</div>
-                            ) : activities.map((i, idx) => {
-                                const renderMessage = () => {
-                                    // Robust title resolution: check common fields, then fallback to lookup
-                                    let displayTitle = i.task_title || i.title || i.task_name || i.directive_name || i.directive_title || i.task?.title;
-                                    
-                                    if (!displayTitle && (i.task_id || i.id)) {
-                                        const tid = i.task_id || i.id;
-                                        const foundTask = allTasks.find(t => String(t.id) === String(tid));
-                                        if (foundTask) displayTitle = foundTask.title;
-                                    }
+                                <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-100">
+                                    <Activity className="w-8 h-8 text-slate-200 mx-auto mb-2 opacity-50" />
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">No recent personal activity</p>
+                                </div>
+                            ) : activities.slice(0, 10).map((i, idx) => {
+                                const actorName = i.actor_name || i.user_name || i.actor?.name || 'Manager';
+                                const taskTitle = i.task_title || i.title || i.directive_title || i.task?.title || 'Directive';
+                                const type = i.type || i.action || 'ACTIVITY';
 
-                                    if (!displayTitle) displayTitle = i.task_id ? `Task #${i.task_id}` : 'this task';
-                                    
-                                    const title = <span className="font-bold text-violet-600">"{displayTitle}"</span>;
-                                    const actor = <span className="font-bold text-slate-800">{i.actor_name || 'Manager'}</span>;
-
-                                    switch (i.type) {
-                                        case 'TASK_CREATED':
-                                        case 'TASK_REASSIGNED':
-                                            return <>Task {title} assigned to you</>;
-                                        case 'TASK_STARTED':
-                                            return <>You started task {title}</>;
-                                        case 'TASK_SUBMITTED':
-                                            return <>You submitted task {title}</>;
-                                        case 'TASK_REWORK':
-                                            return <>{actor} requested rework on task {title}</>;
-                                        case 'TASK_APPROVED':
-                                            return <>Task {title} approved</>;
-                                        case 'TASK_CANCELLED':
-                                            return <>Task {title} cancelled</>;
-                                        default:
-                                            return <>{actor} {i.message}</>;
-                                    }
+                                const getStyle = () => {
+                                    if (type === 'TASK_APPROVED' || type === 'SUCCESS') return 'bg-emerald-100 text-emerald-600 border-emerald-200';
+                                    if (type === 'TASK_REWORK' || type === 'TASK_CANCELLED' || type === 'WARNING') return 'bg-rose-100 text-rose-600 border-rose-200';
+                                    if (type === 'TASK_SUBMITTED' || type === 'TASK_REASSIGNED') return 'bg-amber-100 text-amber-600 border-amber-200';
+                                    return 'bg-indigo-100 text-indigo-600 border-indigo-200';
                                 };
 
                                 return (
-                                    <div key={i.id || idx} className="flex gap-3 items-start border border-slate-100 p-3.5 rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                                        <div className={`w-9 h-9 border-2 border-white shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-bold text-white text-sm ${i.type === 'TASK_APPROVED' || i.type === 'SUCCESS' ? 'bg-emerald-500' :
-                                            i.type === 'TASK_REWORK' || i.type === 'TASK_CANCELLED' || i.type === 'WARNING' ? 'bg-rose-500' :
-                                                i.type === 'TASK_SUBMITTED' || i.type === 'TASK_REASSIGNED' ? 'bg-amber-500' :
-                                                    'bg-indigo-500'
-                                            }`}>
-                                            {(i.actor_name || i.title || 'S').charAt(0)}
+                                    <div key={i.id || idx} className="flex gap-3 items-start border border-slate-100 p-3.5 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group cursor-pointer">
+                                        <div className={`w-9 h-9 border shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-black text-xs ${getStyle()}`}>
+                                            {actorName.charAt(0).toUpperCase()}
                                         </div>
-                                        <div className="flex-1 pt-0.5">
-                                            <p className="text-[13px] text-slate-600 leading-tight">
-                                                {renderMessage()}
-                                                {i.comment && <span className="block text-slate-400 mt-1 italic text-[12px] border-l-2 border-slate-100 pl-2">"{i.comment}"</span>}
+                                        <div className="flex-1 pt-0.5 min-w-0">
+                                            <div className="flex items-center justify-between mb-0.5">
+                                                <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight">{actorName}</span>
+                                                <span className="text-[9px] font-bold text-slate-400">{formatTimeAgo(i.created_at)}</span>
+                                            </div>
+                                            <p className="text-[13px] text-slate-500 leading-tight">
+                                                {(() => {
+                                                    const title = <span className="font-bold text-violet-600">"{taskTitle}"</span>;
+                                                    switch (type) {
+                                                        case 'TASK_CREATED':
+                                                        case 'TASK_REASSIGNED':
+                                                            return <>Task {title} assigned to you</>;
+                                                        case 'TASK_STARTED':
+                                                            return <>You started task {title}</>;
+                                                        case 'TASK_SUBMITTED':
+                                                            return <>You submitted task {title}</>;
+                                                        case 'TASK_REWORK':
+                                                            return <>{actorName} requested rework on task {title}</>;
+                                                        case 'TASK_APPROVED':
+                                                            return <>Task {title} approved</>;
+                                                        case 'TASK_CANCELLED':
+                                                            return <>Task {title} cancelled</>;
+                                                        default:
+                                                            return i.message || <>interacted with {title}</>;
+                                                    }
+                                                })()}
                                             </p>
-                                            <p className="text-[11px] font-medium text-slate-400 mt-1.5">{formatTimeAgo(i.created_at)}</p>
+                                            {i.comment && <span className="block text-slate-400 mt-1 italic text-[12px] border-l-2 border-slate-100 pl-2">"{i.comment}"</span>}
                                         </div>
                                     </div>
                                 );

@@ -15,6 +15,7 @@ const Navbar = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const location = useLocation();
     const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
+    const roleUpper = (user?.role || '').toUpperCase();
 
     const [fromDate, setFromDate] = useState(localStorage.getItem('dashboard_from_date') || '');
     const [toDate, setToDate] = useState(localStorage.getItem('dashboard_to_date') || '');
@@ -44,6 +45,9 @@ const Navbar = () => {
 
         const pollInterval = setInterval(fetchNotifications, 30000);
 
+        const handleRefresh = () => fetchNotifications();
+        window.addEventListener('refresh-notifications', handleRefresh);
+
         const handleClickOutside = (e) => {
             if (notifRef.current && !notifRef.current.contains(e.target)) {
                 setShowNotifications(false);
@@ -56,6 +60,7 @@ const Navbar = () => {
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
             window.removeEventListener('focus', fetchNotifications);
+            window.removeEventListener('refresh-notifications', handleRefresh);
             clearInterval(pollInterval);
         };
     }, [user]);
@@ -93,15 +98,17 @@ const Navbar = () => {
 
     return (
         <header className="navbar cfo-navbar sticky top-0 bg-white/100 backdrop-blur-md z-40 border-b border-slate-100 flex items-center justify-between px-6 py-4">
-            {/* Left Side: FJ Logo & CFO Title */}
+            {/* Left Side: Title (logo only for CFO/Admin) */}
             <div className="flex items-center gap-4 w-[400px]">
-                <div className="w-10 h-10 flex-shrink-0 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex items-center justify-center">
-                    <img src="/images/fj.png.png" alt="FJ Group" className="w-8 h-8 object-contain" />
-                </div>
+                {['CFO', 'ADMIN'].includes(roleUpper) && (
+                    <div className="w-10 h-10 shrink-0 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex items-center justify-center">
+                        <img src="/images/fj.png.png" alt="FJ Group" className="w-8 h-8 object-contain" />
+                    </div>
+                )}
                 <div className="flex flex-col">
                     <h1 className="text-[17px] font-bold text-slate-900 leading-tight tracking-tight">
                         {(() => {
-                            const role = (user?.role || '').toUpperCase();
+                            const role = roleUpper;
                             if (role === 'CFO') {
                                 if (location.pathname === '/reports') return 'CFO Reports';
                                 if (location.pathname === '/tasks/team') return 'CFO Team Tasks';

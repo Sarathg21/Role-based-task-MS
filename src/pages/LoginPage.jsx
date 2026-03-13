@@ -194,7 +194,7 @@ const S = {
         display: 'flex',
     },
 
-    forgotRow: { textAlign: 'right', marginBottom: '1.5rem' },
+    forgotRow: { textAlign: 'right', marginBottom: '0.75rem' },
     forgotBtn: {
         background: 'none',
         border: 'none',
@@ -203,7 +203,14 @@ const S = {
         fontWeight: 600,
         cursor: 'pointer',
         padding: 0,
-    },
+    },
+    forgotNote: {
+        fontSize: '0.75rem',
+        color: '#6b7280',
+        lineHeight: 1.5,
+        textAlign: 'left',
+        marginBottom: '1.5rem',
+    },
 
     signInBtn: {
         width: '100%',
@@ -394,10 +401,25 @@ const LoginPage = () => {
                             </div>
                         </div>
 
-                        <div style={S.forgotRow}>
-                            <button type="button" style={S.forgotBtn}>Forgot password?</button>
-                        </div>
-
+                                <div style={S.forgotRow}>
+                                    <button
+                                        type="button"
+                                        style={S.forgotBtn}
+                                        onClick={() => {
+                                            alert(
+`If you forgot your password, please contact the Admin.
+Your password can be reset by Admin, and you will be asked to change it after login.
+Contact: admin@company.com`
+                                            );
+                                        }}
+                                    >
+                                        Forgot password?
+                                    </button>
+                                </div>
+                                <p style={S.forgotNote}>
+                                    If you forgot your password, please contact the Admin. Your password can be reset by Admin,
+                                    and you will be asked to change it after login. Contact: <strong>admin@company.com</strong>
+                                </p>
                         <button
                             type="submit"
                             style={S.signInBtn}

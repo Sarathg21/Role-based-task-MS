@@ -11,6 +11,7 @@ import {
   Loader2,
   XCircle,
   RefreshCw,
+  KeyRound,
 } from "lucide-react";
 
 import AddEmployeeForm from "../components/Modals/AddEmployeeModal";
@@ -27,6 +28,7 @@ const AdminPage = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState(null);
+  const [resettingId, setResettingId] = useState(null);
 
   // Use a fetch function that explicitly accepts current values (avoids stale closure)
   const fetchInitialData = async (overrides = {}) => {
@@ -103,6 +105,21 @@ const AdminPage = () => {
       toast.error(`Failed to ${action} ${emp.name}`);
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  const handleResetPassword = async (emp) => {
+    if (!window.confirm(`Reset password for ${emp.name} (${emp.emp_id})?`)) return;
+
+    setResettingId(emp.emp_id);
+    try {
+      await api.post(`/employees/${emp.emp_id}/reset-password`);
+      toast.success(`Password reset for ${emp.name}. They will be asked to change it after login.`);
+    } catch (err) {
+      console.error("Failed to reset password", err);
+      toast.error(`Failed to reset password for ${emp.name}`);
+    } finally {
+      setResettingId(null);
     }
   };
 
@@ -379,10 +396,24 @@ const AdminPage = () => {
                         </td>
 
                         <td className="px-6 py-1.5 text-right">
-                          <div className="flex justify-end gap-1 translate-x-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                          <div className="flex justify-end gap-2 translate-x-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
+                            <button
+                              onClick={() => handleResetPassword(emp)}
+                              disabled={!!resettingId || togglingId === emp.emp_id}
+                              className="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 bg-slate-900 text-white hover:bg-slate-800"
+                            >
+                              {resettingId === emp.emp_id ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <>
+                                  <KeyRound size={12} />
+                                  Reset
+                                </>
+                              )}
+                            </button>
                             <button
                               onClick={() => handleToggleStatus(emp)}
-                              disabled={togglingId === emp.emp_id}
+                              disabled={togglingId === emp.emp_id || !!resettingId}
                               className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-2 ${emp.active
                                 ? "bg-white text-rose-500 hover:bg-rose-50 border border-rose-100"
                                 : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-100"

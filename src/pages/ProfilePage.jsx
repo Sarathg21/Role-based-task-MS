@@ -96,20 +96,63 @@ const ProfilePage = () => {
     const [orgTree, setOrgTree] = useState(null);
     const [orgLoading, setOrgLoading] = useState(false);
     const [managerInfo, setManagerInfo] = useState(null);
+    const [activeTab, setActiveTab] = useState('overview'); // tabs: overview, organisation, security
+
+    // Change password state
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [changingPwd, setChangingPwd] = useState(false);
+    const [pwdError, setPwdError] = useState('');
+    const [pwdSuccess, setPwdSuccess] = useState('');
 
     if (!user) return null;
 
     const empId = user.id;
 
-    // Load org tree when user expands the section
-    const handleToggleOrg = async () => {
-        const next = !showOrg;
-        setShowOrg(next);
-        if (next && !orgTree) {
+    const handleChangePassword = async (e) => {
+        e.preventDefault();
+        setPwdError('');
+        setPwdSuccess('');
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            setPwdError('All password fields are required.');
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            setPwdError('New password and confirm password do not match.');
+            return;
+        }
+
+        try {
+            setChangingPwd(true);
+            await api.post('/auth/change-password', {
+                current_password: currentPassword,
+                new_password: newPassword,
+            });
+            setPwdSuccess('Password updated successfully.');
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmPassword('');
+        } catch (err) {
+            const msg =
+                err.response?.data?.detail ||
+                err.response?.data?.message ||
+                'Failed to change password.';
+            setPwdError(msg);
+        } finally {
+            setChangingPwd(false);
+        }
+    };
+
+    // Load org tree
+    const loadOrgData = async () => {
+        if (!orgTree) {
             setOrgLoading(true);
             try {
                 const res = await api.get('/org/tree', { params: { depth: 4 } });
-                setOrgTree(res.data.root);
+                const tree = res.data?.root || res.data?.cfo || res.data?.admin || res.data;
+                setOrgTree(tree);
             } catch (err) {
                 console.error('Failed to fetch org tree', err);
                 setOrgTree(null);
@@ -118,6 +161,12 @@ const ProfilePage = () => {
             }
         }
     };
+
+    useEffect(() => {
+        if (activeTab === 'organisation') {
+            loadOrgData();
+        }
+    }, [activeTab]);
 
     // Count total nodes and breakdown by role in tree recursively
     const getOrgStats = (node) => {
@@ -154,124 +203,213 @@ const ProfilePage = () => {
                 </button>
                 <div className="pr-4">
                     <h1 className="text-xl font-black text-slate-800 tracking-tight">My Profile</h1>
-                    <p className="text-xs font-bold text-slate-400 mt-0.5 tracking-widest uppercase">View your account details and organisation chart</p>
+                    <p className="text-xs font-bold text-slate-400 mt-0.5 tracking-widest capitalize">View your account details and security settings</p>
                 </div>
             </div>
 
-            {/* Profile Card */}
-            <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden">
-                <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-                    <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-[1.25rem] bg-violet-100 flex items-center justify-center text-violet-600 text-2xl font-black shadow-sm">
-                            {user.name?.charAt(0)}
-                        </div>
-                        <div>
-                            <h2 className="text-lg font-semibold text-slate-800">{user.name}</h2>
-                            <p className="text-sm text-slate-500">{empId}</p>
-                            <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs bg-violet-100 text-violet-700 font-semibold">
-                                {user.role}
-                            </span>
-                        </div>
-                    </div>
-                </div>
+            {/* Tab Navigation */}
+            <div className="flex items-center gap-1 bg-slate-100/50 p-1.5 rounded-2xl w-fit border border-slate-200/60 shadow-sm">
+                {[
+                    { id: 'overview', label: 'Overview', icon: User },
+                    { id: 'organisation', label: 'Organisation', icon: Network },
+                    { id: 'security', label: 'Security', icon: Shield },
+                ].map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black capitalize tracking-widest transition-all ${
+                            activeTab === tab.id
+                                ? 'bg-white text-violet-600 shadow-sm'
+                                : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
+                        }`}
+                    >
+                        <tab.icon size={14} />
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
 
-                <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                        <div className="p-2 bg-violet-100 rounded-lg"><User size={16} className="text-violet-600" /></div>
-                        <div>
-                            <p className="text-xs text-slate-500">Employee ID</p>
-                            <p className="text-sm font-semibold text-slate-800">{empId}</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                        <div className="p-2 bg-blue-100 rounded-lg"><Briefcase size={16} className="text-blue-600" /></div>
-                        <div>
-                            <p className="text-xs text-slate-500">Department</p>
-                            <p className="text-sm font-semibold text-slate-800">{user.department || '—'}</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                        <div className="p-2 bg-emerald-100 rounded-lg"><Shield size={16} className="text-emerald-600" /></div>
-                        <div>
-                            <p className="text-xs text-slate-500">Reporting Manager</p>
-                            {user.manager_id
-                                ? <p className="text-sm font-semibold text-slate-800">{user.manager_id}</p>
-                                : <p className="text-sm font-semibold text-slate-800">Top-level Management</p>
-                            }
-                        </div>
-                    </div>
-
-                    {user.email && (
-                        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                            <div className="p-2 bg-orange-100 rounded-lg"><Mail size={16} className="text-orange-600" /></div>
+            {/* Conditional Content */}
+            {activeTab === 'overview' && (
+                <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden animate-slide-up">
+                    <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                        <div className="flex items-center gap-4">
+                            <div className="w-16 h-16 rounded-[1.25rem] bg-violet-100 flex items-center justify-center text-violet-600 text-2xl font-black shadow-sm">
+                                {user.name?.charAt(0)}
+                            </div>
                             <div>
-                                <p className="text-xs text-slate-500">Email</p>
-                                <p className="text-sm font-semibold text-slate-800 truncate">{user.email}</p>
+                                <h2 className="text-lg font-semibold text-slate-800">{user.name}</h2>
+                                <p className="text-sm text-slate-500">{empId}</p>
+                                <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs bg-violet-100 text-violet-700 font-semibold">
+                                    {user.role}
+                                </span>
                             </div>
                         </div>
-                    )}
+                    </div>
+
+                    <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                            <div className="p-2 bg-violet-100 rounded-lg"><User size={16} className="text-violet-600" /></div>
+                            <div>
+                                <p className="text-xs text-slate-500">Employee ID</p>
+                                <p className="text-sm font-semibold text-slate-800">{empId}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                            <div className="p-2 bg-blue-100 rounded-lg"><Briefcase size={16} className="text-blue-600" /></div>
+                            <div>
+                                <p className="text-xs text-slate-500">Department</p>
+                                <p className="text-sm font-semibold text-slate-800">{user.department || '—'}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                            <div className="p-2 bg-emerald-100 rounded-lg"><Shield size={16} className="text-emerald-600" /></div>
+                            <div>
+                                <p className="text-xs text-slate-500">Reporting Manager</p>
+                                {user.manager_id
+                                    ? <p className="text-sm font-semibold text-slate-800">{user.manager_id}</p>
+                                    : <p className="text-sm font-semibold text-slate-800">Top-level Management</p>
+                                }
+                            </div>
+                        </div>
+
+                        {user.email && (
+                            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                                <div className="p-2 bg-orange-100 rounded-lg"><Mail size={16} className="text-orange-600" /></div>
+                                <div>
+                                    <p className="text-xs text-slate-500">Email</p>
+                                    <p className="text-sm font-semibold text-slate-800 truncate">{user.email}</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
-            {/* Org Hierarchy Section */}
-            <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden">
-                <button
-                    onClick={handleToggleOrg}
-                    className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-violet-100 rounded-xl shadow-sm">
-                            <Network size={20} className="text-violet-600" />
+            {activeTab === 'security' && (
+                <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden animate-slide-up">
+                    <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+                        <div className="p-2.5 bg-emerald-50 rounded-xl">
+                            <Shield size={18} className="text-emerald-600" />
                         </div>
-                        <div className="text-left">
-                            <p className="text-sm font-black text-slate-800 tracking-tight">Organisation Hierarchy</p>
-                            <p className="text-[10px] font-bold tracking-widest uppercase text-slate-400 mt-0.5">
-                                {totalStaff === '—' ? 'Click to load' : `${totalStaff} staff (${orgStats?.managers || 0} Managers, ${orgStats?.employees || 0} Employees)`} · Click to {showOrg ? 'hide' : 'view'}
-                            </p>
+                        <div>
+                            <p className="text-sm font-black text-slate-800 tracking-tight">Security Settings</p>
+                            <p className="text-[11px] text-slate-500">Update your login password securely.</p>
                         </div>
                     </div>
-                    <div className="text-slate-400">
-                        {showOrg ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                    </div>
-                </button>
+                    <form className="p-6 grid grid-cols-1 md:grid-cols-1 gap-6 max-w-xl" onSubmit={handleChangePassword}>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 capitalize tracking-widest pl-1">Current Password</label>
+                            <input
+                                type="password"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all bg-slate-50/30"
+                                value={currentPassword}
+                                onChange={(e) => setCurrentPassword(e.target.value)}
+                                autoComplete="current-password"
+                                placeholder="Enter current password"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 capitalize tracking-widest pl-1">New Password</label>
+                            <input
+                                type="password"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all bg-slate-50/30"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                autoComplete="new-password"
+                                placeholder="Min. 8 characters"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-slate-500 capitalize tracking-widest pl-1">Confirm New Password</label>
+                            <input
+                                type="password"
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all bg-slate-50/30"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                autoComplete="new-password"
+                                placeholder="Repeat new password"
+                            />
+                        </div>
+                        
+                        <div className="flex flex-col gap-3 pt-2">
+                            {pwdError && (
+                                <p className="text-xs text-rose-600 font-bold bg-rose-50 p-3 rounded-lg border border-rose-100">{pwdError}</p>
+                            )}
+                            {pwdSuccess && !pwdError && (
+                                <p className="text-xs text-emerald-600 font-bold bg-emerald-50 p-3 rounded-lg border border-emerald-100">{pwdSuccess}</p>
+                            )}
+                            <button
+                                type="submit"
+                                disabled={changingPwd}
+                                className="inline-flex items-center justify-center px-6 py-3.5 rounded-xl bg-violet-600 text-white text-xs font-bold capitalize tracking-widest shadow-lg shadow-violet-200 hover:bg-violet-700 hover:shadow-xl active:scale-[0.98] transition-all disabled:opacity-60"
+                            >
+                                {changingPwd && <Loader2 size={14} className="animate-spin mr-2" />}
+                                Save New Password
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
 
-                {showOrg && (
-                    <div className="border-t border-slate-200">
+            {activeTab === 'organisation' && (
+                <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden animate-slide-up">
+                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-violet-100 rounded-xl shadow-sm">
+                                <Network size={20} className="text-violet-600" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-black text-slate-800 tracking-tight">Organisation Hierarchy</p>
+                                <p className="text-[10px] font-bold tracking-widest capitalize text-slate-400 mt-0.5">
+                                    {totalStaff === '—' ? 'Syncing...' : `${totalStaff} staff (${orgStats?.managers || 0} Managers, ${orgStats?.employees || 0} Employees)`}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="divide-y divide-slate-100">
                         {/* Legend */}
-                        <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-5 text-xs text-slate-600 flex-wrap">
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: '#7c3aed' }} />CFO / Admin
+                        <div className="px-6 py-3 bg-slate-50/30 flex items-center gap-5 text-[10px] font-bold text-slate-500 flex-wrap capitalize tracking-wider">
+                            <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#7c3aed' }} /> CFO / Admin
                             </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: '#2563eb' }} />Manager
+                            <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#2563eb' }} /> Manager
                             </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: '#059669' }} />Employee
+                            <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#059669' }} /> Employee
                             </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-3 h-3 rounded-full inline-block" style={{ backgroundColor: '#f97316' }} />You
+                            <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#f97316' }} /> You
                             </div>
-                            <span className="w-full sm:w-auto sm:ml-auto text-slate-400 mt-2 sm:mt-0 text-center sm:text-right">Click any row to expand/collapse</span>
+                            <span className="sm:ml-auto text-[9px] text-slate-400">Expand rows to see direct reports</span>
                         </div>
 
                         {/* Tree */}
-                        <div className="p-5 overflow-y-auto" style={{ maxHeight: '60vh' }}>
+                        <div className="p-6 overflow-y-auto" style={{ maxHeight: '65vh' }}>
                             {orgLoading ? (
-                                <div className="flex items-center justify-center py-10 gap-3">
-                                    <Loader2 size={20} className="animate-spin text-violet-500" />
-                                    <span className="text-slate-500 text-sm">Loading organisation tree...</span>
+                                <div className="flex flex-col items-center justify-center py-20 gap-4">
+                                    <div className="relative">
+                                        <div className="w-12 h-12 rounded-full border-4 border-violet-100 animate-pulse" />
+                                        <Loader2 size={24} className="animate-spin text-violet-500 absolute top-1/2 left-1/2 -ml-3 -mt-3" />
+                                    </div>
+                                    <span className="text-slate-400 text-[10px] font-black capitalize tracking-widest">Compiling Org Map...</span>
                                 </div>
                             ) : !orgTree ? (
-                                <p className="text-slate-400 text-sm text-center py-8">No organisation data available.</p>
+                                <div className="text-center py-20">
+                                    <Network size={40} className="mx-auto text-slate-200 mb-4" />
+                                    <p className="text-slate-400 text-xs font-bold">No organisation data available.</p>
+                                </div>
                             ) : (
                                 <TreeNode node={orgTree} depth={0} highlightId={empId} />
                             )}
                         </div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
         </div>
     );
 };

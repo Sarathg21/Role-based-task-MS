@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Badge from '../UI/Badge';
@@ -6,7 +6,7 @@ import StatsCard from '../UI/StatsCard';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, ComposedChart, Line, Area
-} from 'recharts';
+} from 'recharts';``
 import {
     TrendingUp, Users, CheckSquare, AlertTriangle, ArrowRight,
     BarChart2, Loader2, CheckCircle, Activity, Shield, Layout, Target, Clock,
@@ -27,82 +27,6 @@ const toDateKey = (value) => {
     if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
     const parsed = new Date(raw);
     return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
-};
-
-const OperationalTrends = ({ data }) => {
-    if (!data || data.length === 0) return (
-        <div className="bg-white border border-slate-100 shadow-sm rounded-[2rem] p-12 text-center h-[400px] flex flex-col items-center justify-center">
-            <TrendingUp className="w-12 h-12 text-slate-200 mb-4 opacity-50" />
-            <p className="text-slate-400 font-bold uppercase tracking-[0.3em] text-[10px]">Trends Syncing...</p>
-        </div>
-    );
-
-    return (
-        <div className="bg-white border border-slate-100 shadow-sm rounded-[2rem] p-8 transition-all hover:shadow-md h-[400px] flex flex-col">
-            <h3 className="text-[12px] font-bold text-slate-500 mb-6 flex items-center gap-3">
-                <BarChart2 size={16} className="text-violet-600" />
-                Operational Trends — Last 6 Months
-            </h3>
-            <div className="flex-1 w-full min-h-0 text-[10px]">
-                <ResponsiveContainer width="100%" height={320}>
-                    <ComposedChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                        <defs>
-                            <linearGradient id="colorNew" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#4285F4" stopOpacity={0.8} />
-                                <stop offset="95%" stopColor="#4285F4" stopOpacity={0.1} />
-                            </linearGradient>
-                            <linearGradient id="colorPending" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#9B51E0" stopOpacity={0.8} />
-                                <stop offset="95%" stopColor="#9B51E0" stopOpacity={0.1} />
-                            </linearGradient>
-                            <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#34D399" stopOpacity={0.8} />
-                                <stop offset="95%" stopColor="#34D399" stopOpacity={0.1} />
-                            </linearGradient>
-                        </defs>
-                        <XAxis
-                            dataKey="month"
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
-                            dy={10}
-                        />
-                        <YAxis
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }}
-                        />
-                        <Tooltip
-                            contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', padding: '12px' }}
-                            itemStyle={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                        />
-                        <Legend
-                            verticalAlign="top"
-                            align="right"
-                            iconType="circle"
-                            iconSize={8}
-                            wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em', paddingTop: '0px', paddingBottom: '20px' }}
-                        />
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-
-                        <Bar dataKey="new_tasks" name="New Tasks" stackId="a" fill="#4285F4" radius={[0, 0, 0, 0]} />
-                        <Bar dataKey="pending_submission" name="Pending" stackId="a" fill="#9B51E0" radius={[0, 0, 0, 0]} />
-                        <Bar dataKey="completed_tasks" name="Completed" stackId="a" fill="#34D399" radius={[4, 4, 0, 0]} />
-
-                        <Line
-                            type="monotone"
-                            dataKey="overdue_tasks"
-                            name="Overdue Spikes"
-                            stroke="#ef4444"
-                            strokeWidth={3}
-                            dot={{ r: 4, fill: '#ef4444', strokeWidth: 2, stroke: '#fff' }}
-                            activeDot={{ r: 6, strokeWidth: 0 }}
-                        />
-                    </ComposedChart>
-                </ResponsiveContainer>
-            </div>
-        </div>
-    );
 };
 
 const DepartmentPerformanceGrid = ({ data }) => {
@@ -349,6 +273,8 @@ const CFODashboard = () => {
     const [todayOrgTasks, setTodayOrgTasks] = useState([]);
     const [activities, setActivities] = useState([]);
     const [loading, setLoading] = useState(true);
+    const todayTasksRef = useRef([]); // Protections against stale closures in setInterval
+
 
     const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
     const [selectedEmployeeForIssue, setSelectedEmployeeForIssue] = useState('');
@@ -428,6 +354,29 @@ const CFODashboard = () => {
         '#06b6d4',
         '#f97316',
     ];
+    const buildActivitiesFromTasks = (tasks) => {
+        if (!Array.isArray(tasks)) return [];
+
+        return tasks
+            .slice(0, 20)
+            .map(t => ({
+                id: t.task_id || t.id,
+                actor_name: t.assigneeName || t.assigned_to_name || 'Member',
+                task_title: t.title || 'Task',
+                type: (() => {
+                    switch (t.status) {
+                        case 'SUBMITTED': return 'TASK_SUBMITTED';
+                        case 'APPROVED': return 'TASK_APPROVED';
+                        case 'REWORK': return 'TASK_REWORK';
+                        case 'NEW': return 'TASK_CREATED';
+                        case 'IN_PROGRESS': return 'TASK_PROGRESS';
+                        default: return 'ACTIVITY';
+                    }
+                })(),
+                created_at: t.updated_at || t.created_at || new Date().toISOString()
+            }))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    };
 
     const fetchDashboardData = async () => {
         setLoading(true);
@@ -468,6 +417,7 @@ const CFODashboard = () => {
                 priority: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
                 assigneeName: t.assigned_to_name || t.assignee || 'Unassigned',
             });
+
 
             // Helper: compute per-dept status counts from a flat task array
             const buildDeptStatusCounts = (normalizedTasks) => {
@@ -588,7 +538,7 @@ const CFODashboard = () => {
                     { scope: 'all', limit: 200 },
                     { limit: 100 }
                 ];
-                
+
                 for (const params of candidates) {
                     try {
                         const res = await api.get('/tasks', { params });
@@ -599,7 +549,7 @@ const CFODashboard = () => {
                             console.warn(`Org task fetch fail for ${JSON.stringify(params)}, trying fallback...`);
                             continue;
                         }
-                        throw e; 
+                        throw e;
                     }
                 }
                 return null;
@@ -634,15 +584,55 @@ const CFODashboard = () => {
 
         } catch (err) { console.error("CFO Dashboard Error:", err); }
         finally {
-            api.get('/notifications').then(res => {
-                const data = res.data?.data || res.data || [];
-                setActivities(Array.isArray(data) ? data : []);
-            }).catch(e => console.warn("CFO Activities fail:", e));
+
+
             setLoading(false);
         }
     };
 
-    useEffect(() => { fetchDashboardData(); }, [fromDate, toDate]);
+    const fetchNotifications = async () => {
+        try {
+            const res = await api.get('/notifications');
+            const data = res.data?.data || res.data?.notifications || res.data || [];
+            if (Array.isArray(data) && data.length > 0) {
+                setActivities(data);
+            } else {
+                setActivities(buildActivitiesFromTasks(todayOrgTasks));
+            }
+        } catch (err) {
+            console.warn("Notification fetch failed");
+            setActivities(buildActivitiesFromTasks(todayOrgTasks));
+        }
+    };
+
+
+    useEffect(() => {
+
+    fetchDashboardData();
+    fetchNotifications();
+
+    const dashboardInterval = setInterval(fetchDashboardData, 30000);
+    const notificationInterval = setInterval(fetchNotifications, 10000);
+
+    const handleRefresh = () => {
+        fetchDashboardData();
+        fetchNotifications();
+    };
+
+    window.addEventListener('refresh-notifications', handleRefresh);
+
+    return () => {
+        clearInterval(dashboardInterval);
+        clearInterval(notificationInterval);
+        window.removeEventListener('refresh-notifications', handleRefresh);
+    };
+
+}, [fromDate, toDate]);
+    useEffect(() => {
+        if (todayOrgTasks.length > 0 && activities.length === 0) {
+            setActivities(buildActivitiesFromTasks(todayOrgTasks));
+        }
+    }, [todayOrgTasks]);
 
 
 
@@ -767,45 +757,6 @@ const CFODashboard = () => {
                         </div>
                     </div>
 
-                    {/* Task Trends Chart */}
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-[13px] font-black text-slate-700 flex items-center gap-2">
-                                <BarChart2 size={14} className="text-violet-500" />
-                                Task Trends — Last 6 Months
-                            </h3>
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-[10px] font-bold text-slate-500">
-                                Last 6 Months <ChevronDown size={12} />
-                            </div>
-                        </div>
-                        {trendsData.length === 0 ? (
-                            <div className="h-52 flex items-center justify-center">
-                                <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">No trend data available</p>
-                            </div>
-                        ) : (
-                            <ResponsiveContainer width="100%" height={220}>
-                                <ComposedChart data={trendsData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="colorNew2" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#4285F4" stopOpacity={0.8} />
-                                            <stop offset="95%" stopColor="#4285F4" stopOpacity={0.1} />
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} dy={8} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
-                                    <Tooltip contentStyle={{ borderRadius: '0.75rem', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', padding: '8px 12px', fontSize: '11px' }} />
-                                    <Legend verticalAlign="top" align="left" iconType="circle" iconSize={7}
-                                        wrapperStyle={{ fontSize: '10px', fontWeight: '700', paddingBottom: '8px' }} />
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <Bar dataKey="new_tasks" name="New Tasks" stackId="a" fill="#4285F4" radius={[0, 0, 0, 0]} />
-                                    <Bar dataKey="pending_submission" name="Pending" stackId="a" fill="#FFA500" radius={[0, 0, 0, 0]} />
-                                    <Bar dataKey="completed_tasks" name="Completed" stackId="a" fill="#34D399" radius={[3, 3, 0, 0]} />
-                                    <Line type="monotone" dataKey="overdue_tasks" name="Overdue" stroke="#ef4444" strokeWidth={2.5}
-                                        dot={{ r: 3, fill: '#ef4444', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 5, strokeWidth: 0 }} />
-                                </ComposedChart>
-                            </ResponsiveContainer>
-                        )}
-                    </div>
 
                     {/* Department Performance Table */}
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
@@ -936,42 +887,88 @@ const CFODashboard = () => {
                             <span className="text-right">Status</span>
                         </div>
                         {(() => {
-                            const riskData = [];
-                            const counts = {};
+                            // Build per-employee risk stats from all tasks to be more comprehensive
+                            const byEmployee = {};
+
+                            // Use all tasks if todayOrgTasks is too limited
+                            const taskPool = todayOrgTasks.length > 5 ? todayOrgTasks : todayOrgTasks;
+                            // Actually, let's use all tasks available in the component scope if possible, 
+                            // but todayOrgTasks seems to be the main state for tasks.
+
                             todayOrgTasks.forEach(t => {
-                                if (t.status === 'REWORK' || t.is_overdue || t.overdue) {
-                                    const name = t.assigneeName || t.assigned_to_name || 'Unknown';
-                                    if (!counts[name]) counts[name] = { name, overdue: 0, rework: 0, total: 0, score: Math.floor(Math.random() * 100) };
-                                    if (t.status === 'REWORK') counts[name].rework++;
-                                    if (t.is_overdue || t.overdue) counts[name].overdue++;
-                                    counts[name].total++;
+                                const name = t.assigneeName || t.assigned_to_name || 'Unknown';
+                                if (!byEmployee[name]) {
+                                    byEmployee[name] = {
+                                        name,
+                                        overdue: 0,
+                                        rework: 0,
+                                        completed: 0,
+                                        total: 0,
+                                    };
                                 }
+                                const emp = byEmployee[name];
+                                emp.total += 1;
+                                if (t.status === 'APPROVED' || t.status === 'COMPLETED') emp.completed += 1;
+                                if (t.status === 'REWORK') emp.rework += 1;
+                                if (t.is_overdue || t.overdue) emp.overdue += 1;
                             });
-                            const items = Object.values(counts).sort((a, b) => b.total - a.total).slice(0, 5);
+
+                            const employees = Object.values(byEmployee).map(emp => {
+                                // Calculate a Health Score (0-100)
+                                // Penalty-based: Start at 100, subtract for issues.
+                                // Overdue: -15, Rework: -10, Pending: -2 (if total > 0)
+                                let penalty = (emp.overdue * 15) + (emp.rework * 10);
+                                const healthScore = Math.max(0, 100 - penalty);
+
+                                return { ...emp, healthScore };
+                            });
+
+                            const items = employees
+                                .sort((a, b) => a.healthScore - b.healthScore) // Show lowest health first
+                                .slice(0, 8);
+
                             if (items.length === 0) return (
-                                <div className="py-8 text-center">
-                                    <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">No at-risk employees</p>
+                                <div className="py-8 text-center text-slate-400">
+                                    <Activity size={24} className="mx-auto mb-2 opacity-20" />
+                                    <p className="text-[10px] font-bold uppercase tracking-widest">No employee data</p>
                                 </div>
                             );
+
                             return items.map((emp, i) => {
-                                const statusLabel = emp.score >= 70 ? 'On Track' : emp.score >= 40 ? 'At Risk' : 'Off Track';
-                                const statusColor = emp.score >= 70 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : emp.score >= 40 ? 'bg-amber-50 text-amber-600 border border-amber-100' : 'bg-rose-50 text-rose-600 border border-rose-100';
+                                const statusLabel =
+                                    emp.healthScore >= 90
+                                        ? 'On Track'
+                                        : emp.healthScore >= 70
+                                            ? 'Watch'
+                                            : 'At Risk';
+                                const statusColor =
+                                    emp.healthScore >= 90
+                                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                        : emp.healthScore >= 70
+                                            ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                                            : 'bg-rose-50 text-rose-600 border border-rose-100';
                                 return (
-                                    <div key={i} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 py-2.5 border-b border-slate-50 last:border-0">
+                                    <div key={i} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 rounded-lg transition-colors px-1">
                                         <div className="flex items-center gap-2 min-w-0">
-                                            <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-[10px] font-black text-indigo-600 shrink-0">
+                                            <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-[10px] font-black text-violet-600 shrink-0 border border-violet-200">
                                                 {emp.name.charAt(0).toUpperCase()}
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="text-[11px] font-black text-slate-800 truncate">{emp.name}</p>
-                                                <p className="text-[9px] text-slate-400 font-bold">EMPLOYEE</p>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">Staff</p>
                                             </div>
                                         </div>
-                                        <span className="text-[12px] font-black text-slate-700 text-center tabular-nums">{emp.overdue}</span>
-                                        <span className="text-[12px] font-black text-slate-700 text-center tabular-nums">{emp.score}</span>
+                                        <div className="text-center px-2">
+                                            <span className="text-[12px] font-black text-slate-700 tabular-nums block">{emp.overdue + emp.rework}</span>
+                                            <span className="text-[8px] text-slate-400 font-bold uppercase">Issues</span>
+                                        </div>
+                                        <div className="text-center px-2">
+                                            <span className="text-[12px] font-black text-indigo-600 tabular-nums block">{emp.healthScore}</span>
+                                            <span className="text-[8px] text-slate-400 font-bold uppercase">Score</span>
+                                        </div>
                                         <button
                                             onClick={() => handleIssueClick(emp.name)}
-                                            className={`text-[9px] font-black px-2 py-1 rounded-md ${statusColor} hover:opacity-80 transition-opacity whitespace-nowrap`}
+                                            className={`text-[9px] font-black px-2.5 py-1.5 rounded-lg ${statusColor} hover:opacity-80 transition-opacity whitespace-nowrap shadow-sm`}
                                         >
                                             {statusLabel}
                                         </button>
@@ -994,25 +991,57 @@ const CFODashboard = () => {
                             <Activity size={13} className="text-sky-500" />
                             Live Activity
                         </h3>
-                        <div className="space-y-2 overflow-y-auto custom-scrollbar">
+                        <div className="space-y-2 overflow-y-auto custom-scrollbar pr-1">
                             {activities.length === 0 ? (
-                                <div className="py-6 text-center">
-                                    <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">No recent activity</p>
+                                <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-100">
+                                    <Activity className="w-8 h-8 text-slate-200 mx-auto mb-2 opacity-50" />
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">No recent organizational activity</p>
                                 </div>
                             ) : (
-                                activities.slice(0, 6).map((n, idx) => (
-                                    <div key={n.id || idx} className="flex gap-2 items-start p-2.5 rounded-xl bg-slate-50 hover:bg-white border border-transparent hover:border-slate-100 transition-all cursor-pointer">
-                                        <div className={`w-6 h-6 rounded-full shrink-0 flex items-center justify-center font-black text-[9px] ${n.type === 'SUCCESS' ? 'bg-emerald-100 text-emerald-600' : n.type === 'WARNING' ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                                            {(n.actor_name || n.title || 'N').charAt(0).toUpperCase()}
+                                activities.slice(0, 10).map((n, idx) => {
+                                    // Robust UI mapping for real activities
+                                    const actorName = n.actor_name || n.user_name || n.actor?.name || 'Member';
+                                    const taskTitle = n.task_title || n.title || n.directive_title || n.task?.title || 'Directive';
+                                    const type = n.type || n.action || 'ACTIVITY';
+
+                                    // Dynamic styling based on activity type
+                                    const getStyle = () => {
+                                        if (type === 'TASK_APPROVED' || type === 'SUCCESS') return 'bg-emerald-100 text-emerald-600 border-emerald-200';
+                                        if (type === 'TASK_REWORK' || type === 'WARNING') return 'bg-amber-100 text-amber-600 border-amber-200';
+                                        if (type === 'TASK_SUBMITTED') return 'bg-violet-100 text-violet-600 border-violet-200';
+                                        return 'bg-indigo-100 text-indigo-600 border-indigo-200';
+                                    };
+
+                                    return (
+                                        <div key={n.id || idx} className="flex gap-2.5 items-start p-3 rounded-xl bg-white border border-slate-100 hover:border-indigo-200 hover:shadow-sm transition-all group cursor-pointer">
+                                            <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center font-black text-[10px] border shadow-sm ${getStyle()}`}>
+                                                {actorName.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between mb-0.5">
+                                                    <span className="text-[11px] font-black text-slate-800 truncate pr-2 uppercase tracking-tight">{actorName}</span>
+                                                    <span className="text-[8px] font-bold text-slate-400 whitespace-nowrap">{formatTimeAgo(n.created_at)}</span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-500 leading-snug">
+                                                    {(() => {
+                                                        const title = <span className="font-bold text-slate-700">"{taskTitle}"</span>;
+                                                        switch (type) {
+                                                            case 'TASK_SUBMITTED': return <>submitted {title} for review</>;
+                                                            case 'TASK_APPROVED': return <>finalized and approved {title}</>;
+                                                            case 'TASK_REWORK': return <>requested changes on {title}</>;
+                                                            case 'TASK_CREATED': return <>delegated {title}</>;
+                                                            case 'TASK_REASSIGNED': return <>re-assigned {title}</>;
+                                                            default: return n.message || <>interacted with {title}</>;
+                                                        }
+                                                    })()}
+                                                </p>
+                                                {n.comment && (
+                                                    <p className="text-[9px] text-slate-400 mt-1 italic pl-2 border-l-2 border-slate-100">"{n.comment}"</p>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] text-slate-600 leading-tight truncate">
-                                                {n.actor_name || 'System'}: {n.task_title || n.title || n.message || 'Activity'}
-                                            </p>
-                                            <p className="text-[9px] text-slate-400 mt-0.5">{formatTimeAgo(n.created_at)}</p>
-                                        </div>
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     </div>

@@ -169,8 +169,9 @@ const ManagerDashboard = () => {
             }
 
             try {
+                // Fetch real organizational/departmental activities (use standard /notifications)
                 const notifyRes = await api.get('/notifications');
-                const notifyData = notifyRes.data?.data || notifyRes.data || [];
+                const notifyData = notifyRes.data?.data || notifyRes.data?.notifications || notifyRes.data || [];
                 setActivities(Array.isArray(notifyData) ? notifyData : []);
             } catch (notifyErr) {
                 console.warn("Notifications fetch fail:", notifyErr);
@@ -554,60 +555,53 @@ const ManagerDashboard = () => {
                             </button>
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="space-y-3 max-h-[480px] overflow-y-auto custom-scrollbar pr-1">
                             {activities.length === 0 ? (
-                                <div className="py-10 text-center">
-                                    <Activity className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                                    <p className="text-[10px] text-slate-400 font-bold">No recent activity</p>
+                                <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-100">
+                                    <Activity className="w-8 h-8 text-slate-200 mx-auto mb-2 opacity-50" />
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">No recent team activity</p>
                                 </div>
                             ) : (
-                                activities.slice(0, 8).map((n, idx) => (
-                                    <div key={n.id || idx} className="flex gap-3 items-start border border-slate-100 p-3.5 rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                                        <div className={`w-9 h-9 border-2 border-white shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-bold text-sm ${n.type === 'SUCCESS' ? 'bg-emerald-100 text-emerald-600' :
-                                            n.type === 'WARNING' ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'
-                                            }`}>
-                                            {(n.actor_name || n.title || 'N').charAt(0).toUpperCase()}
-                                        </div>
-                                        <div className="flex-1 pt-0.5 min-w-0">
-                                            <p className="text-[13px] text-slate-600 leading-tight">
-                                                {(() => {
-                                                    // Robust title resolution: check common fields, then fallback to lookup
-                                                    let displayTitle = n.task_title || n.title || n.task_name || n.directive_name || n.directive_title || n.task?.title;
+                                activities.slice(0, 10).map((n, idx) => {
+                                    const actorName = n.actor_name || n.user_name || n.actor?.name || 'Member';
+                                    const taskTitle = n.task_title || n.title || n.directive_title || n.task?.title || 'Directive';
+                                    const type = n.type || n.action || 'ACTIVITY';
 
-                                                    if (!displayTitle && (n.task_id || n.id)) {
-                                                        const tid = n.task_id || n.id;
-                                                        const foundTask = todayTeamTasks.find(t => String(t.id) === String(tid));
-                                                        if (foundTask) displayTitle = foundTask.title;
-                                                    }
+                                    const getStyle = () => {
+                                        if (type === 'TASK_APPROVED' || type === 'SUCCESS') return 'bg-emerald-100 text-emerald-600 border-emerald-200';
+                                        if (type === 'TASK_REWORK' || type === 'WARNING') return 'bg-amber-100 text-amber-600 border-amber-200';
+                                        if (type === 'TASK_SUBMITTED') return 'bg-violet-100 text-violet-600 border-violet-200';
+                                        return 'bg-indigo-100 text-indigo-600 border-indigo-200';
+                                    };
 
-                                                    if (!displayTitle) displayTitle = n.task_id ? `Task #${n.task_id}` : 'this task';
-
-                                                    const title = <span className="font-bold text-violet-600">"{displayTitle}"</span>;
-                                                    const actor = <span className="font-bold text-slate-800">{n.actor_name || 'Member'}</span>;
-                                                    switch (n.type) {
-                                                        case 'TASK_CREATED':
-                                                        case 'TASK_REASSIGNED':
-                                                            return <>Task {title} assigned</>;
-                                                        case 'TASK_STARTED':
-                                                            return <>{actor} started task {title}</>;
-                                                        case 'TASK_SUBMITTED':
-                                                            return <>{actor} submitted task {title}</>;
-                                                        case 'TASK_REWORK':
-                                                            return <>{actor} requested rework on task {title}</>;
-                                                        case 'TASK_APPROVED':
-                                                            return <>Task {title} approved</>;
-                                                        case 'TASK_CANCELLED':
-                                                            return <>Task {title} cancelled</>;
-                                                        default:
-                                                            return <>{actor} {n.message}</>;
-                                                    }
-                                                })()}
+                                    return (
+                                        <div key={n.id || idx} className="flex gap-3 items-start border border-slate-100 p-3.5 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group cursor-pointer">
+                                            <div className={`w-9 h-9 border shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-black text-xs ${getStyle()}`}>
+                                                {actorName.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="flex-1 pt-0.5 min-w-0">
+                                                <div className="flex items-center justify-between mb-0.5">
+                                                    <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight">{actorName}</span>
+                                                    <span className="text-[9px] font-bold text-slate-400">{formatTimeAgo(n.created_at)}</span>
+                                                </div>
+                                                <p className="text-[13px] text-slate-500 leading-tight">
+                                                    {(() => {
+                                                        const title = <span className="font-bold text-violet-600">"{taskTitle}"</span>;
+                                                        switch (type) {
+                                                            case 'TASK_SUBMITTED': return <>submitted {title} for review</>;
+                                                            case 'TASK_APPROVED': return <>finalized and approved {title}</>;
+                                                            case 'TASK_REWORK': return <>requested changes on {title}</>;
+                                                            case 'TASK_CREATED': return <>delegated {title}</>;
+                                                            case 'TASK_REASSIGNED': return <>re-assigned {title}</>;
+                                                            default: return n.message || <>interacted with {title}</>;
+                                                        }
+                                                    })()}
+                                                </p>
                                                 {n.comment && <span className="block text-slate-400 mt-1 italic text-[12px] border-l-2 border-slate-100 pl-2">"{n.comment}"</span>}
-                                            </p>
-                                            <p className="text-[11px] font-medium text-slate-400 mt-1">{formatTimeAgo(n.created_at)}</p>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     </div>
