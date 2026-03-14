@@ -50,7 +50,7 @@ const SubtaskRow = ({ task, renderStatusBadge, renderSeverityTag, isLast, taskTi
                 </div>
             </td>
             <td className="p-3 text-left">
-                <span className="text-slate-400 text-[10px] font-bold uppercase px-2 py-0.5 bg-slate-50 rounded border border-slate-100">{task?.department_name || 'N/A'}</span>
+                <span className="text-slate-400 text-[10px] font-bold capitalize px-2 py-0.5 bg-slate-50 rounded border border-slate-100">{String(task?.department_name || 'N/A').toLowerCase()}</span>
             </td>
             <td className="p-3 text-left">
                 <span className="text-slate-400 text-[10px] font-bold italic">-</span>
@@ -59,7 +59,7 @@ const SubtaskRow = ({ task, renderStatusBadge, renderSeverityTag, isLast, taskTi
                 <span className="text-[11px] font-bold text-slate-500">{assignedTo}</span>
             </td>
             <td className="p-3 text-left">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{dueDate}</span>
+                <span className="text-[10px] font-black text-slate-400 capitalize tracking-widest">{dueDate}</span>
             </td>
             <td className="p-3 text-center">
                 {renderStatusBadge?.(status)}
@@ -283,7 +283,9 @@ const TeamTasksPage = () => {
             const res = await api.get('/tasks/team', { params });
             const rawData = res.data?.data || res.data || {};
             const items = Array.isArray(rawData) ? rawData : (rawData.items || rawData.data || []);
-            setTasks(items);
+            // Exclude CANCELLED tasks from the team view as requested
+            const filteredItems = items.filter(t => (t.status || '').toUpperCase() !== 'CANCELLED');
+            setTasks(filteredItems);
             setPagination({
                 page: rawData.page || page,
                 limit: rawData.limit || pagination.limit,

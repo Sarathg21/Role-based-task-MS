@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { getEmployeeRankings } from '../utils/rankingEngine';
 import ChartPanel from '../components/Charts/ChartPanel';
-import { Download, FileSpreadsheet, TrendingUp, TrendingDown, Calendar, ArrowRight, CheckSquare, BarChart2, Activity, Users } from 'lucide-react';
+import { Download, FileSpreadsheet, TrendingUp, TrendingDown, Calendar, ArrowRight, CheckSquare, BarChart2, Activity, Users, ClipboardCheck, Play, Upload, AlertTriangle } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
     LineChart, Line, ComposedChart, Area, Cell, PieChart, Pie
@@ -290,16 +291,62 @@ const ReportsPage = () => {
                 return;
             }
 
-            const normalizedTasks = rawTasks.map((t) => ({
-                id: t.task_id || t.id,
-                employeeId: String(t.assigned_to_emp_id || t.employee_id || ''),
-                employeeName: t.assigned_to_name || t.assignee_name || t.employee_name || 'Unassigned',
-                departmentId: String(t.department_id || ''),
-                departmentName: t.department_name || t.department || 'N/A',
-                status: String(t.status || '').toUpperCase(),
-                dateKey: toDateKey(t.assigned_date || t.assigned_at || t.created_at || t.due_date),
-                parent_task_title: t.parent_task_title || t.parent_task_name || t.parent_directive_title || '',
-            }));
+            // Pass 1: Build map
+            const taskMap = {};
+            rawTasks.forEach(t => {
+                const id = t.task_id || t.id;
+                const title = t.task_title || t.title || t.task_name || t.name || t.directive_title || t.directive_name;
+                if (id && title) taskMap[id] = title;
+            });
+
+            // Pass 1.5: Identify missing Parent Task titles and fetch them
+            const missingParentIds = new Set();
+            rawTasks.forEach(t => {
+                const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+                const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name || 
+                              (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '');
+                
+                if (pid && !ptitle && !taskMap[pid]) {
+                    missingParentIds.add(pid);
+                }
+            });
+
+            if (missingParentIds.size > 0) {
+                console.log(`ReportsPage - Fetching details for ${missingParentIds.size} missing parents...`);
+                await Promise.allSettled(
+                    Array.from(missingParentIds).map(async (pid) => {
+                        try {
+                            const res = await api.get(`/tasks/${pid}`);
+                            const pt = res.data?.data || res.data;
+                            if (pt) {
+                                const title = pt.task_title || pt.title || pt.task_name || pt.name || pt.directive_title || pt.directive_name;
+                                if (title) taskMap[pid] = title;
+                            }
+                        } catch (err) {
+                            console.warn(`Failed to fetch parent task ${pid}:`, err);
+                        }
+                    })
+                );
+            }
+
+            const normalizedTasks = rawTasks.map((t) => {
+                const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+                const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name || 
+                              (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '') ||
+                              taskMap[pid] || '';
+                
+                return {
+                    id: t.task_id || t.id,
+                    employeeId: String(t.assigned_to_emp_id || t.employee_id || ''),
+                    employeeName: t.assigned_to_name || t.assignee_name || t.employee_name || 'Unassigned',
+                    departmentId: String(t.department_id || ''),
+                    departmentName: t.department_name || t.department || 'N/A',
+                    status: String(t.status || '').toUpperCase(),
+                    dateKey: toDateKey(t.assigned_date || t.assigned_at || t.created_at || t.due_date),
+                    parent_task_id: pid,
+                    parent_task_title: ptitle,
+                };
+            });
 
             const filtered = normalizedTasks.filter((t) => {
                 const empOk = !filters.employeeId || t.employeeId === String(filters.employeeId);
@@ -561,6 +608,7 @@ const ReportsPage = () => {
 
 
     const downloadFile = async (format) => {
+        const toastId = toast.loading(`Preparing ${format.toUpperCase()} report...`);
         try {
             const role = (user?.role || '').toUpperCase();
             const isEmployee = role === 'EMPLOYEE';
@@ -574,8 +622,10 @@ const ReportsPage = () => {
             };
 
             if (isEmployee) {
-                endpoint = format === 'pdf' ? '/reports/employee/export-pdf' : '/reports/employee/export-csv';
+                // Using the generic endpoint as it's more reliable
+                endpoint = `/reports/performance.${format}`;
             } else {
+                endpoint = format === 'pdf' ? '/reports/cfo/export-pdf' : '/reports/cfo/export-excel';
                 if (filters.departmentId) params.department_id = filters.departmentId;
                 if (filters.employeeId) params.employee_id = filters.employeeId;
             }
@@ -585,55 +635,36 @@ const ReportsPage = () => {
                 responseType: 'blob'
             });
 
-            const contentType = response.headers['content-type'] || 'application/octet-stream';
+            // Handle potential JSON error wrapped in blob
+            if (response.data.size < 250) {
+                const text = await response.data.text();
+                try {
+                    const errorJson = JSON.parse(text);
+                    throw new Error(errorJson.detail || errorJson.message || 'Export failed');
+                } catch (e) { /* Proceed if not JSON */ }
+            }
+
+            const contentType = response.headers['content-type'] || (format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             const blob = new Blob([response.data], { type: contentType });
             const blobUrl = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = blobUrl;
-            a.download = `performance_report_${filters.fromDate || 'all'}_to_${filters.toDate || 'now'}.${format}`;
+            a.download = `performance_report_${filters.fromDate || 'all'}_to_${filters.toDate || 'now'}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
             document.body.appendChild(a);
             a.click();
             a.remove();
             window.URL.revokeObjectURL(blobUrl);
 
+            toast.success(`${format.toUpperCase()} downloaded successfully`, { id: toastId });
         } catch (err) {
             console.error(`Failed to download ${format}`, err);
-            toast.error(`Failed to download ${format} report`);
+            const errorMsg = err.response?.data?.message || err.message || `Failed to download ${format} report`;
+            toast.error(errorMsg, { id: toastId });
         }
     };
 
     const handleDownloadExcel = () => {
-        const role = (user?.role || '').toUpperCase();
-        if (role === 'EMPLOYEE') {
-            downloadFile('csv');
-            return;
-        }
-
-        if (!performanceData || performanceData.length === 0) {
-            alert("No data to export");
-            return;
-        }
-
-        const headers = ["Name", "Department", "Total Tasks", "Completed", "Pending", "Success Rate %"];
-        const rows = performanceData.map(row => [
-            row.name,
-            row.department,
-            row.total,
-            row.completed,
-            row.pending,
-            row.onTimePct
-        ]);
-
-        const csvContent = "data:text/csv;charset=utf-8," + 
-            [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-        
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `performance_report_${new Date().toISOString().slice(0, 10)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        downloadFile('excel');
     };
 
     const handleDownloadPDF = () => {
@@ -735,7 +766,7 @@ const ReportsPage = () => {
                                 onClick={handleDownloadExcel}
                                 className="bg-white text-slate-900 hover:bg-slate-50 border border-slate-200 shadow-sm transition-all px-3 py-1 rounded-lg font-bold text-[8.5px] capitalize tracking-widest flex items-center gap-1.5 active:scale-95"
                             >
-                                <FileSpreadsheet size={11} className="text-emerald-500" /> CSV
+                                <FileSpreadsheet size={11} className="text-emerald-500" /> EXCEL
                             </button>
                         </div>
                     </div>
@@ -745,30 +776,59 @@ const ReportsPage = () => {
             {/* ── INSIGHT CARDS ── */}
             {isEmployee && employeeSummary ? (
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
-                    <div className="bg-white rounded-2xl p-4 border border-slate-200/60 shadow-md h-24 flex flex-col justify-center">
-                        <span className="text-[9px] font-bold capitalize tracking-[0.1em] text-indigo-600/70 mb-1">Active Tasks</span>
-                        <span className="text-2xl font-bold text-slate-900 tabular-nums">{employeeSummary.total_tasks || 0}</span>
-                    </div>
-                    <div className="bg-white rounded-2xl p-4 border border-slate-200/60 shadow-md h-24 flex flex-col justify-center">
-                        <span className="text-[9px] font-bold capitalize tracking-[0.1em] text-emerald-600/70 mb-1">Completed</span>
-                        <span className="text-2xl font-bold text-emerald-600 tabular-nums">{employeeSummary.completed_tasks || 0}</span>
-                    </div>
-                    <div className="bg-white rounded-2xl p-4 border border-slate-200/60 shadow-md h-24 flex flex-col justify-center">
-                        <span className="text-[9px] font-bold capitalize tracking-[0.1em] text-amber-600/70 mb-1">In Progress</span>
-                        <span className="text-2xl font-bold text-amber-600 tabular-nums">{(employeeSummary.total_tasks - employeeSummary.completed_tasks) || 0}</span>
-                    </div>
-                    <div className="bg-white rounded-2xl p-4 border border-slate-200/60 shadow-md h-24 flex flex-col justify-center">
-                        <span className="text-[9px] font-bold capitalize tracking-[0.1em] text-rose-600/70 mb-1">Overdue</span>
-                        <span className="text-2xl font-bold text-rose-600 tabular-nums">{employeeSummary.overdue_tasks || 0}</span>
-                    </div>
-                    <div className="bg-violet-600 rounded-2xl p-4 border border-violet-500 shadow-md h-24 flex flex-col justify-center text-white relative overflow-hidden group">
-                        <div className="absolute -right-2 -bottom-2 opacity-10 group-hover:scale-110 transition-transform">
-                            <TrendingUp size={60} />
+                    <div className="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-md h-32 flex flex-col justify-between group transition-all hover:shadow-lg">
+                        <div className="flex justify-between items-start">
+                            <span className="text-[12px] font-black capitalize tracking-widest text-indigo-600/70">Active Tasks</span>
+                            <div className="p-3 bg-indigo-50 rounded-xl text-indigo-500 group-hover:scale-110 transition-transform">
+                                <ClipboardCheck size={20} />
+                            </div>
                         </div>
-                        <span className="text-[9px] font-bold capitalize tracking-[0.1em] text-violet-100 mb-1 relative z-10">VS Dept Avg</span>
+                        <span className="text-4xl font-black text-slate-900 tabular-nums leading-none mb-1">{employeeSummary.total_tasks || 0}</span>
+                    </div>
+                    
+                    <div className="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-md h-32 flex flex-col justify-between group transition-all hover:shadow-lg">
+                        <div className="flex justify-between items-start">
+                            <span className="text-[12px] font-black capitalize tracking-widest text-emerald-600/70">Completed</span>
+                            <div className="p-3 bg-emerald-50 rounded-xl text-emerald-500 group-hover:scale-110 transition-transform">
+                                <CheckSquare size={20} />
+                            </div>
+                        </div>
+                        <span className="text-4xl font-black text-emerald-600 tabular-nums leading-none mb-1">{employeeSummary.completed_tasks || 0}</span>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-md h-32 flex flex-col justify-between group transition-all hover:shadow-lg">
+                        <div className="flex justify-between items-start">
+                            <span className="text-[12px] font-black capitalize tracking-widest text-amber-600/70">In Progress</span>
+                            <div className="p-3 bg-amber-50 rounded-xl text-amber-500 group-hover:scale-110 transition-transform">
+                                <Play size={20} />
+                            </div>
+                        </div>
+                        <span className="text-4xl font-black text-amber-600 tabular-nums leading-none mb-1">{(employeeSummary.total_tasks - employeeSummary.completed_tasks) || 0}</span>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-md h-32 flex flex-col justify-between group transition-all hover:shadow-lg">
+                        <div className="flex justify-between items-start">
+                            <span className="text-[12px] font-black capitalize tracking-widest text-rose-600/70">Overdue</span>
+                            <div className="p-3 bg-rose-50 rounded-xl text-rose-500 group-hover:scale-110 transition-transform">
+                                <AlertTriangle size={20} />
+                            </div>
+                        </div>
+                        <span className="text-4xl font-black text-rose-600 tabular-nums leading-none mb-1">{employeeSummary.overdue_tasks || 0}</span>
+                    </div>
+
+                    <div className="bg-violet-600 rounded-2xl p-5 border border-violet-500 shadow-md h-32 flex flex-col justify-between text-white relative overflow-hidden group transition-all hover:shadow-lg hover:bg-violet-700">
+                        <div className="absolute -right-2 -bottom-2 opacity-10 group-hover:scale-110 transition-transform">
+                            <TrendingUp size={80} />
+                        </div>
+                        <div className="flex justify-between items-start relative z-10">
+                            <span className="text-[12px] font-black capitalize tracking-widest text-violet-100">VS Dept Avg</span>
+                            <div className="p-3 bg-white/10 rounded-xl text-white">
+                                <Activity size={20} />
+                            </div>
+                        </div>
                         <div className="flex items-baseline gap-1 relative z-10">
-                            <span className="text-xl font-black">{employeeSummary.score || 0}%</span>
-                            <span className="text-[10px] font-bold opacity-60">/ {employeeSummary.dept_avg || 0}%</span>
+                            <span className="text-3xl font-black">{employeeSummary.score || 0}%</span>
+                            <span className="text-xs font-bold opacity-60">/ {employeeSummary.dept_avg || 0}%</span>
                         </div>
                     </div>
                 </div>

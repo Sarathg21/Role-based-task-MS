@@ -30,10 +30,16 @@ const Navbar = () => {
         if (!user) return;
         try {
             const res = await api.get('/notifications');
+            const raw = res.data;
+            // Handle every possible backend shape:
+            // [], { notifications: [] }, { data: [] }, { items: [] }, { results: [] }, { records: [] }
             let data = [];
-            if (Array.isArray(res.data)) data = res.data;
-            else if (Array.isArray(res.data?.notifications)) data = res.data.notifications;
-            else if (Array.isArray(res.data?.data)) data = res.data.data;
+            if (Array.isArray(raw)) {
+                data = raw;
+            } else if (raw && typeof raw === 'object') {
+                data = raw.notifications ?? raw.data ?? raw.items ?? raw.results ?? raw.records ?? [];
+                if (!Array.isArray(data)) data = [];
+            }
             setNotifications(data);
         } catch (err) {
             console.error('Failed to fetch notifications', err);
@@ -116,7 +122,8 @@ const Navbar = () => {
                             }
                             if (role === 'ADMIN') return 'Admin Control';
                             if (role === 'MANAGER') return 'Manager Hub';
-                            return 'Employee Dashboard';
+                            if (location.pathname === '/dashboard' || location.pathname === '/') return 'Employee Dashboard';
+                            return 'My Task';
                         })()}
                     </h1>
                     <p className="text-[10px] font-bold text-slate-400 leading-none mt-1">
@@ -126,43 +133,28 @@ const Navbar = () => {
                 </div>
             </div>
 
-            {/* Center Side: Search Bar */}
-            <div className={`flex-1 ${isDashboard && (user?.role || '').toUpperCase() === 'CFO' ? 'max-w-4xl' : 'max-w-4xl'} flex items-center gap-4`}>
-                <div className="cfo-search flex items-center gap-3 px-6 py-2.5 rounded-full border border-slate-200 transition-all bg-slate-50/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-violet-400/20 shadow-sm w-full mx-auto">
-                    <Search className="text-slate-400 shrink-0" size={20} strokeWidth={2.4} />
-                    <input
-                        type="text"
-                        placeholder="Search for tasks or employees..."
-                        className="w-full bg-transparent border-none focus:outline-none text-sm font-semibold text-slate-700 placeholder:text-slate-400"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onKeyDown={handleSearch}
-                    />
+            {/* Center Side: Search Bar - Hidden for CFO */}
+            {roleUpper !== 'CFO' ? (
+                <div className={`flex-1 max-w-4xl flex items-center gap-4`}>
+                    <div className="cfo-search flex items-center gap-3 px-6 py-2.5 rounded-full border border-slate-200 transition-all bg-slate-50/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-violet-400/20 shadow-sm w-full mx-auto">
+                        <Search className="text-slate-400 shrink-0" size={20} strokeWidth={2.4} />
+                        <input
+                            type="text"
+                            placeholder="Search for tasks or employees..."
+                            className="w-full bg-transparent border-none focus:outline-none text-sm font-semibold text-slate-700 placeholder:text-slate-400"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyDown={handleSearch}
+                        />
+                    </div>
                 </div>
-            </div>
+            ) : (
+                <div className="flex-1" />
+            )}
 
             {/* Right Side: Notifications & Profile */}
             <div className="flex items-center gap-4 shrink-0 justify-end">
-                {isDashboard && user?.role === 'CFO' && (
-                    <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-2xl border border-slate-200 focus-within:bg-white focus-within:ring-2 focus-within:ring-violet-400/20 transition-all shadow-sm">
-                        <Calendar size={14} className="text-violet-500" />
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="date"
-                                className="bg-transparent border-none text-[10px] font-bold text-slate-600 focus:outline-none w-24"
-                                value={fromDate}
-                                onChange={(e) => setFromDate(e.target.value)}
-                            />
-                            <span className="text-slate-300 font-bold">-</span>
-                            <input
-                                type="date"
-                                className="bg-transparent border-none text-[10px] font-bold text-slate-600 focus:outline-none w-24"
-                                value={toDate}
-                                onChange={(e) => setToDate(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                )}
+
                 <div className="relative" ref={notifRef}>
                     <button
                         onClick={() => {

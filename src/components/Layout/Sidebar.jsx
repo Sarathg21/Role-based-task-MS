@@ -9,6 +9,9 @@ import {
     Menu,
     ChevronLeft,
     Network,
+    Target,
+    Layers,
+    RefreshCw,
 } from 'lucide-react';
 
 const Sidebar = ({ isCollapsed, toggleSidebar }) => {
@@ -79,6 +82,10 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
                         <SectionLabel label="Administration" />
                         <NavItem to="/admin" icon={Users} label="Employee Directory" />
                         <NavItem to="/org-tree" icon={Network} label="Org Hierarchy" />
+                        <SectionLabel label="Strategy" />
+                        <NavItem to="/okr-dashboard" icon={Target} label="OKR Dashboard" />
+                        <NavItem to="/okr-subtask" icon={Layers} label="Sub-task Tracking" />
+                        <NavItem to="/recurring-tasks" icon={RefreshCw} label="Recurring Tasks" />
                     </>
                 )}
 
@@ -89,6 +96,10 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
                         <NavItem to="/tasks/team" icon={Users} label="Team Tasks" />
                         <NavItem to="/health-matrix" icon={Network} label="Health Matrix" />
                         <NavItem to="/reports" icon={BarChart3} label="Reports" />
+                        <SectionLabel label="Strategic OKRs" />
+                        <NavItem to="/okr-dashboard" icon={Target} label="OKR Dashboard" />
+                        <NavItem to="/okr-subtask" icon={Layers} label="Sub-task Tracking" />
+                        <NavItem to="/recurring-tasks" icon={RefreshCw} label="Automated Tasks" />
                     </>
                 )}
 
@@ -104,6 +115,13 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
                                 <NavItem to="/tasks/team" icon={Users} label="Team Tasks" />
                                 <SectionLabel label="Analytics" />
                                 <NavItem to="/reports" icon={BarChart3} label="Reports & Insights" />
+                            </>
+                        )}
+
+                        {userRole === 'EMPLOYEE' && (
+                            <>
+                                <SectionLabel label="Analytics" />
+                                <NavItem to="/reports" icon={BarChart3} label="My Performance" />
                             </>
                         )}
                     </>

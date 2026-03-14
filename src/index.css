@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @theme {
+  --font-primary: 'Aptos', system-ui, -apple-system;
   /* Enterprise Color Palette */
   --color-primary-50: #f5f3ff;
   --color-primary-100: #ede9fe;
@@ -58,11 +59,12 @@
 }
 
 /* Base Styles */
-@layer base {
+@@layer base {
   * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    font-family: 'Aptos', system-ui, -apple-system;
   }
 
   html,
@@ -73,14 +75,16 @@
   }
 
   body {
-    font-family: 'Aptos', 'Inter', system-ui, -apple-system, sans-serif;
     background-color: var(--color-bg-body);
     color: var(--color-text-primary);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
 
-  button {
+  button,
+  input,
+  textarea,
+  select {
     font-family: inherit;
   }
 }

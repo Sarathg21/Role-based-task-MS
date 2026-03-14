@@ -41,8 +41,15 @@ const AdminDashboard = () => {
         setLoadingActivities(true);
         try {
             const res = await api.get('/notifications');
-            const data = res.data?.data || res.data || [];
-            setActivities(Array.isArray(data) ? data : []);
+            const raw = res.data;
+            let data = [];
+            if (Array.isArray(raw)) {
+                data = raw;
+            } else if (raw && typeof raw === 'object') {
+                data = raw.notifications ?? raw.data ?? raw.items ?? raw.results ?? raw.records ?? [];
+                if (!Array.isArray(data)) data = [];
+            }
+            setActivities(data);
         } catch (err) {
             console.error("Failed to fetch admin activities:", err);
         } finally {

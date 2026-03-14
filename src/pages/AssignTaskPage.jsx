@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Clock } from 'lucide-react';
 
 const AssignTaskPage = () => {
     const { user } = useAuth();
@@ -14,7 +14,11 @@ const AssignTaskPage = () => {
         description: '',
         assignee: '',
         priority: 'MEDIUM',
-        dueDate: ''
+        dueDate: '',
+        isRecurring: false,
+        recurringFrequency: 'MONTHLY',
+        recurringDay: 1,
+        dueOffset: 5
     });
     const [attachment, setAttachment] = useState(null);
 
@@ -55,7 +59,11 @@ const AssignTaskPage = () => {
                 priority: formData.priority,
                 assigned_to_emp_id: formData.assignee,
                 due_date: formData.dueDate,
-                parent_task_id: null
+                parent_task_id: null,
+                is_recurring: formData.isRecurring,
+                recurring_frequency: formData.isRecurring ? formData.recurringFrequency : null,
+                recurring_day: formData.isRecurring ? parseInt(formData.recurringDay) : null,
+                due_offset_days: formData.isRecurring ? parseInt(formData.dueOffset) : null
             };
 
             // Step 1: Create the task
@@ -196,11 +204,83 @@ const AssignTaskPage = () => {
                         <input
                             type="date"
                             name="dueDate"
-                            required
-                            className="w-full px-5 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300 font-medium transition-all text-[14px]"
+                            required={!formData.isRecurring}
+                            disabled={formData.isRecurring}
+                            className={`w-full px-5 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-400/30 focus:border-violet-300 font-medium transition-all text-[14px] ${formData.isRecurring ? 'opacity-50 cursor-not-allowed' : ''}`}
                             value={formData.dueDate}
                             onChange={handleChange}
                         />
+                        {formData.isRecurring && <p className="text-[10px] text-violet-500 font-bold mt-1 uppercase">Dynamic date will be used for recurring tasks</p>}
+                    </div>
+
+                    <div className="bg-violet-50/50 p-6 rounded-2xl border border-violet-100 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-white shadow-sm text-violet-600">
+                                    <Clock size={18} />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-bold text-slate-800">Recurring Task</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Automatically repeat this directive</p>
+                                </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    className="sr-only peer" 
+                                    checked={formData.isRecurring}
+                                    onChange={(e) => setFormData({ ...formData, isRecurring: e.target.checked })}
+                                />
+                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                            </label>
+                        </div>
+
+                        {formData.isRecurring && (
+                            <>
+                                <div className="animate-fade-in pt-4 border-t border-violet-100 flex items-center gap-4">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">Frequency:</label>
+                                    <div className="flex bg-white p-1 rounded-xl border border-violet-100 w-full shadow-sm">
+                                        {['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].map((f) => (
+                                            <button
+                                                key={f}
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, recurringFrequency: f })}
+                                                className={`flex-1 py-2 rounded-lg text-[10px] font-black tracking-widest transition-all ${formData.recurringFrequency === f ? 'bg-violet-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                                            >
+                                                {f}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {formData.recurringFrequency === 'MONTHLY' && (
+                                    <div className="animate-fade-in pt-4 border-t border-violet-100 grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Day of Month</label>
+                                            <input 
+                                                type="number" 
+                                                name="recurringDay"
+                                                min="1" max="31"
+                                                className="w-full px-4 py-2 rounded-xl border border-violet-100 bg-white font-bold text-xs focus:ring-2 focus:ring-violet-400/20 outline-none"
+                                                value={formData.recurringDay}
+                                                onChange={handleChange}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Due After (Days)</label>
+                                            <input 
+                                                type="number" 
+                                                name="dueOffset"
+                                                min="1"
+                                                className="w-full px-4 py-2 rounded-xl border border-violet-100 bg-white font-bold text-xs focus:ring-2 focus:ring-violet-400/20 outline-none"
+                                                value={formData.dueOffset}
+                                                onChange={handleChange}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
 
                     <div className="pt-6 flex justify-end gap-3 border-t border-slate-100 mt-8">

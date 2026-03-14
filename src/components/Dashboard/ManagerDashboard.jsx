@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -29,13 +30,27 @@ const toDateKey = (value) => {
     return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
 };
 
-const fetchManagerTasksFallback = async () => {
+const fetchManagerTasksFallback = async (params = {}) => {
     const baseURL = api.defaults.baseURL || '';
     const token = localStorage.getItem('pms_token');
-    const candidates = ['/tasks', '/tasks?scope=department', '/tasks?scope=mine'];
+    
+    // Convert params to query string
+    const query = new URLSearchParams(params).toString();
+    const queryString = query ? `?${query}` : '';
+
+    // If scope is already in params, we might need to handle it differently, 
+    // but typically we can just append our params to these candidates.
+    const candidates = [
+        `tasks?scope=org${query ? `&${query}` : ''}`,
+        `tasks?scope=all${query ? `&${query}` : ''}`,
+        `tasks${queryString}`,
+        `tasks?scope=department${query ? `&${query}` : ''}`,
+        `tasks?scope=mine${query ? `&${query}` : ''}`
+    ];
     for (const path of candidates) {
         try {
-            const res = await fetch(`${baseURL}${path}`, {
+            const url = baseURL.endsWith('/') ? `${baseURL}${path}` : `${baseURL}/${path}`;
+            const res = await fetch(url, {
                 headers: {
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
                     'ngrok-skip-browser-warning': 'true',
@@ -93,13 +108,17 @@ const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
     );
 };
 
-const ManagerDashboard = () => {
+const ManagerDashboard = ({ overriddenDept = null }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
 
+    // Determine current department for context
+    const currentDeptName = overriddenDept?.name || user?.department_name || user?.department || 'Department';
+    const currentDeptId = overriddenDept?.id || user?.department_id || user?.dept_id;
+
     /* ── Date range filter state ─── */
-    const [fromDate, setFromDate] = useState('');
-    const [toDate, setToDate] = useState('');
+    const [fromDate, setFromDate] = useState(localStorage.getItem('dashboard_from_date') || '');
+    const [toDate, setToDate] = useState(localStorage.getItem('dashboard_to_date') || '');
 
     const [dashboardData, setDashboardData] = useState(null);
     const [todayTeamTasks, setTodayTeamTasks] = useState([]);
@@ -135,72 +154,211 @@ const ManagerDashboard = () => {
         if (toDate) params.end_date = toDate;
         if (fromDate) params.from_date = fromDate;
         if (toDate) params.to_date = toDate;
+        
+        // Apply department override if provided
+        if (currentDeptId && currentDeptId !== 'all') {
+            params.department_id = currentDeptId;
+            params.departmentId = currentDeptId;
+        }
+
+        // CFO can view manager dashboard for any department.
+        // If overriddenDept is provided, we are in CFO-drill-down mode.
+        const isCFO = (user?.role?.toUpperCase() === 'CFO') || !!overriddenDept;
 
         try {
-            const dataRes = await api.get('/dashboard/manager', { params }).catch(e => { console.warn("Manager stats fail:", e); return { data: {} }; });
-            const todayRes = await api.get('/dashboard/manager/today', { params }).catch(e => { console.warn("Team today fail:", e); return { data: [] }; });
+            // If it's a CFO viewing, skip the manager-specific dashboard endpoints 
+            // to avoid 403 Access Denied redirects from the global API interceptor.
+            // The fallback logic below will handle fetching via the more permissive /tasks endpoint.
+            let fetchedTasks = [];
+            let dashPayload = {};
+            if (!isCFO) {
+                console.log("ManagerDashboard - Fetching manager stats...");
+                const dataRes = await api.get('/dashboard/manager', { params }).catch(e => { console.warn("Manager stats fail:", e); return { data: {} }; });
+                const todayRes = await api.get('/dashboard/manager/today', { params }).catch(e => { console.warn("Team today fail:", e); return { data: [] }; });
 
-            const dashboardPayload = dataRes?.data?.data || dataRes?.data || {};
-            setDashboardData(dashboardPayload || {});
-            const todayPayload = todayRes?.data?.data || todayRes?.data || [];
-            const todayTasks = Array.isArray(todayPayload) ? todayPayload : [];
-            const mappedTasks = todayTasks.map(t => ({
-                ...t,
-                id: t.task_id || t.id,
-                employee_id: t.assigned_to_emp_id,
-                assigned_by: t.assigned_by_emp_id,
-                assigneeName: t.assigned_to_name,
-                assignerName: t.assigned_by_name,
-                severity: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
-                department: t.department_name || t.department_id,
-                parent_task_id: t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null),
-                parent_task_title: t.parent_task_title || t.parent_task_name || t.parent_directive_title || (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : ''),
-            }));
-            setTodayTeamTasks(mappedTasks);
+                dashPayload = dataRes?.data?.data || dataRes?.data || {};
+                setDashboardData(dashPayload || {});
+                const todayPayload = todayRes?.data?.data || todayRes?.data || [];
+                const todayTasks = Array.isArray(todayPayload) ? todayPayload : [];
+
+                // Pass 1: Build lookup map for ID -> Title
+                const taskMap = {};
+                todayTasks.forEach(t => {
+                    const id = t.task_id || t.id;
+                    const title = t.task_title || t.title || t.task_name || t.name || t.directive_title || t.directive_name;
+                    if (id && title) taskMap[id] = title;
+                });
+
+                // Pass 1.5: Fetch each child task's detail to get parent_task_title.
+                // The backend now returns parent_task_title on GET /tasks/{task_id}.
+                const tasksNeedingParentFetch1 = [];
+                const seenParentIds1 = new Set();
+                todayTasks.forEach(t => {
+                    const childId = t.task_id || t.id;
+                    const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+                    const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name ||
+                                  (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '');
+                    if (pid && !ptitle && !taskMap[pid] && childId && !seenParentIds1.has(pid)) {
+                        seenParentIds1.add(pid);
+                        tasksNeedingParentFetch1.push({ childId, pid });
+                    }
+                });
+
+                if (tasksNeedingParentFetch1.length > 0) {
+                    console.log(`ManagerDashboard (Primary) - Fetching ${tasksNeedingParentFetch1.length} task details for parent titles...`);
+                    await Promise.allSettled(
+                        tasksNeedingParentFetch1.map(async ({ childId, pid }) => {
+                            try {
+                                const res = await api.get(`/tasks/${childId}`);
+                                const detail = res.data?.data || res.data;
+                                if (detail && !Array.isArray(detail)) {
+                                    const parentTitle = detail.parent_task_title || detail.parentTaskTitle;
+                                    if (parentTitle) taskMap[pid] = parentTitle;
+                                }
+                            } catch (err) {
+                                console.warn(`Failed to fetch task detail ${childId}:`, err);
+                            }
+                        })
+                    );
+                }
+
+                // Pass 2: Normalize
+                fetchedTasks = todayTasks.map(t => {
+                    const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+                    const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name || 
+                                  (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '') ||
+                                  taskMap[pid] || '';
+                    return {
+                        ...t,
+                        id: t.task_id || t.id,
+                        employee_id: t.assigned_to_emp_id,
+                        assigned_by: t.assigned_by_emp_id,
+                        assigneeName: t.assigned_to_name,
+                        assignerName: t.assigned_by_name,
+                        severity: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
+                        department: t.department_name || t.department_id,
+                        parent_task_id: pid,
+                        parent_task_title: ptitle,
+                    };
+                });
+                setTodayTeamTasks(fetchedTasks);
+                console.log("ManagerDashboard - Manager stats fetched.");
+            } else {
+                console.log("ManagerDashboard - CFO override detected, skipping manager endpoints.");
+            }
 
             try {
-                const reportRes = await api.get('/manager/reports', { params });
-                const reportPayload = reportRes?.data?.data || reportRes?.data || {};
-                const stats = reportPayload?.manager_stats || (Array.isArray(reportPayload) ? reportPayload : []);
-                setReportTeam(Array.isArray(stats) ? stats : []);
+                if (!isCFO) {
+                    console.log("ManagerDashboard - Fetching manager reports...");
+                    const reportRes = await api.get('/manager/reports', { params });
+                    const reportPayload = reportRes?.data?.data || reportRes?.data || {};
+                    const stats = reportPayload?.manager_stats || (Array.isArray(reportPayload) ? reportPayload : []);
+                    setReportTeam(Array.isArray(stats) ? stats : []);
+                }
             } catch (reportErr) {
                 console.warn("Manager reports not available:", reportErr);
                 setReportTeam([]);
             }
 
             try {
-                // Fetch real organizational/departmental activities (use standard /notifications)
-                const notifyRes = await api.get('/notifications');
-                const notifyData = notifyRes.data?.data || notifyRes.data?.notifications || notifyRes.data || [];
-                setActivities(Array.isArray(notifyData) ? notifyData : []);
+                if (!isCFO) {
+                    // Fetch real organizational/departmental activities (use standard /notifications)
+                    const notifyRes = await api.get('/notifications');
+                    const notifyRaw = notifyRes.data;
+                    let notifyData = [];
+                    if (Array.isArray(notifyRaw)) {
+                        notifyData = notifyRaw;
+                    } else if (notifyRaw && typeof notifyRaw === 'object') {
+                        notifyData = notifyRaw.notifications ?? notifyRaw.data ?? notifyRaw.items ?? notifyRaw.results ?? notifyRaw.records ?? [];
+                        if (!Array.isArray(notifyData)) notifyData = [];
+                    }
+                    setActivities(notifyData);
+                } else {
+                    // For CFO, derive activities from tasks later in the fallback if needed,
+                    // or just leave empty for now as it will be populated by the fallback tasks.
+                    setActivities([]);
+                }
             } catch (notifyErr) {
                 console.warn("Notifications fetch fail:", notifyErr);
             }
 
-            const totalFromDashboard = dashboardPayload?.total_tasks ?? dashboardPayload?.total ?? 0;
+            const totalFromDashboard = dashPayload?.total_tasks ?? dashPayload?.total ?? 0;
             const hasDashboardStats = totalFromDashboard > 0;
-            const hasToday = mappedTasks.length > 0;
+            const hasToday = fetchedTasks.length > 0;
 
-            if (!hasDashboardStats && !hasToday) {
-                const rawTasks = await fetchManagerTasksFallback();
+            console.log("ManagerDashboard - Stats check:", { hasDashboardStats, hasToday, isCFO });
+
+            if ((!hasDashboardStats && !hasToday) || isCFO) {
+                console.log("ManagerDashboard - Falling back to task aggregation...");
+                const rawTasks = await fetchManagerTasksFallback(params);
                 if (rawTasks.length > 0) {
                     const filtered = rawTasks.filter((t) => {
                         const k = toDateKey(t.assigned_date || t.created_at || t.due_date);
-                        if (fromDate && (!k || k < fromDate)) return false;
-                        if (toDate && (!k || k > toDate)) return false;
+                        if (!k) return true; // Don't filter out if no date exists
+                        if (fromDate && k < fromDate) return false;
+                        if (toDate && k > toDate) return false;
                         return true;
                     });
 
-                    const normalized = filtered.map((t) => ({
-                        id: t.task_id || t.id,
-                        title: t.title,
-                        status: String(t.status || '').toUpperCase(),
-                        severity: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
-                        employee_id: t.assigned_to_emp_id || t.employee_id,
-                        assigneeName: t.assigned_to_name || t.assignee_name || t.employee_name || 'Unassigned',
-                        parent_task_id: t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null),
-                        parent_task_title: t.parent_task_title || t.parent_task_name || t.parent_directive_title || (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : ''),
-                    }));
+                    // Pass 1: Build map
+                    const taskMap = {};
+                    filtered.forEach(t => {
+                        const id = t.task_id || t.id;
+                        const title = t.task_title || t.title || t.task_name || t.name || t.directive_title || t.directive_name;
+                        if (id && title) taskMap[id] = title;
+                    });
+
+                    // Pass 1.5: Fetch each child task's detail to get parent_task_title.
+                    // The backend now returns parent_task_title on GET /tasks/{task_id}.
+                    const tasksNeedingParentFetch2 = [];
+                    const seenParentIds2 = new Set();
+                    filtered.forEach(t => {
+                        const childId = t.task_id || t.id;
+                        const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+                        const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name ||
+                                      (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '');
+                        if (pid && !ptitle && !taskMap[pid] && childId && !seenParentIds2.has(pid)) {
+                            seenParentIds2.add(pid);
+                            tasksNeedingParentFetch2.push({ childId, pid });
+                        }
+                    });
+
+                    if (tasksNeedingParentFetch2.length > 0) {
+                        console.log(`ManagerDashboard (Fallback) - Fetching ${tasksNeedingParentFetch2.length} task details for parent titles...`);
+                        await Promise.allSettled(
+                            tasksNeedingParentFetch2.map(async ({ childId, pid }) => {
+                                try {
+                                    const res = await api.get(`/tasks/${childId}`);
+                                    const detail = res.data?.data || res.data;
+                                    if (detail && !Array.isArray(detail)) {
+                                        const parentTitle = detail.parent_task_title || detail.parentTaskTitle;
+                                        if (parentTitle) taskMap[pid] = parentTitle;
+                                    }
+                                } catch (err) {
+                                    console.warn(`Failed to fetch task detail ${childId}:`, err);
+                                }
+                            })
+                        );
+                    }
+
+                    // Pass 2: Normalize
+                    const normalized = filtered.map((t) => {
+                        const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+                        const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name || 
+                                      (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '') ||
+                                      taskMap[pid] || '';
+                        
+                        return {
+                            id: t.task_id || t.id,
+                            title: t.title,
+                            status: String(t.status || '').toUpperCase(),
+                            severity: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
+                            employee_id: t.assigned_to_emp_id || t.employee_id,
+                            assigneeName: t.assigned_to_name || t.assignee_name || t.employee_name || 'Unassigned',
+                            parent_task_id: pid,
+                            parent_task_title: ptitle,
+                        };
+                    });
 
                     const statusCounts = { NEW: 0, IN_PROGRESS: 0, SUBMITTED: 0, APPROVED: 0, REWORK: 0 };
                     const byEmp = new Map();
@@ -246,6 +404,17 @@ const ManagerDashboard = () => {
                     });
                     setTodayTeamTasks(normalized.slice(0, 100));
                     setReportTeam(Array.from(byEmp.values()));
+
+                    // If CFO, also populate activities from these tasks
+                    if (isCFO) {
+                        setActivities(normalized.slice(0, 10).map(t => ({
+                            id: t.id,
+                            actor_name: t.assigneeName || 'Member',
+                            task_title: t.title || 'Directive',
+                            type: t.status === 'SUBMITTED' ? 'TASK_SUBMITTED' : t.status === 'APPROVED' ? 'TASK_APPROVED' : 'ACTIVITY',
+                            created_at: new Date().toISOString()
+                        })));
+                    }
                 }
             }
         } catch (err) {
@@ -289,12 +458,23 @@ const ManagerDashboard = () => {
         if (user?.id) {
             fetchDashboardData();
         }
-    }, [user?.id, fromDate, toDate]);
+    }, [user?.id, fromDate, toDate, currentDeptId]);
+
+    useEffect(() => {
+        const handleFilterChange = () => {
+            setFromDate(localStorage.getItem('dashboard_from_date') || '');
+            setToDate(localStorage.getItem('dashboard_to_date') || '');
+        };
+        window.addEventListener('dashboard-filter-change', handleFilterChange);
+        return () => window.removeEventListener('dashboard-filter-change', handleFilterChange);
+    }, []);
 
     const filteredTasks = useMemo(() => {
         let list = todayTeamTasks;
         if (taskFilter === 'Submitted') list = todayTeamTasks.filter(t => t.status === 'SUBMITTED');
         else if (taskFilter === 'In Progress') list = todayTeamTasks.filter(t => t.status === 'IN_PROGRESS');
+        // If "Today's Tasks" we can either filter by today's date or leave it. The original code left it unfiltered for 'Today's Tasks'. 
+        // We will leave both 'All' and 'Today's Tasks' returning the full list for now unless there's a strict date property to check against.
         return list;
     }, [todayTeamTasks, taskFilter]);
 
@@ -323,7 +503,7 @@ const ManagerDashboard = () => {
         return (
             <div className="flex flex-col items-center justify-center p-20 bg-white rounded-2xl border border-slate-100 shadow-sm">
                 <Loader2 className="w-10 h-10 text-violet-500 animate-spin mb-4" />
-                <p className="text-slate-500 font-medium text-lg">Loading team dashboard...</p>
+                <p className="text-slate-500 font-medium text-lg">Loading {currentDeptName} dashboard...</p>
             </div>
         );
     }
@@ -361,7 +541,7 @@ const ManagerDashboard = () => {
                 <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
                     <div>
                         <span className="text-5xl font-bold tracking-tight">{stats.totalActive || 0}</span>
-                        <p className="text-[15px] font-medium mt-1 text-white/90">Managed Directives</p>
+                        <p className="text-[15px] font-medium mt-1 text-white/90">{currentDeptName} Directives</p>
                     </div>
                     <div className="absolute right-4 bottom-4 opacity-20">
                         <CheckSquare size={72} strokeWidth={1.5} />
@@ -403,7 +583,7 @@ const ManagerDashboard = () => {
                     <div className="flex items-center gap-6 pt-6 px-6 border-b border-slate-100 pb-0">
                         <h2 className="text-[17px] font-bold text-slate-800 pb-4">Team Task Overview</h2>
                         <div className="flex gap-5 ml-2">
-                            {["Today's Tasks", "In Progress", "Submitted"].map(tab => (
+                            {["All", "Today's Tasks", "In Progress", "Submitted"].map(tab => (
                                 <button
                                     key={tab}
                                     onClick={() => { setTaskFilter(tab); setCurrentPage(1); }}
@@ -448,11 +628,11 @@ const ManagerDashboard = () => {
                                                 <span className="text-[13.5px] font-semibold text-slate-700 truncate max-w-[250px]">{task.title}</span>
                                             </td>
                                             <td className="py-2 px-6">
-                                                <span className="text-[13px] font-medium text-slate-500">#{task.parent_task_id || task.parent_id || (task.parent_task ? (task.parent_task.task_id || task.parent_task.id) : '-')}</span>
+                                                <span className="text-[13px] font-medium text-slate-500">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</span>
                                             </td>
                                             <td className="py-2 px-6">
                                                 <span className="text-[13px] font-medium text-slate-500 truncate max-w-[150px] block">
-                                                    {task.parent_task_title || task.parent_task_name || task.parent_directive_title || (task.parent_task ? (task.parent_task.task_title || task.parent_task.title) : '-')}
+                                                    {task.parent_task_title || '-'}
                                                 </span>
                                             </td>
                                             <td className="py-2 px-6">
@@ -537,7 +717,7 @@ const ManagerDashboard = () => {
                             <button onClick={() => navigate('/tasks/assign')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
                                 <Plus size={18} strokeWidth={2.5} /> Assign Task
                             </button>
-                            <button onClick={() => navigate('//tasks?mode=team')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
+                            <button onClick={() => navigate('/tasks?mode=team')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
                                 <Users size={18} strokeWidth={2.5} /> Manage Team
                             </button>
                             <button onClick={() => navigate('/reports')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">

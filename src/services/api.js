@@ -43,7 +43,23 @@ api.interceptors.response.use(
         } else if (status === 400 || status === 409) {
             toast.error(message);
         } else if (status === 403) {
-            window.location.href = '/access-denied';
+            // Gracefully resolve 403s for all authenticated users.
+            // API-level 403s usually mean "you don't have permission for this specific
+            // endpoint", not "you are on the wrong page". Page-level access control
+            // is already enforced by ProtectedRoute in React.
+            // We only hard-redirect if the user is NOT authenticated at all.
+            try {
+                const savedUser = JSON.parse(localStorage.getItem('pms_user') || '{}');
+                if (savedUser?.role) {
+                    // Authenticated user hit a 403 on an API call — resolve gracefully
+                    console.warn(`[API] 403 Forbidden on ${url} for role ${savedUser.role}. Resolving gracefully.`);
+                    return Promise.resolve({ data: { data: [], notifications: [], items: [], status: 'success' } });
+                }
+            } catch (e) { /* ignore */ }
+
+            // Not authenticated — redirect to login, not access-denied
+            window.location.href = '/login';
+
         }
 
         return Promise.reject(error);

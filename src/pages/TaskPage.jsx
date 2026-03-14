@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
+import { toast } from "react-hot-toast";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import Badge from "../components/UI/Badge";
 import CustomSelect from "../components/UI/CustomSelect";
-import { Plus, Search, Loader2, History, Paperclip, ChevronDown, ChevronRight, CheckSquare, Check, X, ArrowLeftRight, RotateCcw, Play, Upload, RefreshCw, AlertTriangle } from "lucide-react";
+import { Plus, Search, Loader2, History, Paperclip, ChevronDown, ChevronRight, CheckSquare, Check, X, ArrowLeftRight, RotateCcw, Play, Upload, RefreshCw, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import ReassignTaskModal from "../components/Modals/ReassignTaskModal";
 import TaskDetailModal from "../components/Modals/TaskDetailModal";
 import ReworkCommentModal from "../components/Modals/ReworkCommentModal";
@@ -51,7 +52,7 @@ const StatusCell = ({ task }) => {
         {isOverdue && (
           <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 shadow-sm animate-pulse-gentle">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
-            <span className="text-[9px] font-black text-rose-600 uppercase tracking-tighter">Overdue</span>
+            <span className="text-[9px] font-black text-rose-600 capitalize tracking-tighter">Overdue</span>
           </span>
         )}
       </div>
@@ -75,11 +76,11 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
   return (
     <div className="overflow-x-auto bg-white rounded-[1.5rem] shadow-sm border border-slate-100 mt-6">
       <table className="w-full text-left border-collapse text-xs">
-        <thead className="bg-slate-50/30 text-slate-400 text-[12px] uppercase font-medium border-b border-slate-100">
+        <thead className="bg-slate-50/30 text-slate-400 text-[12px] capitalize font-medium border-b border-slate-100">
           <tr>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Task ID</th>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Parent Task ID</th>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Parent Task</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Task ID</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task ID</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task</th>
             <th className="py-3 px-4">Employee</th>
             <th className="py-3 px-4">Role</th>
             <th className="py-3 px-4">Dept</th>
@@ -106,7 +107,7 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
             return (
               <tr key={taskKey} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => onViewDetails(task)}>
                 <td className="py-2 px-4 font-bold text-violet-600">#{task.id}</td>
-                <td className="py-2 px-4 text-slate-500 font-medium">{task.parent_task_id || '-'}</td>
+                <td className="py-2 px-4 text-slate-500 font-medium">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</td>
                 <td className="py-2 px-4 text-slate-500 font-medium truncate max-w-[150px]">{task.parent_task_title || task.parent_task_name || '-'}</td>
 
                 {/* Employee */}
@@ -121,12 +122,12 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
 
                 {/* Role */}
                 <td className="py-2 px-4">
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-tighter ${(assignee?.role || task.assignee_role || '').toUpperCase() === 'MANAGER' ? 'bg-indigo-100 text-indigo-700' :
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full capitalize tracking-tighter ${(assignee?.role || task.assignee_role || '').toUpperCase() === 'MANAGER' ? 'bg-indigo-100 text-indigo-700' :
                     (assignee?.role || task.assignee_role || '').toUpperCase() === 'EMPLOYEE' ? 'bg-slate-100 text-slate-600' :
                       (assignee?.role || task.assignee_role || '').toUpperCase() === 'CFO' || (assignee?.role || task.assignee_role || '').toUpperCase() === 'ADMIN' ? 'bg-[#9B51E0] text-white' :
                         'bg-slate-100 text-slate-400'
                     }`}>
-                    {assignee?.role || task.assignee_role || task.role || '-'}
+                    {String(assignee?.role || task.assignee_role || task.role || '-').toLowerCase()}
                   </span>
                 </td>
 
@@ -258,18 +259,18 @@ const ActionTaskTable = ({
   return (
     <div className="overflow-x-auto bg-white rounded-[1.5rem] shadow-sm border border-slate-100 mt-6">
       <table className="w-full text-left border-collapse">
-        <thead className="bg-slate-50/30 text-slate-400 text-[12px] uppercase font-medium border-b border-slate-100">
+        <thead className="bg-slate-50/30 text-slate-400 text-[12px] capitalize font-medium border-b border-slate-100">
           <tr>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Task ID</th>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Parent Task ID</th>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Parent Task</th>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Task</th>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Assignee</th>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Assigned By</th>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px] text-center">Status</th>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px] text-center">Severity</th>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px]">Due Date</th>
-            <th className="py-3 px-4 text-slate-400 font-bold uppercase tracking-widest text-[10px] text-right">Actions</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Task ID</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task ID</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Task</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Assignee</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Assigned By</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px] text-center">Status</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px] text-center">Severity</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Due Date</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px] text-right">Actions</th>
           </tr>
         </thead>
 
@@ -281,7 +282,7 @@ const ActionTaskTable = ({
             return (
               <tr key={task.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => onViewDetails(task)}>
                 <td className="p-4 font-bold text-violet-600">#{task.id}</td>
-                <td className="p-4 text-slate-500 font-medium">{task.parent_task_id || '-'}</td>
+                <td className="p-4 text-slate-500 font-medium">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</td>
                 <td className="p-4 text-slate-500 font-medium truncate max-w-[150px]">{task.parent_task_title || task.parent_task_name || '-'}</td>
                 <td className="p-4 min-w-0">
                   <div className="flex items-center gap-3">
@@ -532,24 +533,71 @@ const TaskPage = () => {
 
       const raw = Array.isArray(response.data) ? response.data : (Array.isArray(response.data?.data) ? response.data.data : []);
 
-      // Build a lookup of task_id -> title so that when the API only returns a parent_task_id
-      // (without parent_task_title), we can still show the parent name in the grid.
-      const titleById = {};
+
+      const taskMap = {};
       raw.forEach(t => {
         const id = t.task_id || t.id;
-        const title = t.task_title || t.title;
-        if (id && title) {
-          titleById[String(id)] = title;
-        }
+        const title = t.task_title || t.title || t.task_name || t.name || t.directive_title || t.directive_name;
+        if (id && title) taskMap[id] = title;
       });
 
+      // Pass 1.5: Fetch each child task's individual detail to retrieve parent_task_title.
+      // The backend now returns parent_task_title on GET /tasks/{task_id}.
+      // We fetch the *child* task (which the user has access to) rather than the parent task
+      // (which may be 403-restricted), so we can reliably read parent_task_title from the response.
+      const tasksNeedingParentFetch = [];
+      const seenParentIds = new Set();
+      raw.forEach(t => {
+          const childId = t.task_id || t.id;
+          const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+          const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name ||
+                        (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '');
+          if (pid && !ptitle && !taskMap[pid] && childId && !seenParentIds.has(pid)) {
+              seenParentIds.add(pid);
+              tasksNeedingParentFetch.push({ childId, pid });
+          }
+      });
+
+      if (tasksNeedingParentFetch.length > 0) {
+          console.log(`TaskPage - Fetching ${tasksNeedingParentFetch.length} task details for parent titles...`);
+          await Promise.allSettled(
+              tasksNeedingParentFetch.map(async ({ childId, pid }) => {
+                  try {
+                      const res = await api.get(`/tasks/${childId}`);
+                      const detail = res.data?.data || res.data;
+                      if (detail && !Array.isArray(detail)) {
+                          const parentTitle = detail.parent_task_title || detail.parentTaskTitle;
+                          if (parentTitle) taskMap[pid] = parentTitle;
+                      }
+                  } catch (err) {
+                      console.warn(`Failed to fetch task detail ${childId}:`, err);
+                  }
+              })
+          );
+      }
+
       const normalised = raw.map(t => {
-        const parentId = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+        const parentId =
+                    t.parent_task_id ??
+                    t.parent_id ??
+                    (t.parent_task ? (t.parent_task.task_id ?? t.parent_task.id) : null);
         const inlineParentTitle =
-          t.parent_task_title ||
-          t.parent_task_name ||
-          t.parent_directive_title ||
-          (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : '');
+  t.parent_task_title ??
+  t.parentTaskTitle ??
+  t.parent_task_name ??
+  t.parent_title ??
+  t.parent_name ??
+  t.parent_directive_title ??
+  t.parent_directive_name ??
+  (t.parent_task
+    ? (t.parent_task.task_title ??
+       t.parent_task.title ??
+       t.parent_task.task_name ??
+       t.parent_task.name ??
+       t.parent_task.directive_title)
+    : undefined) ??
+  taskMap[parentId] ??
+  '';
 
         return {
           ...t,
@@ -563,7 +611,7 @@ const TaskPage = () => {
           department: t.department_name || t.department || '',
           assignee_role: t.assignee_role || t.role,
           parent_task_id: parentId,
-          parent_task_title: inlineParentTitle || (parentId ? (titleById[String(parentId)] || '') : ''),
+          parent_task_title: inlineParentTitle,
         };
       });
       setTasks(normalised);
@@ -571,6 +619,67 @@ const TaskPage = () => {
       console.error("Failed to fetch tasks", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    const toastId = toast.loading("Preparing Excel export...");
+    try {
+      const isAdmin = user?.role === 'Admin';
+      const isCFO = user?.role === 'CFO';
+      let scopeParam = (isAdmin ? 'org' : viewMode === 'team' ? 'department' : 'mine');
+
+      const params = {
+        scope: scopeParam,
+        from_date: filter.fromDate || undefined,
+        to_date: filter.toDate || undefined,
+        start_date: filter.fromDate || undefined,
+        end_date: filter.toDate || undefined
+      };
+
+      if (filter.status && filter.status !== 'All' && filter.status !== 'Overdue') params.status = filter.status;
+      if (filter.severity && filter.severity !== 'All') params.priority = filter.severity;
+      if (filter.department && filter.department !== 'All') params.department_id = filter.department;
+      if (filter.employeeId && filter.employeeId !== 'All') params.assigned_to_emp_id = filter.employeeId;
+      if (filter.search) params.search = filter.search;
+
+      let endpoint = '/reports/cfo/export-excel';
+      const role = (user?.role || '').toUpperCase();
+      if (role === 'EMPLOYEE' || (role === 'MANAGER' && viewMode === 'personal')) {
+        // Try the generic endpoint which might be more reliable for employees
+        endpoint = '/reports/performance.excel';
+      }
+
+      const response = await api.get(endpoint, {
+        params,
+        responseType: 'blob'
+      });
+
+      // Handle potential JSON error wrapped in blob
+      if (response.data.size < 250) {
+        const text = await response.data.text();
+        try {
+          const errorJson = JSON.parse(text);
+          throw new Error(errorJson.detail || errorJson.message || 'Export failed');
+        } catch (e) { /* Proceed if not JSON */ }
+      }
+
+      const contentType = response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      const blob = new Blob([response.data], { type: contentType });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tasks_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("Excel exported successfully", { id: toastId });
+    } catch (err) {
+      console.error("Excel export failed", err);
+      const errorMsg = err.response?.data?.message || err.message || "Export failed";
+      toast.error(errorMsg, { id: toastId });
     }
   };
 
@@ -751,46 +860,46 @@ const TaskPage = () => {
       {/* PREMIUM METRIC WIDGETS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto">
         {/* Active Tasks */}
-        <div className="bg-violet-50/50 p-4 rounded-2xl border border-violet-100 flex items-center gap-4 transition-all hover:shadow-md hover:bg-violet-100/50 group">
-          <div className="w-10 h-10 rounded-xl bg-violet-500 text-white flex items-center justify-center shadow-lg shadow-violet-200 shrink-0 group-hover:scale-110 transition-transform">
-            <CheckSquare size={20} />
+        <div className="bg-violet-50/50 p-6 rounded-[2rem] border border-violet-100 flex items-center gap-5 transition-all hover:shadow-lg hover:bg-violet-100/50 group">
+          <div className="w-14 h-14 rounded-2xl bg-violet-600 text-white flex items-center justify-center shadow-lg shadow-violet-200 shrink-0 group-hover:scale-110 transition-transform">
+            <CheckSquare size={24} />
           </div>
           <div>
-            <span className="text-[10px] font-black text-violet-400 uppercase tracking-widest block mb-0.5">Active Tasks</span>
-            <span className="text-2xl font-black text-slate-900 leading-none">{tasks.filter(t => !['APPROVED', 'CANCELLED', 'SUBMITTED'].includes(t.status)).length}</span>
+            <span className="text-[12px] font-black text-violet-500 capitalize tracking-widest block mb-1">Active Tasks</span>
+            <span className="text-4xl font-black text-slate-900 leading-none tabular-nums">{tasks.filter(t => !['APPROVED', 'CANCELLED', 'SUBMITTED'].includes(t.status)).length}</span>
           </div>
         </div>
 
         {/* In Progress */}
-        <div className="bg-orange-50/50 p-4 rounded-2xl border border-orange-100 flex items-center gap-4 transition-all hover:shadow-md hover:bg-orange-100/50 group">
-          <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-lg shadow-orange-200 shrink-0 group-hover:scale-110 transition-transform">
-            <Play size={20} />
+        <div className="bg-orange-50/50 p-6 rounded-[2rem] border border-orange-100 flex items-center gap-5 transition-all hover:shadow-lg hover:bg-orange-100/50 group">
+          <div className="w-14 h-14 rounded-2xl bg-orange-600 text-white flex items-center justify-center shadow-lg shadow-orange-200 shrink-0 group-hover:scale-110 transition-transform">
+            <Play size={24} />
           </div>
           <div>
-            <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest block mb-0.5">In Progress</span>
-            <span className="text-2xl font-black text-slate-900 leading-none">{tasks.filter(t => t.status === 'IN_PROGRESS').length}</span>
+            <span className="text-[12px] font-black text-orange-500 capitalize tracking-widest block mb-1">In Progress</span>
+            <span className="text-4xl font-black text-slate-900 leading-none tabular-nums">{tasks.filter(t => t.status === 'IN_PROGRESS').length}</span>
           </div>
         </div>
 
         {/* Pending Submission */}
-        <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100 flex items-center gap-4 transition-all hover:shadow-md hover:bg-amber-100/50 group">
-          <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-200 shrink-0 group-hover:scale-110 transition-transform">
-            <Upload size={20} />
+        <div className="bg-amber-50/50 p-6 rounded-[2rem] border border-amber-100 flex items-center gap-5 transition-all hover:shadow-lg hover:bg-amber-100/50 group">
+          <div className="w-14 h-14 rounded-2xl bg-amber-600 text-white flex items-center justify-center shadow-lg shadow-amber-200 shrink-0 group-hover:scale-110 transition-transform">
+            <Upload size={24} />
           </div>
           <div>
-            <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block mb-0.5">Pending Submission</span>
-            <span className="text-2xl font-black text-slate-900 leading-none">{tasks.filter(t => t.status === 'NEW' || t.status === 'REWORK').length}</span>
+            <span className="text-[12px] font-black text-amber-500 capitalize tracking-widest block mb-1">Pending Submission</span>
+            <span className="text-4xl font-black text-slate-900 leading-none tabular-nums">{tasks.filter(t => t.status === 'NEW' || t.status === 'REWORK').length}</span>
           </div>
         </div>
 
         {/* Overdue */}
-        <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100 flex items-center gap-4 transition-all hover:shadow-md hover:bg-rose-100/50 group">
-          <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center shadow-lg shadow-rose-200 shrink-0 group-hover:scale-110 transition-transform">
-            <AlertTriangle size={20} />
+        <div className="bg-rose-50/50 p-6 rounded-[2rem] border border-rose-100 flex items-center gap-5 transition-all hover:shadow-lg hover:bg-rose-100/50 group">
+          <div className="w-14 h-14 rounded-2xl bg-rose-600 text-white flex items-center justify-center shadow-lg shadow-rose-200 shrink-0 group-hover:scale-110 transition-transform">
+            <AlertTriangle size={24} />
           </div>
           <div>
-            <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest block mb-0.5">Overdue</span>
-            <span className="text-2xl font-black text-slate-900 leading-none">
+            <span className="text-[12px] font-black text-rose-500 capitalize tracking-widest block mb-1">Overdue</span>
+            <span className="text-4xl font-black text-slate-900 leading-none tabular-nums">
               {tasks.filter(t => {
                 const today = new Date().toLocaleDateString('en-CA');
                 const dueDateKey = toDateKey(t.due_date);
@@ -932,6 +1041,15 @@ const TaskPage = () => {
         >
           <RefreshCw size={14} className={`group-hover:rotate-180 transition-transform duration-500 ${loading ? 'animate-spin' : ''}`} />
           <span>Sync Data</span>
+        </button>
+
+        {/* Excel Export Button */}
+        <button
+          onClick={handleExportExcel}
+          className="flex items-center gap-2 px-5 py-2.5 bg-white text-emerald-600 border border-emerald-100 text-xs font-bold rounded-xl hover:bg-emerald-50 transition-all shadow-sm active:scale-95 group shrink-0"
+        >
+          <FileSpreadsheet size={14} className="group-hover:scale-110 transition-transform" />
+          <span>Export Excel</span>
         </button>
 
         {/* Reset Button */}

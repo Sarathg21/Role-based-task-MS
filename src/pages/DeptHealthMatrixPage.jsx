@@ -170,7 +170,6 @@ return (
                     <span className="text-5xl font-bold relative z-10">{onTrackCount}</span>
                     <CheckCircle2 className="absolute -bottom-4 -right-4 w-24 h-24 text-white opacity-10" />
                 </div>
-
                 <div className="bg-[#f0ad4e] p-6 rounded-lg shadow-sm text-white flex flex-col justify-between h-32 relative overflow-hidden">
                     <span className="text-sm font-medium relative z-10 opacity-90">Departments At Risk</span>
                     <span className="text-5xl font-bold relative z-10">{atRiskCount}</span>

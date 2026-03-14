@@ -181,6 +181,14 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
                             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Assigned Date</p>
                             <p className="text-sm font-semibold text-slate-700">{task.assigned_date}</p>
                         </div>
+                        {task.parent_task_id && (
+                            <div className="space-y-1">
+                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Parent Task</p>
+                                <p className="text-sm font-semibold text-slate-700 truncate max-w-[250px]">
+                                    <span className="text-violet-500 font-bold">#{task.parent_task_id}</span> {task.parent_task_title || task.parent_task_name || "Untitled Parent"}
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Tabs Navigation */}

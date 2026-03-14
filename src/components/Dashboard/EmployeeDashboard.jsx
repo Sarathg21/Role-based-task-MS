@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -8,7 +9,7 @@ import ChartPanel from '../Charts/ChartPanel';
 import {
     TrendingUp, CheckCircle, Clock, AlertCircle,
     ThumbsUp, Calendar, ArrowRight, ChevronRight, CalendarCheck, Loader2,
-    Search as SearchIcon, Plus, Settings, MessageSquare, ChevronDown, User, Edit2, Activity, CheckSquare, BarChart2, PlusCircle
+    Search as SearchIcon, Plus, Settings, MessageSquare, ChevronDown, User, Edit2, Activity, CheckSquare, BarChart2, PlusCircle, RefreshCw
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -139,93 +140,6 @@ const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
     );
 };
 
-const TaskDistributionCard = ({ data }) => {
-    if (!data || Object.keys(data).length === 0) return (
-        <div className="bg-white border border-slate-100 shadow-sm rounded-2xl p-8 text-center h-[320px] flex flex-col items-center justify-center">
-            <Activity className="w-10 h-10 text-slate-200 mb-4 opacity-50" />
-            <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Syncing Distribution...</p>
-        </div>
-    );
-
-    const COLORS = {
-        'New': '#3b82f6',
-        'In Progress': '#6366f1',
-        'Submitted': '#f59e0b',
-        'Approved': '#10b981',
-        'Rework': '#ea580c',
-        'Overdue': '#ef4444',
-        'Cancelled': '#94a3b8'
-    };
-
-    const displayData = [
-        { name: 'New', value: data.new_tasks || 0, color: COLORS['New'] },
-        { name: 'In Progress', value: data.in_progress_tasks || 0, color: COLORS['In Progress'] },
-        { name: 'Submitted', value: data.submitted_tasks || 0, color: COLORS['Submitted'] },
-        { name: 'Approved', value: data.approved_tasks || 0, color: COLORS['Approved'] },
-        { name: 'Rework', value: data.rework_tasks || 0, color: COLORS['Rework'] },
-        { name: 'Overdue', value: data.overdue_tasks || 0, color: COLORS['Overdue'] }
-    ].filter(d => d.value > 0);
-
-    const grandTotal = displayData.reduce((acc, d) => acc + d.value, 0) || 1;
-
-    return (
-        <div className="bg-white border border-slate-100 shadow-sm rounded-2xl p-6 transition-all hover:shadow-md h-full flex flex-col min-h-[320px]">
-            <h3 className="text-[13px] font-black text-slate-700 mb-6 flex items-center gap-2 uppercase tracking-tight">
-                <BarChart2 size={14} className="text-indigo-500" />
-                My Task Distribution
-            </h3>
-            
-            <div className="flex flex-1 items-center gap-8 px-2">
-                {/* Donut Chart */}
-                <div className="relative w-40 h-40 shrink-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie
-                                data={displayData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={48}
-                                outerRadius={75}
-                                paddingAngle={2}
-                                dataKey="value"
-                                stroke="none"
-                            >
-                                {displayData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                            </Pie>
-                            <Tooltip 
-                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '10px' }}
-                            />
-                        </PieChart>
-                    </ResponsiveContainer>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Total</span>
-                        <span className="text-2xl font-black text-slate-800 tabular-nums">{grandTotal === 1 && displayData.length === 0 ? 0 : grandTotal}</span>
-                    </div>
-                </div>
-
-                {/* Legend */}
-                <div className="flex-1 space-y-3.5">
-                    {displayData.map((item, idx) => {
-                        const pct = Math.round((item.value / grandTotal) * 100);
-                        return (
-                            <div key={idx} className="flex items-center justify-between group">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                                    <span className="text-[12px] font-bold text-slate-600 group-hover:text-slate-900 transition-colors uppercase tracking-tight">{item.name}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[13px] font-black text-slate-800 tabular-nums w-8 text-right">{pct}%</span>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
-    );
-};
 
 /* ─── Employee Dashboard ───────────────────────────────────── */
 const EmployeeDashboard = () => {
@@ -240,79 +154,13 @@ const EmployeeDashboard = () => {
     const [dashboardData, setDashboardData] = useState(null);
     const [todayTasks, setTodayTasks] = useState([]);
     const [allTasks, setAllTasks] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [activities, setActivities] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [loadingActivities, setLoadingActivities] = useState(false);
     const [activeTab, setActiveTab] = useState("TODAY");
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
-    const fetchActivities = async () => {
-    setLoadingActivities(true);
-
-    try {
-        const res = await api.get('/notifications', { params: { limit: 10 } });
-
-        const data =
-            res.data?.data ||
-            res.data?.notifications ||
-            res.data ||
-            [];
-
-        if (Array.isArray(data) && data.length > 0) {
-            setActivities(data);
-        } else {
-            // fallback from tasks
-            const sourceTasks = todayTasks.length ? todayTasks : allTasks;
-
-            const fallback = sourceTasks.slice(0, 10).map((t, idx) => ({
-                id: `task-${t.id}-${idx}`,
-                actor_name: t.assignerName || "Manager",
-                task_title: t.title,
-                type:
-                    t.status === "APPROVED"
-                        ? "TASK_APPROVED"
-                        : t.status === "SUBMITTED"
-                        ? "TASK_SUBMITTED"
-                        : t.status === "REWORK"
-                        ? "TASK_REWORK"
-                        : t.status === "IN_PROGRESS"
-                        ? "TASK_STARTED"
-                        : "TASK_CREATED",
-                created_at:
-                    t.updated_at ||
-                    t.created_at ||
-                    t.assigned_date ||
-                    new Date().toISOString(),
-            }));
-
-            setActivities(fallback);
-        }
-
-    } catch (err) {
-        console.error("Failed to fetch activities", err);
-
-        // fallback if API fails
-        const sourceTasks = todayTasks.length ? todayTasks : allTasks;
-
-        const fallback = sourceTasks.slice(0, 10).map((t, idx) => ({
-            id: `task-${t.id}-${idx}`,
-            actor_name: t.assignerName || "Manager",
-            task_title: t.title,
-            type: "TASK_CREATED",
-            created_at:
-                t.updated_at ||
-                t.created_at ||
-                t.assigned_date ||
-                new Date().toISOString(),
-        }));
-
-        setActivities(fallback);
-
-    } finally {
-        setLoadingActivities(false);
-    }
-};
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
@@ -334,40 +182,81 @@ const EmployeeDashboard = () => {
             setDashboardData(dashboardPayload);
             const todayPayload = todayRes?.data?.data || todayRes?.data || [];
             const todayT = Array.isArray(todayPayload) ? todayPayload : [];
-            setTodayTasks(todayT.map(t => ({
-                ...t,
-                id: t.task_id || t.id,                          // integer — used in all API URLs
-                employee_id: t.assigned_to_emp_id,       // for assignee lookup
-                assigned_by: t.assigned_by_emp_id,       // for assigner lookup
-                assigneeName: t.assigned_to_name,
-                assignerName: t.assigned_by_name,
-                severity: (t.priority || t.severity || 'LOW').toUpperCase(),
-                department: t.department_name || t.department_id,
-                parent_task_id: t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null),
-                parent_task_title: t.parent_task_title || t.parent_task_name || t.parent_directive_title || (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : ''),
-            })));
-            // Always fetch full task list to ensure "All" tab and Performance Index are accurate
+            
+            // Fetch full task list to ensure accurate counts and "All" tab view
             const rawTasks = await fetchEmployeeTasksFallback(params);
+            const allRaw = Array.isArray(rawTasks) ? rawTasks : [];
 
-            // Build lookup of task_id -> title so we can resolve parent names even when
-            // the API only sends parent_task_id without parent_task_title.
-            const titleById = {};
-            rawTasks.forEach((t) => {
+            // Pass 1: Build lookup map for ID -> Title
+            const taskMap = {};
+            [...todayT, ...allRaw].forEach(t => {
                 const id = t.task_id || t.id;
-                const title = t.task_title || t.title;
-                if (id && title) {
-                    titleById[String(id)] = title;
+                const title = t.task_title || t.title || t.task_name || t.name || t.directive_title || t.directive_name;
+                if (id && title) taskMap[id] = title;
+            });
+
+            // Pass 1.5: Fetch each child task's individual detail to retrieve parent_task_title.
+            // The backend now returns parent_task_title on GET /tasks/{task_id}.
+            // We fetch the *child* task (which the employee has access to) rather than the parent task
+            // (which may be 403-restricted), so we can reliably read parent_task_title from the response.
+            const tasksNeedingParentFetch = [];
+            const seenParentIds = new Set();
+            [...todayT, ...allRaw].forEach(t => {
+                const childId = t.task_id || t.id;
+                const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+                const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name ||
+                              (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '');
+                if (pid && !ptitle && !taskMap[pid] && childId && !seenParentIds.has(pid)) {
+                    seenParentIds.add(pid);
+                    tasksNeedingParentFetch.push({ childId, pid });
                 }
             });
 
-            const normalized = rawTasks.map((t) => {
-                const parentId = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
-                const inlineParentTitle =
-                    t.parent_task_title ||
-                    t.parent_task_name ||
-                    t.parent_directive_title ||
-                    (t.parent_task ? (t.parent_task.task_title || t.parent_task.title) : '');
+            if (tasksNeedingParentFetch.length > 0) {
+                console.log(`EmployeeDashboard - Fetching ${tasksNeedingParentFetch.length} task details for parent titles...`);
+                await Promise.allSettled(
+                    tasksNeedingParentFetch.map(async ({ childId, pid }) => {
+                        try {
+                            const res = await api.get(`/tasks/${childId}`);
+                            const detail = res.data?.data || res.data;
+                            if (detail && !Array.isArray(detail)) {
+                                const parentTitle = detail.parent_task_title || detail.parentTaskTitle;
+                                if (parentTitle) taskMap[pid] = parentTitle;
+                            }
+                        } catch (err) {
+                            console.warn(`Failed to fetch task detail ${childId}:`, err);
+                        }
+                    })
+                );
+            }
 
+            // Pass 2: Normalize with local lookup fallback
+            const getParentInfo = (t) => {
+                const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+                const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name || 
+                              (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '') ||
+                              taskMap[pid] || '';
+                return { pid, ptitle };
+            };
+
+            setTodayTasks(todayT.map(t => {
+                const { pid, ptitle } = getParentInfo(t);
+                return {
+                    ...t,
+                    id: t.task_id || t.id,
+                    employee_id: t.assigned_to_emp_id,
+                    assigned_by: t.assigned_by_emp_id,
+                    assigneeName: t.assigned_to_name,
+                    assignerName: t.assigned_by_name,
+                    severity: (t.priority || t.severity || 'LOW').toUpperCase(),
+                    department: t.department_name || t.department_id,
+                    parent_task_id: pid,
+                    parent_task_title: ptitle,
+                };
+            }));
+
+            const normalized = allRaw.map((t) => {
+                const { pid, ptitle } = getParentInfo(t);
                 return {
                     ...t,
                     id: t.task_id || t.id,
@@ -377,8 +266,8 @@ const EmployeeDashboard = () => {
                     title: t.title || 'Untitled',
                     assigneeName: t.assigned_to_name || user?.name || 'Me',
                     assignerName: t.assigned_by_name || 'Manager',
-                    parent_task_id: parentId,
-                    parent_task_title: inlineParentTitle || (parentId ? (titleById[String(parentId)] || '') : ''),
+                    parent_task_id: pid,
+                    parent_task_title: ptitle,
                 };
             });
 
@@ -432,6 +321,26 @@ const EmployeeDashboard = () => {
         }
     };
 
+    const fetchActivities = async () => {
+        setLoadingActivities(true);
+        try {
+            const res = await api.get('/notifications');
+            const raw = res.data;
+            let data = [];
+            if (Array.isArray(raw)) {
+                data = raw;
+            } else if (raw && typeof raw === 'object') {
+                data = raw.notifications ?? raw.data ?? raw.items ?? raw.results ?? raw.records ?? [];
+                if (!Array.isArray(data)) data = [];
+            }
+            setActivities(data);
+        } catch (err) {
+            console.error("Failed to fetch employee activities:", err);
+        } finally {
+            setLoadingActivities(false);
+        }
+    };
+
     const handleStatusChange = async (taskId, action) => {
         if (!taskId && taskId !== 0) return;
         const confirmed = window.confirm(`Are you sure you want to ${action.toLowerCase()} this task?`);
@@ -449,8 +358,10 @@ const EmployeeDashboard = () => {
         fetchDashboardData();
         fetchActivities();
 
-        const dashInterval = setInterval(fetchDashboardData, 30000);
-        const actInterval = setInterval(fetchActivities, 15000);
+        const dashInterval = setInterval(() => {
+            fetchDashboardData();
+            fetchActivities();
+        }, 30000);
 
         const handleRefresh = () => {
             fetchDashboardData();
@@ -461,7 +372,6 @@ const EmployeeDashboard = () => {
 
         return () => {
             clearInterval(dashInterval);
-            clearInterval(actInterval);
             window.removeEventListener('refresh-notifications', handleRefresh);
         };
     }, [fromDate, toDate]);
@@ -621,11 +531,7 @@ const EmployeeDashboard = () => {
                 </div>
 
                 {/* Right: spacer matching quick actions column so cards don't extend under it */}
-                <div className="hidden xl:flex w-[320px] shrink-0 gap-4">
-                     <div className="flex-1">
-                        <TaskDistributionCard data={dashboardData} />
-                     </div>
-                </div>
+                <div className="hidden xl:flex w-[320px] shrink-0 gap-4" />
             </div>
 
             {/* Main Content Split */}
@@ -673,7 +579,7 @@ const EmployeeDashboard = () => {
                                                 <span className="text-[13.5px] font-semibold text-slate-700 truncate max-w-[200px] block">{task.title}</span>
                                             </td>
                                             <td className="py-2 px-6">
-                                                <span className="text-[13px] font-medium text-slate-500">#{task.parent_task_id || '-'}</span>
+                                                <span className="text-[13px] font-medium text-slate-500">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</span>
                                             </td>
                                             <td className="py-2 px-6">
                                                 <span className="text-[13px] font-medium text-slate-500 truncate max-w-[150px] block">
@@ -786,77 +692,51 @@ const EmployeeDashboard = () => {
                         </div>
                     </div>
 
-                    {/* Recent Activity */}
-                    <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100">
-                        <div className="flex justify-between items-center mb-5">
-                            <h3 className="text-[15px] font-bold text-slate-800 tracking-tight">Recent Activity</h3>
-                            <button className="text-slate-400 hover:text-slate-600 transition-colors">
-                                <Settings size={16} />
+                    {/* Activity Log - Integrated for Employee Role */}
+                    <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100 flex flex-col min-h-[300px]">
+                        <div className="flex items-center justify-between mb-5">
+                            <h3 className="text-[15px] font-bold text-slate-800 tracking-tight">Activity Log</h3>
+                            <button 
+                                onClick={fetchActivities}
+                                className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-violet-600 transition-colors"
+                                title="Refresh activities"
+                            >
+                                <RefreshCw size={14} className={loadingActivities ? 'animate-spin' : ''} />
                             </button>
                         </div>
 
-                        <div className="space-y-3 max-h-[480px] overflow-y-auto custom-scrollbar pr-1">
-                            {loadingActivities ? (
-                                <div className="flex flex-col items-center justify-center p-12 bg-slate-50/50 rounded-2xl border border-dashed border-slate-100">
-                                    <Loader2 className="w-8 h-8 text-violet-500 animate-spin mb-2" />
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Syncing Activity Stream...</p>
+                        <div className="space-y-4 overflow-y-auto max-h-[400px] pr-1">
+                            {loadingActivities && activities.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-10 opacity-50">
+                                    <Loader2 size={24} className="animate-spin text-slate-300 mb-2" />
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Syncing Logs</span>
                                 </div>
                             ) : activities.length === 0 ? (
-                                <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-100">
-                                    <Activity className="w-8 h-8 text-slate-200 mx-auto mb-2 opacity-50" />
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">No recent personal activity</p>
+                                <div className="text-center py-10">
+                                    <MessageSquare size={32} className="mx-auto text-slate-100 mb-3" />
+                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">No Recent Activity</p>
                                 </div>
-                            ) : activities.slice(0, 10).map((i, idx) => {
-                                const actorName = i.actor_name || i.user_name || i.actor?.name || 'Manager';
-                                const taskTitle = i.task_title || i.title || i.directive_title || i.task?.title || 'Directive';
-                                const type = i.type || i.action || 'ACTIVITY';
-
-                                const getStyle = () => {
-                                    if (type === 'TASK_APPROVED' || type === 'SUCCESS') return 'bg-emerald-100 text-emerald-600 border-emerald-200';
-                                    if (type === 'TASK_REWORK' || type === 'TASK_CANCELLED' || type === 'WARNING') return 'bg-rose-100 text-rose-600 border-rose-200';
-                                    if (type === 'TASK_SUBMITTED' || type === 'TASK_REASSIGNED') return 'bg-amber-100 text-amber-600 border-amber-200';
-                                    return 'bg-indigo-100 text-indigo-600 border-indigo-200';
-                                };
-
-                                return (
-                                    <div key={i.id || idx} className="flex gap-3 items-start border border-slate-100 p-3.5 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group cursor-pointer">
-                                        <div className={`w-9 h-9 border shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-black text-xs ${getStyle()}`}>
-                                            {actorName.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div className="flex-1 pt-0.5 min-w-0">
-                                            <div className="flex items-center justify-between mb-0.5">
-                                                <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight">{actorName}</span>
-                                                <span className="text-[9px] font-bold text-slate-400">{formatTimeAgo(i.created_at)}</span>
-                                            </div>
-                                            <p className="text-[13px] text-slate-500 leading-tight">
-                                                {(() => {
-                                                    const title = <span className="font-bold text-violet-600">"{taskTitle}"</span>;
-                                                    switch (type) {
-                                                        case 'TASK_CREATED':
-                                                        case 'TASK_REASSIGNED':
-                                                            return <>Task {title} assigned to you</>;
-                                                        case 'TASK_STARTED':
-                                                            return <>You started task {title}</>;
-                                                        case 'TASK_SUBMITTED':
-                                                            return <>You submitted task {title}</>;
-                                                        case 'TASK_REWORK':
-                                                            return <>{actorName} requested rework on task {title}</>;
-                                                        case 'TASK_APPROVED':
-                                                            return <>Task {title} approved</>;
-                                                        case 'TASK_CANCELLED':
-                                                            return <>Task {title} cancelled</>;
-                                                        default:
-                                                            return i.message || <>interacted with {title}</>;
-                                                    }
-                                                })()}
+                            ) : (
+                                activities.map((act, idx) => (
+                                    <div key={act.id || idx} className="flex gap-3 group animate-fade-in">
+                                        <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${
+                                            act.type?.includes('UPDATE') ? 'bg-amber-400' : 
+                                            act.type?.includes('APPROVE') ? 'bg-emerald-400' : 'bg-violet-400'
+                                        }`} />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[12.5px] leading-relaxed text-slate-600 font-medium">
+                                                <span className="text-slate-900 font-bold">{act.message}</span>
                                             </p>
-                                            {i.comment && <span className="block text-slate-400 mt-1 italic text-[12px] border-l-2 border-slate-100 pl-2">"{i.comment}"</span>}
+                                            <p className="text-[10px] text-slate-400 mt-1 font-bold flex items-center gap-1.5">
+                                                <Clock size={10} /> {formatTimeAgo(act.created_at)}
+                                            </p>
                                         </div>
                                     </div>
-                                );
-                            })}
+                                ))
+                            )}
                         </div>
                     </div>
+
                 </div>
             </div>
 
