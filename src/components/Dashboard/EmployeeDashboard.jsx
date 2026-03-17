@@ -560,7 +560,7 @@ const EmployeeDashboard = () => {
                         <table className="w-full text-left">
                             <thead className="text-[12px] text-slate-400 border-b border-slate-100 bg-slate-50/30">
                                 <tr>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Directives</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Tasks</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Parent Task ID</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Parent Task</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Assigned Date</th>

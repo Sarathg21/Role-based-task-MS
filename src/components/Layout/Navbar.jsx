@@ -6,15 +6,15 @@ import api from '../../services/api';
 
 const PAGE_TITLES = {
     '/dashboard':    { title: 'Dashboard',      subtitle: null },
-    '/tasks/team':   { title: 'Team Tasks',     subtitle: 'Manage directives across your team' },
-    '/tasks':        { title: 'My Tasks',       subtitle: 'Your active directives & assignments' },
+    '/tasks/team':   { title: 'Team Tasks',     subtitle: 'Manage tasks across your team' },
+    '/tasks':        { title: 'My Tasks',       subtitle: 'Your active tasks & assignments' },
     '/reports':      { title: 'Reports',        subtitle: 'Analytics & performance insights' },
     '/admin':        { title: 'Admin Control',  subtitle: 'Manage users, roles & permissions' },
     '/org-tree':     { title: 'Org Hierarchy',  subtitle: 'Visualise your organisation tree' },
     '/health-matrix':{ title: 'Health Matrix',  subtitle: 'Department health at a glance' },
     '/okr-dashboard':{ title: 'OKR Dashboard',  subtitle: 'Objectives & key results overview' },
     '/okr-subtask':  { title: 'Sub-task Tracking', subtitle: 'OKR decomposition & progress' },
-    '/recurring-tasks':{ title: 'Automated Tasks', subtitle: 'Scheduled & recurring directives' },
+    '/recurring-tasks':{ title: 'Automated Tasks', subtitle: 'Scheduled & recurring tasks' },
     '/profile':      { title: 'Profile',        subtitle: 'Account settings & preferences' },
 };
 
@@ -60,10 +60,13 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
         window.dispatchEvent(new Event('dashboard-filter-change'));
     }, [fromDate, toDate]);
 
+    const isFetchingNotifs = useRef(false);
     const fetchNotifications = async () => {
-        if (!user) return;
+        if (!user || isFetchingNotifs.current) return;
+        isFetchingNotifs.current = true;
         try {
-            const res = await api.get('/notifications');
+            // Notifications should fail fast if the server is slow
+            const res = await api.get('/notifications', { timeout: 10000 });
             const raw = res.data;
             let data = [];
             if (Array.isArray(raw)) {
@@ -74,7 +77,12 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
             }
             setNotifications(data);
         } catch (err) {
-            console.error('Failed to fetch notifications', err);
+            // Silence timeout errors for background polling
+            if (err.code !== 'ECONNABORTED') {
+                console.error('Failed to fetch notifications', err);
+            }
+        } finally {
+            isFetchingNotifs.current = false;
         }
     };
 
@@ -138,19 +146,28 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
         <>
             <header className="navbar cfo-navbar sticky top-0 z-40 flex items-center justify-between px-3 sm:px-6 gap-2 sm:gap-4">
 
-                <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-shrink-0">
-                    {/* Mobile hamburger */}
+                <div className="flex items-center gap-4 min-w-0 flex-shrink-0">
+                    {/* Mobile menu toggle */}
                     <button
-                        className="p-1.5 px-2.5 -ml-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 rounded-xl md:hidden transition-all active:scale-95"
                         onClick={onMobileMenuToggle}
-                        aria-label="Toggle sidebar"
+                        className="p-2 -ml-2 text-slate-400 hover:text-[#6366f1] hover:bg-slate-50 rounded-xl md:hidden transition-all active:scale-95"
                     >
                         {isMobileSidebarOpen ? <X size={20} /> : <Menu size={20} />}
                     </button>
 
+                    <div className="flex items-center">
+                        <div className="w-20 h-20 rounded-2xl bg-white shadow-lg flex items-center justify-center p-0.5 transition-all overflow-hidden border border-slate-100">
+                             <img
+                                src="/images/fj.png.png"
+                                alt="FJ logo"
+                                className="w-[115%] h-[115%] object-contain filter drop-shadow-[0_4px_10px_rgba(30,27,75,0.15)]"
+                            />
+                        </div>
+                    </div>
+
                     <div className="flex flex-col min-w-0">
                         <h1
-                            className="text-[14px] sm:text-[18px] font-[800] text-slate-800 leading-tight tracking-tight truncate"
+                            className="text-[14px] sm:text-[17px] font-[850] text-[#6366f1] leading-tight tracking-tight truncate pl-1"
                             style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                         >
                             {(() => {
@@ -165,8 +182,8 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
                                 return pageInfo.title || 'My Task';
                             })()}
                         </h1>
-                        {subtitle && (
-                            <p className="text-[10.5px] font-[550] text-slate-400 mt-0.5 leading-none tracking-wide hidden sm:block">
+                        {subtitle && !(roleUpper === 'CFO' && isDashboard) && (
+                            <p className="text-[10px] font-[700] text-[#6366f1]/50 mt-0.5 leading-none tracking-[0.08em] uppercase hidden sm:block pl-1">
                                 {subtitle}
                             </p>
                         )}
@@ -176,12 +193,14 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
                 {/* ── Center: Search (non-CFO) or Date filters (CFO dashboard) ── */}
                 <div className="flex-1 flex items-center justify-center gap-3 max-w-2xl navbar-search-hide-mobile">
                     {roleUpper !== 'CFO' ? (
-                        <div className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-slate-200/80 bg-slate-50/80 focus-within:bg-white focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-xs">
-                            <Search size={15} className="text-slate-400 shrink-0" strokeWidth={2.2} />
+                        <div className="w-full relative group">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                <Search size={16} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" strokeWidth={2.5} />
+                            </div>
                             <input
                                 type="text"
-                                placeholder="Search tasks or employees..."
-                                className="w-full bg-transparent border-none outline-none text-[13px] font-[500] text-slate-700 placeholder:text-slate-400"
+                                placeholder="Search everything..."
+                                className="w-full bg-slate-100/60 border border-slate-100 py-2.5 pl-10 pr-4 rounded-full text-[13px] font-[600] text-slate-600 placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-indigo-50/50 focus:border-indigo-200 transition-all outline-none"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                                 onKeyDown={handleSearch}
@@ -334,7 +353,7 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
 
             {/* ── Mobile Search Bar (slides down) ── */}
             {showMobileSearch && roleUpper !== 'CFO' && (
-                <div className="flex md:hidden px-3 py-2 bg-white border-b border-slate-100 shadow-sm z-30 sticky top-[56px]">
+                <div className="flex md:hidden px-3 py-2 bg-white border-b border-slate-100 shadow-sm z-30 sticky top-[70px]">
                     <div className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
                         <Search size={15} className="text-slate-400 shrink-0" strokeWidth={2.2} />
                         <input

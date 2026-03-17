@@ -69,8 +69,8 @@
   /* Layout */
   --sidebar-width:           260px;
   --sidebar-width-collapsed:  72px;
-  --navbar-height:            64px;
-  --navbar-height-mobile:     56px;
+  --navbar-height:            80px;
+  --navbar-height-mobile:     70px;
   --page-max-width:         1600px;
 }
 

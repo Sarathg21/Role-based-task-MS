@@ -91,7 +91,7 @@ const TaskDistributionCard = ({ data, title = "Task Distribution" }) => {
                         </div>
                         {title}
                     </h3>
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.15em] pl-10">Directives Status Analysis</p>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.15em] pl-10">Tasks Status Analysis</p>
                 </div>
                 <div className="px-5 py-2 bg-slate-50 border border-slate-100 rounded-2xl text-[12px] font-semibold text-slate-600 shadow-inner">
                     Total: <span className="text-indigo-600 font-bold tabular-nums">{grandTotal}</span>
@@ -136,7 +136,7 @@ const TaskDistributionCard = ({ data, title = "Task Distribution" }) => {
                                 {grandTotal}
                             </span>
                         </div>
-                        <span className="text-[10px] font-bold text-slate-500/60 uppercase mt-1">Directives</span>
+                        <span className="text-[10px] font-bold text-slate-500/60 uppercase mt-1">Tasks</span>
                     </div>
                 </div>
 
@@ -152,7 +152,7 @@ const TaskDistributionCard = ({ data, title = "Task Distribution" }) => {
                                         <span className="text-[14px] font-bold text-slate-700 capitalize">{item.name}</span>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <span className="text-[12px] font-semibold text-slate-400 tabular-nums">{item.value} Directives</span>
+                                        <span className="text-[12px] font-semibold text-slate-400 tabular-nums">{item.value} Tasks</span>
                                         <span className="text-[16px] font-black text-slate-900 tabular-nums">{pct}%</span>
                                     </div>
                                 </div>
@@ -303,8 +303,48 @@ const ReportsPage = () => {
             const data = response.data;
             const payload = data?.data || data;
 
-            if (isCFO && payload.top_5_employees) {
-                setCfoTopEmployees(payload.top_5_employees);
+            if (isCFO && payload.top_5_employees && payload.top_5_employees.length > 0) {
+                const topListWithFullStats = [...payload.top_5_employees];
+                setCfoTopEmployees(topListWithFullStats);
+                
+                // Proactively fetch real stats for the absolute top person if they're missing
+                const t = topListWithFullStats[0];
+                if (t && (t.emp_id || t.id)) {
+                    try {
+                        const sRes = await api.get('/reports/employee/summary', { 
+                            params: { 
+                                employee_id: t.emp_id || t.id,
+                                from_date: start_date || undefined,
+                                to_date: end_date || undefined
+                            } 
+                        });
+                        const sData = sRes.data?.data || sRes.data;
+                        if (sData) {
+                            // Merge into the top employee object without overwriting with zeros
+                            const total = sData.total_tasks || t.total_tasks || t.tasks_count || t.total || 0;
+                            const completed = sData.completed_tasks || sData.approved_tasks || t.completed_tasks || t.approved_tasks || t.completed || 0;
+                            const pending = (sData.total_tasks > 0) 
+                                ? Math.max(0, sData.total_tasks - completed) 
+                                : Math.max(0, t.pending_tasks || t.pending || (total - completed));
+                                
+                            const enriched = { 
+                                ...t, 
+                                total_tasks: total, 
+                                approved_tasks: completed,
+                                completed: completed,
+                                pending: pending,
+                                overdue_tasks: sData.overdue_tasks || t.overdue_tasks || t.overdue || 0,
+                                rework_tasks: sData.rework_count || sData.rework_tasks || t.rework_tasks || t.rework || t.avg_reworks || 0
+                            };
+                            topListWithFullStats[0] = enriched;
+                            setCfoTopEmployees([...topListWithFullStats]);
+                            // Also set it as the primary top performer state for the main card
+                            setTopPerformer(enriched);
+                        }
+                    } catch (e) {
+                         console.warn("Failed to enrich top performer stats:", e);
+                    }
+                }
             }
 
             // Comprehensive stat extraction
@@ -395,8 +435,11 @@ const ReportsPage = () => {
                     if (Object.keys(topP).length > 0) setDeptTopPerformers(topP);
                 }
 
-                setLoading(false);
-                return;
+                if (!isCFO && !isManager) {
+                    setLoading(false);
+                    return;
+                }
+                // For CFO/Manager, we continue to fallback/enrichment to get the detailed status distribution
             }
 
         } catch (err) {
@@ -418,7 +461,7 @@ const ReportsPage = () => {
             const taskMap = {};
             rawTasks.forEach(t => {
                 const id = t.task_id || t.id;
-                const title = t.task_title || t.title || t.task_name || t.name || t.directive_title || t.directive_name;
+                const title = t.task_title || t.subtask_title || t.title || t.task_name || t.name || t.directive_title || t.directive_name;
                 if (id && title) taskMap[id] = title;
             });
 
@@ -476,7 +519,14 @@ const ReportsPage = () => {
                 const deptOk = !filters.departmentId
                     || t.departmentId === String(filters.departmentId)
                     || t.departmentName.toLowerCase() === String(filters.departmentId).toLowerCase();
-                const dateOk = inRange(t.dateKey, filters.fromDate, filters.toDate);
+                
+                const isTerminal = TERMINAL_STATUSES.has(t.status);
+                // For Active tasks, we include them in the visibility if they were created/assigned within range, OR if they are currently active.
+                // For Terminal tasks (Approved), we only include them if they were finished within the range.
+                const dateOk = isTerminal 
+                    ? inRange(t.dateKey, filters.fromDate, filters.toDate)
+                    : true; // Always include active work in the distribution/workload analysis
+
                 return empOk && deptOk && dateOk;
             });
 
@@ -491,13 +541,28 @@ const ReportsPage = () => {
                 ]);
 
                 allKnownDepts.forEach(name => {
-                    const entry = { department_id: name, total_tasks: 0, approved_tasks: 0, pending_tasks: 0, avg_reworks: 0, _reworks: 0 };
+                    const entry = { 
+                        department_id: name, 
+                        total_tasks: 0, 
+                        approved_tasks: 0, 
+                        pending_tasks: 0, 
+                        avg_reworks: 0, 
+                        _reworks: 0,
+                        new_tasks: 0,
+                        in_progress_tasks: 0,
+                        submitted_tasks: 0,
+                        rework_tasks: 0,
+                        overdue_tasks: 0
+                    };
                     byDept.set(name, { ...entry });
                     globalByDept.set(name, { ...entry });
                 });
 
                 const today = new Date().toISOString().slice(0, 10);
-                normalizedTasks.filter(t => inRange(t.dateKey, filters.fromDate, filters.toDate)).forEach(t => {
+                normalizedTasks.filter(t => {
+                    const isTerminal = TERMINAL_STATUSES.has(t.status);
+                    return isTerminal ? inRange(t.dateKey, filters.fromDate, filters.toDate) : true;
+                }).forEach(t => {
                     const key = t.departmentName || 'N/A';
                     const existing = globalByDept.get(key) || { 
                         department_id: key, total_tasks: 0, approved_tasks: 0, pending_tasks: 0, avg_reworks: 0, _reworks: 0,
@@ -511,7 +576,7 @@ const ReportsPage = () => {
                     }
                     if (t.status === 'REWORK' || t.status === 'CHANGES_REQUESTED') existing.rework_tasks += 1;
                     if (t.status === 'NEW' || t.status === 'CREATED') existing.new_tasks += 1;
-                    if (t.status === 'IN_PROGRESS' || t.status === 'STARTED') existing.in_progress_tasks += 1;
+                    if (['IN_PROGRESS', 'STARTED', 'PENDING', 'IN-PROGRESS'].includes(t.status)) existing.in_progress_tasks += 1;
                     if (t.status === 'SUBMITTED') existing.submitted_tasks += 1;
                     
                     globalByDept.set(key, existing);
@@ -532,7 +597,7 @@ const ReportsPage = () => {
                     }
                     if (t.status === 'REWORK' || t.status === 'CHANGES_REQUESTED') existing.rework_tasks += 1;
                     if (t.status === 'NEW' || t.status === 'CREATED') existing.new_tasks += 1;
-                    if (t.status === 'IN_PROGRESS' || t.status === 'STARTED') existing.in_progress_tasks += 1;
+                    if (['IN_PROGRESS', 'STARTED', 'PENDING', 'IN-PROGRESS'].includes(t.status)) existing.in_progress_tasks += 1;
                     if (t.status === 'SUBMITTED') existing.submitted_tasks += 1;
                     byDept.set(key, existing);
                 });
@@ -550,9 +615,15 @@ const ReportsPage = () => {
                     if (t.status === 'APPROVED') s.approved++;
                 });
                 const topP = {};
+                const todayForRaw = new Date().toISOString().slice(0, 10);
                 empMap.forEach(s => {
                     const score = s.total > 0 ? Math.round((s.approved / s.total) * 100) : 0;
                     if (!topP[s.dept] || score > (topP[s.dept].score || 0)) {
+                        // Correctly calculate overdue and rework counts from raw tasks for this individual
+                        const empTasks = normalizedTasks.filter(t => t.employeeId === s.id);
+                        const overdues = empTasks.filter(t => !TERMINAL_STATUSES.has(t.status) && t.dateKey && t.dateKey < todayForRaw).length;
+                        const reworks = empTasks.filter(t => t.status === 'REWORK' || t.status === 'CHANGES_REQUESTED').length;
+                        
                         topP[s.dept] = { 
                             emp_id: s.id, 
                             score, 
@@ -560,9 +631,8 @@ const ReportsPage = () => {
                             total: s.total,
                             completed: s.approved,
                             pending: Math.max(0, s.total - s.approved),
-                            // Approximate these from global data if we have them
-                            overdue_tasks: 0,
-                            rework_tasks: 0
+                            overdue_tasks: overdues,
+                            rework_tasks: reworks
                         };
                     }
                 });
@@ -772,11 +842,13 @@ const ReportsPage = () => {
         };
 
         const mapped = arr.map(item => {
-            const total = Number(item.total_tasks || item.total || 0);
-            const completed = Number(item.approved_tasks || item.completed || 0);
-            const pending = Number(item.pending_tasks || (total - completed) || 0);
-            let onTimePct = Number(item.on_time_pct || item.performance || item.performance_index || 0);
+            const total = Number(item.total_tasks || item.total || item.tasks_count || 0);
+            const completed = Number(item.approved_tasks || item.completed || item.completed_tasks || item.approved || 0);
+            const pending = Number(item.pending_tasks || item.pending || (total - completed) || 0);
+            
+            let onTimePct = Number(item.on_time_pct || item.performance || item.performance_index || item.score || 0);
             if (onTimePct === 0 && total > 0) onTimePct = Math.round((completed / total) * 100);
+            
             const name = item.name || item.employee_name || item.department_name || item.department_id || 'Unit';
             
             let topEmpId = 'N/A';
@@ -797,12 +869,12 @@ const ReportsPage = () => {
                 topEmpId,
                 total, completed, pending: Math.max(0, pending), onTimePct,
                 score: onTimePct,
-                new_tasks: Number(item.new_tasks || item.new || 0),
-                in_progress_tasks: Number(item.in_progress_tasks || item.in_progress || 0),
+                new_tasks: Number(item.new_tasks || item.new || item.new_tasks_count || 0),
+                in_progress_tasks: Number(item.in_progress_tasks || item.in_progress || item.started_tasks || 0),
                 submitted_tasks: Number(item.submitted_tasks || item.submitted || 0),
                 approved_tasks: completed,
-                rework_tasks: Number(item.rework_tasks || item.rework || item.rework_count || 0),
-                overdue_tasks: Number(item.overdue_tasks || item.overdue || 0)
+                rework_tasks: Number(item.rework_tasks || item.rework || item.rework_count || item.rework_tasks_count || 0),
+                overdue_tasks: Number(item.overdue_tasks || item.overdue || item.overdue_count || 0)
             };
         });
 
@@ -834,11 +906,12 @@ const ReportsPage = () => {
             if (isCFO && cfoTopEmployees.length > 0) {
                 const b = cfoTopEmployees[0];
                 rawTop = { 
+                    ...b,
                     id: b.emp_id || b.id, 
                     emp_id: b.emp_id || b.id, 
                     name: b.name || b.emp_id || 'Top Strategic Asset',
-                    onTimePct: b.score || 0,
-                    score: b.score || 0,
+                    onTimePct: b.on_time_pct || b.score || b.performance || 0,
+                    score: b.on_time_pct || b.score || b.performance || 0,
                     department: b.department || 'Office'
                 };
             } else if (topList.length > 0) {
@@ -850,6 +923,23 @@ const ReportsPage = () => {
         let finalTop = rawTop;
         if (finalTop) {
             const empId = finalTop.emp_id || finalTop.id;
+
+            // Attempt an early lookup in `deptTopPerformers` derived from raw tasks
+            const deptTopMatch = Object.values(deptTopPerformers).find(u => String(u.emp_id || u.id) === String(empId) || String(u.name) === String(finalTop.name));
+            if (deptTopMatch && deptTopMatch.total > 0 && (!finalTop.total || finalTop.total === 0 || !finalTop.total_tasks || finalTop.total_tasks === 0)) {
+                finalTop = {
+                    ...finalTop,
+                    total: deptTopMatch.total,
+                    total_tasks: deptTopMatch.total,
+                    completed: deptTopMatch.completed,
+                    approved_tasks: deptTopMatch.completed,
+                    pending: deptTopMatch.pending,
+                    overdue_tasks: deptTopMatch.overdue_tasks,
+                    rework_tasks: deptTopMatch.rework_tasks,
+                    onTimePct: deptTopMatch.score || finalTop.onTimePct,
+                    score: deptTopMatch.score || finalTop.score
+                };
+            }
             
             // Normalize rawTop fields first in case it's a direct API response without normalization
             finalTop = {
@@ -877,14 +967,50 @@ const ReportsPage = () => {
                     const completed = Number(globalMatch.approved_tasks || globalMatch.completed || globalMatch.completed_tasks || 0);
                     finalTop = { 
                         ...finalTop, 
-                        total, 
-                        completed, 
-                        pending: Math.max(0, total - completed),
-                        overdue_tasks: Number(globalMatch.overdue_tasks || globalMatch.overdue || 0),
-                        rework_tasks: Number(globalMatch.rework_tasks || globalMatch.rework || globalMatch.avg_reworks || 0),
+                        total: total || finalTop.total, 
+                        completed: completed || finalTop.completed, 
+                        pending: Math.max(0, (total || finalTop.total || 0) - (completed || finalTop.completed || 0)),
+                        overdue_tasks: Number(globalMatch.overdue_tasks || globalMatch.overdue || finalTop.overdue_tasks || 0),
+                        rework_tasks: Number(globalMatch.rework_tasks || globalMatch.rework || globalMatch.avg_reworks || finalTop.rework_tasks || 0),
                         onTimePct: globalMatch.on_time_pct || globalMatch.performance_index || globalMatch.score || finalTop.onTimePct || 0
                     };
                 }
+            }
+
+            // Sync with employeeSummary if IDs match (this is the most detailed data source)
+            if (employeeSummary) {
+                const sId = String(employeeSummary.emp_id || employeeSummary.id || '');
+                const summaryIdFromFilter = String(filters.employeeId || '');
+                
+                if ((sId && String(empId) === sId) || (summaryIdFromFilter && String(empId) === summaryIdFromFilter)) {
+                    finalTop = {
+                        ...finalTop,
+                        total_tasks: employeeSummary.total_tasks || finalTop.total_tasks,
+                        completed_tasks: employeeSummary.completed_tasks || finalTop.completed_tasks,
+                        approved_tasks: employeeSummary.completed_tasks || finalTop.approved_tasks,
+                        overdue_tasks: employeeSummary.overdue_tasks || finalTop.overdue_tasks,
+                        rework_tasks: employeeSummary.rework_count || employeeSummary.rework_tasks || finalTop.rework_tasks,
+                        score: employeeSummary.score || finalTop.score,
+                        performance: employeeSummary.score || finalTop.performance
+                    };
+                }
+            }
+
+            // Final sanity check for UI fields to ensure we don't display 0 if data is actually there
+            finalTop = {
+                ...finalTop,
+                total: finalTop.total || finalTop.total_tasks || finalTop.tasks_count || finalTop.tasks_assigned || 0,
+                completed: finalTop.completed || finalTop.approved_tasks || finalTop.completed_tasks || finalTop.tasks_completed || 0,
+                overdue: finalTop.overdue || finalTop.overdue_tasks || finalTop.overdue_count || 0,
+                reworks: finalTop.reworks || finalTop.rework_tasks || finalTop.rework_count || finalTop.avg_reworks || 0
+            };
+            
+            // Recalculate pending and efficiency if needed
+            finalTop.pending = Math.max(0, Number(finalTop.total) - Number(finalTop.completed));
+            if (!finalTop.onTimePct && finalTop.total > 0) {
+                finalTop.onTimePct = (finalTop.completed / finalTop.total) * 100;
+            } else if (!finalTop.onTimePct && (finalTop.score || finalTop.performance)) {
+                finalTop.onTimePct = finalTop.score || finalTop.performance;
             }
             
             // Refine name from metadata if possible
@@ -911,7 +1037,7 @@ const ReportsPage = () => {
                 AR: getDeptQuickStat('AR')
             }
         };
-    }, [reportData, globalReportData, user?.role, filters.employeeId, availableDepartments, topPerformer, cfoTopEmployees, deptTopPerformers]);
+    }, [reportData, globalReportData, user?.role, filters.employeeId, availableDepartments, topPerformer, cfoTopEmployees, deptTopPerformers, employeeSummary]);
 
 
     const downloadFile = async (format) => {
@@ -1012,34 +1138,6 @@ const ReportsPage = () => {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2.5 bg-slate-50 p-1.5 rounded-[1rem] border border-slate-100 shadow-sm transition-all w-full sm:max-w-7xl justify-end">
-                        {(user?.role === 'CFO' || user?.role === 'ADMIN') && (
-                            <select
-                                className="pl-5 pr-12 py-3 bg-white text-slate-900 border border-slate-200 rounded-xl text-[13px] font-semibold capitalize tracking-wider focus:outline-none focus:ring-4 focus:ring-emerald-500/10 appearance-none cursor-pointer hover:border-emerald-500/30 transition-all min-w-[180px] shadow-sm"
-                                value={filters.departmentId}
-                                onChange={(e) => setFilters({ ...filters, departmentId: e.target.value })}
-                                style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1rem' }}
-                            >
-                                <option value="">Department All</option>
-                                {availableDepartments.map((d, idx) => {
-                                    const val = typeof d === 'string' ? d : (d.department_id || d.id);
-                                    const label = typeof d === 'string' ? d : (d.name || d.department_id);
-                                    return <option key={`${val}-${idx}`} value={val}>{label}</option>
-                                })}
-                            </select>
-                        )}
-
-                        <select
-                            className="pl-5 pr-12 py-3 bg-white text-slate-900 border border-slate-200 rounded-xl text-[13px] font-semibold capitalize tracking-wider focus:outline-none focus:ring-4 focus:ring-indigo-500/10 appearance-none cursor-pointer hover:border-indigo-500/30 transition-all min-w-[180px] shadow-sm"
-                            value={filters.employeeId}
-                            onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
-                            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1rem' }}
-                        >
-                            <option value="">All Personnel</option>
-                            {availableEmployees.map((u, idx) => (
-                                <option key={`${u.emp_id || u.id || idx}-${idx}`} value={u.emp_id || u.id}>{u.name}</option>
-                            ))}
-                        </select>
-
                         <div className="flex items-center gap-4 bg-white px-5 py-3 rounded-xl border border-slate-200 shadow-sm">
                             <div className="flex items-center gap-2.5">
                                 <span className="text-[10px] font-black text-slate-400 capitalize tracking-widest">From</span>
@@ -1080,9 +1178,73 @@ const ReportsPage = () => {
                 </div>
             </div>
 
-            {/* ── INSIGHT CARDS ── */}
+            {/* ── HERO HIGHLIGHT: Department Top Performer (Primary Anchor) ── */}
+            <div className="grid grid-cols-1 gap-4 mb-8">
+                <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-md p-10 hover:shadow-xl transition-all group overflow-hidden relative">
+                    <h3 className="text-[22px] font-semibold text-slate-800 mb-8 tracking-tight">
+                        Department Top Performer
+                    </h3>
+                    <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-12">
+                        {/* Left: Profile Section */}
+                        <div className="flex items-center gap-10 min-w-fit">
+                            <div className="relative w-36 h-36 shrink-0">
+                                <div className="w-full h-full rounded-full bg-gradient-to-tr from-indigo-100 via-white to-indigo-50 border-[6px] border-white flex items-center justify-center text-5xl font-semibold text-slate-800 shadow-[0_15px_40px_rgba(79,70,229,0.15)] overflow-hidden ring-[12px] ring-indigo-50/20 group-hover:scale-105 transition-transform duration-500">
+                                    {(bestPerformer?.name || 'U').charAt(0).toUpperCase()}
+                                </div>
+                                <div className="absolute bottom-1 right-1 w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 border-[4px] border-white flex items-center justify-center text-white shadow-lg animate-bounce-subtle z-20">
+                                    <TrendingUp size={22} strokeWidth={3} />
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                <h4 className="text-[32px] font-medium text-slate-800 leading-tight tracking-tight">
+                                    {bestPerformer?.name || 'Unit Alpha'}
+                                </h4>
+                                <div className="flex items-center gap-4">
+                                    <div className="px-5 py-1.5 bg-slate-900 text-white text-[11px] font-semibold capitalize tracking-widest rounded-xl shadow-lg flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                        {bestPerformer?.emp_id || bestPerformer?.id || 'Global'}
+                                    </div>
+                                    <p className="text-[16px] font-medium text-slate-400 capitalize tracking-tight">
+                                        {bestPerformer?.department && bestPerformer.department !== 'N/A' ? bestPerformer.department : 'Executive Strategic Asset'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        {/* Right: Metrics Grid */}
+                        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-x-6 sm:gap-x-12 gap-y-6 max-w-3xl ml-auto py-6 sm:py-8 px-6 sm:px-12 bg-slate-50/50 backdrop-blur-sm rounded-[2rem] sm:rounded-[3rem] border border-slate-100 shadow-[inset_0_2px_15px_rgba(0,0,0,0.02)]">
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[11px] font-extrabold text-slate-400 capitalize tracking-normal">Efficiency</span>
+                                <span className="text-3xl font-semibold text-indigo-600 tabular-nums">{(bestPerformer?.onTimePct || 0).toFixed(0)}%</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[11px] font-extrabold text-slate-400 capitalize tracking-normal">Total Tasks</span>
+                                <span className="text-3xl font-semibold text-slate-800 tabular-nums">{bestPerformer?.total || 0}</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[11px] font-extrabold text-emerald-600/70 capitalize tracking-normal">Completed</span>
+                                <span className="text-3xl font-semibold text-emerald-600 tabular-nums">{bestPerformer?.completed || 0}</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[11px] font-extrabold text-amber-600/70 capitalize tracking-normal">Pending</span>
+                                <span className="text-3xl font-semibold text-amber-500 tabular-nums">{bestPerformer?.pending || 0}</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[11px] font-extrabold text-rose-600/70 capitalize tracking-normal">Overdue</span>
+                                <span className="text-3xl font-semibold text-rose-600 tabular-nums">{bestPerformer?.overdue || bestPerformer?.overdue_tasks || 0}</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[11px] font-extrabold text-violet-600/70 capitalize tracking-normal">Reworks</span>
+                                <span className="text-3xl font-semibold text-violet-600 tabular-nums">{bestPerformer?.reworks || bestPerformer?.rework_tasks || 0}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-indigo-50/30 rounded-full blur-3xl -z-10" />
+                </div>
+            </div>
+
+            {/* ── INSIGHT CARDS (Role Specific) ── */}
             {isEmployee && employeeSummary ? (
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 animate-in fade-in slide-in-from-top-4 duration-500 mb-6">
                     <div className="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-md h-32 flex flex-col justify-between group transition-all hover:shadow-lg">
                         <div className="flex justify-between items-start">
                             <span className="text-[12px] font-black capitalize tracking-widest text-indigo-600/70">Active Tasks</span>
@@ -1092,7 +1254,6 @@ const ReportsPage = () => {
                         </div>
                         <span className="text-4xl font-black text-slate-900 tabular-nums leading-none mb-1">{employeeSummary.total_tasks || 0}</span>
                     </div>
-                    
                     <div className="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-md h-32 flex flex-col justify-between group transition-all hover:shadow-lg">
                         <div className="flex justify-between items-start">
                             <span className="text-[12px] font-black capitalize tracking-widest text-emerald-600/70">Completed</span>
@@ -1102,7 +1263,6 @@ const ReportsPage = () => {
                         </div>
                         <span className="text-4xl font-black text-emerald-600 tabular-nums leading-none mb-1">{employeeSummary.completed_tasks || 0}</span>
                     </div>
-
                     <div className="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-md h-32 flex flex-col justify-between group transition-all hover:shadow-lg">
                         <div className="flex justify-between items-start">
                             <span className="text-[12px] font-black capitalize tracking-widest text-amber-600/70">In Progress</span>
@@ -1112,7 +1272,6 @@ const ReportsPage = () => {
                         </div>
                         <span className="text-4xl font-black text-amber-600 tabular-nums leading-none mb-1">{(employeeSummary.total_tasks - employeeSummary.completed_tasks) || 0}</span>
                     </div>
-
                     <div className="bg-white rounded-2xl p-6 border border-slate-200/60 shadow-md h-32 flex flex-col justify-between group transition-all hover:shadow-lg">
                         <div className="flex justify-between items-start">
                             <span className="text-[12px] font-black capitalize tracking-widest text-rose-600/70">Overdue</span>
@@ -1122,7 +1281,6 @@ const ReportsPage = () => {
                         </div>
                         <span className="text-4xl font-black text-rose-600 tabular-nums leading-none mb-1">{employeeSummary.overdue_tasks || 0}</span>
                     </div>
-
                     <div className="bg-violet-600 rounded-2xl p-5 border border-violet-500 shadow-md h-32 flex flex-col justify-between text-white relative overflow-hidden group transition-all hover:shadow-lg hover:bg-violet-700">
                         <div className="absolute -right-2 -bottom-2 opacity-10 group-hover:scale-110 transition-transform">
                             <TrendingUp size={80} />
@@ -1141,7 +1299,7 @@ const ReportsPage = () => {
                 </div>
             ) : (
                 isManager && (topList.length > 0 || workloadData?.length > 0) && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 animate-in fade-in slide-in-from-top-4 duration-500 mb-6">
                         {topDept && (
                             <div className="mesh-gradient-emerald rounded-2xl p-4 border border-emerald-200/50 shadow-md flex flex-col justify-center relative overflow-hidden group/top card-gloss h-24">
                                 <div className="absolute top-2 right-2 bg-emerald-500/10 p-1.5 rounded-lg">
@@ -1154,7 +1312,6 @@ const ReportsPage = () => {
                                 </div>
                             </div>
                         )}
-
                         {underperformingDept && underperformingDept.name !== topDept?.name && (
                             <div className="mesh-gradient-rose rounded-2xl p-4 border border-rose-200/50 shadow-md flex flex-col justify-center relative overflow-hidden group/needs card-gloss h-24">
                                 <div className="absolute top-2 right-2 bg-rose-500/10 p-1.5 rounded-lg">
@@ -1167,7 +1324,6 @@ const ReportsPage = () => {
                                 </div>
                             </div>
                         )}
-
                         {workloadData?.length > 0 && (
                             <div className="md:col-span-2 bg-white rounded-2xl p-4 border border-slate-200/60 shadow-md relative overflow-hidden mesh-gradient h-24 flex items-center">
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full">
@@ -1191,6 +1347,7 @@ const ReportsPage = () => {
                     </div>
                 )
             )}
+
             {/* ── EXECUTIVE KPI INSIGHT ROW ── */}
             {(['ADMIN', 'CFO'].includes((user?.role || '').toUpperCase())) && (
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
@@ -1261,84 +1418,11 @@ const ReportsPage = () => {
                 </div>
             )}
 
-            {/* ── CHARTS ROW - MOVED UP FOR VISIBILITY ── */}
-            {/* Top Performer Highlights - MATCHING IMAGE */}
-                    <div className="grid grid-cols-1 gap-4">
-                         {/* Top Performer Employee (matches image) */}
-                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-md p-10 hover:shadow-xl transition-all group overflow-hidden relative">
-                            {/* Title from image */}
-                            <h3 className="text-[22px] font-semibold text-slate-800 mb-8 tracking-tight">
-                                Department Top Performer
-                            </h3>
-
-                                <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-12">
-                                    {/* Left: Profile Section */}
-                                    <div className="flex items-center gap-10 min-w-fit">
-                                        <div className="relative w-36 h-36 shrink-0">
-                                            <div className="w-full h-full rounded-full bg-gradient-to-tr from-indigo-100 via-white to-indigo-50 border-[6px] border-white flex items-center justify-center text-5xl font-semibold text-slate-800 shadow-[0_15px_40px_rgba(79,70,229,0.15)] overflow-hidden ring-[12px] ring-indigo-50/20 group-hover:scale-105 transition-transform duration-500">
-                                                {(bestPerformer?.name || 'U').charAt(0).toUpperCase()}
-                                            </div>
-                                            <div className="absolute bottom-1 right-1 w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 border-[4px] border-white flex items-center justify-center text-white shadow-lg animate-bounce-subtle z-20">
-                                                <TrendingUp size={22} strokeWidth={3} />
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <h4 className="text-[32px] font-medium text-slate-800 leading-tight tracking-tight">
-                                                {bestPerformer?.name || 'Unit Alpha'}
-                                            </h4>
-                                            <div className="flex items-center gap-4">
-                                                <div className="px-5 py-1.5 bg-slate-900 text-white text-[11px] font-semibold capitalize tracking-widest rounded-xl shadow-lg flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                                    {bestPerformer?.emp_id || bestPerformer?.id || 'Global'}
-                                                </div>
-                                                <p className="text-[16px] font-medium text-slate-400 capitalize tracking-tight">
-                                                    {bestPerformer?.department && bestPerformer.department !== 'N/A' ? bestPerformer.department : 'Executive Strategic Asset'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Right: Premium Metrics Clustering */}
-                                    <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-x-6 sm:gap-x-12 gap-y-6 max-w-3xl ml-auto py-6 sm:py-8 px-6 sm:px-12 bg-slate-50/50 backdrop-blur-sm rounded-[2rem] sm:rounded-[3rem] border border-slate-100 shadow-[inset_0_2px_15px_rgba(0,0,0,0.02)]">
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[11px] font-extrabold text-slate-400 capitalize tracking-normal">Efficiency</span>
-                                            <span className="text-3xl font-semibold text-indigo-600 tabular-nums">{(bestPerformer?.onTimePct || 0).toFixed(0)}%</span>
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[11px] font-extrabold text-slate-400 capitalize tracking-normal">Total Items</span>
-                                            <span className="text-3xl font-semibold text-slate-800 tabular-nums">{bestPerformer?.total || 0}</span>
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[11px] font-extrabold text-emerald-600/70 capitalize tracking-normal">Completed</span>
-                                            <span className="text-3xl font-semibold text-emerald-600 tabular-nums">{bestPerformer?.completed || 0}</span>
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[11px] font-extrabold text-amber-600/70 capitalize tracking-normal">Pending</span>
-                                            <span className="text-3xl font-semibold text-amber-500 tabular-nums">{bestPerformer?.pending || 0}</span>
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[11px] font-extrabold text-rose-600/70 capitalize tracking-normal">Overdue</span>
-                                            <span className="text-3xl font-semibold text-rose-600 tabular-nums">{bestPerformer?.overdue_tasks || 0}</span>
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[11px] font-extrabold text-violet-600/70 capitalize tracking-normal">Reworks</span>
-                                            <span className="text-3xl font-semibold text-violet-600 tabular-nums">{bestPerformer?.rework_tasks || 0}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                            {/* Decorative background circle */}
-                            <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-indigo-50/30 rounded-full blur-3xl -z-10" />
-                        </div>
-                    </div>
-
-
-                <TaskDistributionCard 
-                    data={filters.employeeId ? (performanceData.find(e => String(e.id) === String(filters.employeeId)) || aggregateDistribution) : aggregateDistribution}
-                    title={filters.employeeId ? "Task Distribution (Personal)" : "Task Distribution (Aggregate)"}
-                    titleClassName="text-[18px] font-semibold"
-                />
+            <TaskDistributionCard 
+                data={filters.employeeId ? (performanceData.find(e => String(e.id) === String(filters.employeeId)) || aggregateDistribution) : aggregateDistribution}
+                title={filters.employeeId ? "Task Distribution (Personal)" : "Task Distribution (Aggregate)"}
+                titleClassName="text-[18px] font-semibold"
+            />
 
                 {/* ── Manager: employee-wise charts ── */}
                 {(user?.role || '').toUpperCase() === 'MANAGER' && (
@@ -1454,7 +1538,7 @@ const ReportsPage = () => {
 
                 {/* ── CFO / Admin: dept-wise charts ── */}
                 {(['ADMIN', 'CFO'].includes((user?.role || '').toUpperCase())) && (
-                    <>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                         <ChartPanel title="Division Workload Distribution" titleClassName="text-[20px] mb-6 font-bold" height={350}>
                             {workloadData.length > 0 ? (
                                 <BarChart data={workloadData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
@@ -1492,7 +1576,7 @@ const ReportsPage = () => {
                                         iconType="circle"
                                         wrapperStyle={{ fontSize: '13px', fontBold: true, paddingBottom: '20px' }} 
                                     />
-                                    <Bar dataKey="Completed" stackId="a" fill="url(#completedGrad)" name="Approved Directives" radius={[0, 0, 0, 0]} barSize={40} label={{ position: 'center', fill: '#fff', fontSize: 11, fontWeight: 800 }} />
+                                    <Bar dataKey="Completed" stackId="a" fill="url(#completedGrad)" name="Approved Tasks" radius={[0, 0, 0, 0]} barSize={40} label={{ position: 'center', fill: '#fff', fontSize: 11, fontWeight: 800 }} />
                                     <Bar dataKey="Pending" stackId="a" fill="url(#pendingGrad)" name="Pending Items" radius={[6, 6, 0, 0]} barSize={40} label={{ position: 'center', fill: '#fff', fontSize: 11, fontWeight: 800 }} />
                                 </BarChart>
                             ) : (
@@ -1504,68 +1588,64 @@ const ReportsPage = () => {
                                 </div>
                             )}
                         </ChartPanel>
-                    </>
+
+                        {/* Performance Index Chart moved into same grid row */}
+                        {deptScores.length > 0 && (
+                            <ChartPanel title="Department Performance Index (%)" height={350} compact={false} titleClassName="text-[20px] mb-6 font-bold">
+                                <BarChart data={deptScores} margin={{ top: 30, right: 30, bottom: 20, left: 10 }}>
+                                    <defs>
+                                        <linearGradient id="deptPerfGradient" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="#6366f1" stopOpacity={1}/>
+                                            <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.7}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis
+                                        dataKey="name"
+                                        tick={{ fontSize: 13, fontWeight: 800, fill: '#475569' }}
+                                        interval={0}
+                                        textAnchor="middle"
+                                        height={50}
+                                        axisLine={false}
+                                        tickLine={false}
+                                    />
+                                    <YAxis
+                                        domain={[0, 100]}
+                                        tick={{ fontSize: 13, fontWeight: 600, fill: '#64748b' }}
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tickFormatter={(v) => `${v}%`}
+                                        label={{ value: 'Performance Score', angle: -90, position: 'insideLeft', style: { fontSize: '10px', fill: '#94a3b8', fontWeight: 600 } }}
+                                    />
+                                    <Tooltip
+                                        cursor={{ fill: '#f8fafc' }}
+                                        contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px rgba(0,0,0,0.1)', padding: '20px' }}
+                                        formatter={(val) => [`${val}%`, 'Dept Efficiency']}
+                                    />
+                                    <Bar dataKey={() => 100} fill="#f8fafc" radius={[12, 12, 0, 0]} barSize={40} isAnimationActive={false} />
+                                    <Bar
+                                        dataKey="Performance"
+                                        fill="url(#deptPerfGradient)"
+                                        radius={[12, 12, 0, 0]}
+                                        barSize={40}
+                                        label={{ 
+                                            position: 'top', 
+                                            fill: '#4f46e5', 
+                                            fontSize: 14, 
+                                            fontWeight: 900, 
+                                            formatter: (val) => `${val}%`,
+                                            offset: 10
+                                        }}
+                                    >
+                                        {deptScores.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} cursor="pointer" fillOpacity={entry.Performance < 50 ? 0.7 : 1} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ChartPanel>
+                        )}
+                    </div>
                 )}
-
-
-            {/* ── FULL WIDTH PERFORMANCE INDEX CHART ── */}
-            {(['ADMIN', 'CFO'].includes((user?.role || '').toUpperCase())) && deptScores.length > 0 && (
-                <div className="w-full">
-                    <ChartPanel title="Department Performance Index (%)" height={380} compact={false} titleClassName="text-[20px] mb-10 font-bold">
-                        <BarChart data={deptScores} margin={{ top: 30, right: 30, bottom: 80, left: 10 }}>
-                            <defs>
-                                <linearGradient id="deptPerfGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#6366f1" stopOpacity={1}/>
-                                    <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.7}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                            <XAxis
-                                dataKey="name"
-                                tick={{ fontSize: 13, fontWeight: 800, fill: '#475569' }}
-                                interval={0}
-                                textAnchor="middle"
-                                height={50}
-                                axisLine={false}
-                                tickLine={false}
-                            />
-                            <YAxis
-                                domain={[0, 100]}
-                                tick={{ fontSize: 13, fontWeight: 600, fill: '#64748b' }}
-                                axisLine={false}
-                                tickLine={false}
-                                tickFormatter={(v) => `${v}%`}
-                                label={{ value: 'Performance Score', angle: -90, position: 'insideLeft', style: { fontSize: '10px', fill: '#94a3b8', fontWeight: 600 } }}
-                            />
-                            <Tooltip
-                                cursor={{ fill: '#f8fafc' }}
-                                contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px rgba(0,0,0,0.1)', padding: '20px' }}
-                                formatter={(val) => [`${val}%`, 'Dept Efficiency']}
-                            />
-                            {/* Background bar to show potential total */}
-                            <Bar dataKey={() => 100} fill="#f8fafc" radius={[12, 12, 0, 0]} barSize={40} isAnimationActive={false} />
-                            <Bar
-                                dataKey="Performance"
-                                fill="url(#deptPerfGradient)"
-                                radius={[12, 12, 0, 0]}
-                                barSize={40}
-                                label={{ 
-                                    position: 'top', 
-                                    fill: '#4f46e5', 
-                                    fontSize: 14, 
-                                    fontWeight: 900, 
-                                    formatter: (val) => `${val}%`,
-                                    offset: 10
-                                }}
-                            >
-                                {deptScores.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} cursor="pointer" fillOpacity={entry.Performance < 50 ? 0.7 : 1} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ChartPanel>
-                </div>
-            )}
 
             {/* ── BOTTOM TABLES: unified seamless card ── */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">

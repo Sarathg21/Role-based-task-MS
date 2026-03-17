@@ -31,25 +31,29 @@ const Sidebar = ({ isCollapsed, toggleSidebar, isMobileOpen, closeMobileSidebar 
                 onClick={closeMobileSidebar}
                 className={`
                     cfo-nav-item relative flex items-center
-                    transition-all duration-200 group
-                    ${isCollapsed ? 'justify-center px-0 mx-2 py-3' : 'gap-3 px-3.5 py-2.5 mx-2.5'}
+                    transition-all duration-300 group
+                    ${isCollapsed ? 'justify-center px-0 mx-2 py-3.5' : 'gap-3 px-3.5 py-2.5 mx-2.5'}
                     ${active
-                        ? 'active text-white'
-                        : 'text-indigo-200/60 hover:text-white hover:bg-white/[0.06]'
+                        ? 'active bg-white/10 text-white shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
+                        : 'text-indigo-100/60 hover:text-white hover:bg-white/[0.05]'
                     }
+                    rounded-2xl
                 `}
             >
-                {/* Active indicator line */}
+                {/* Active indicator line - subtle */}
                 {active && !isCollapsed && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-indigo-300 rounded-r-full" />
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-indigo-300 rounded-r-full" />
                 )}
 
-                <span className={`flex-shrink-0 transition-all ${active ? 'text-white' : 'text-indigo-200/60 group-hover:text-white'}`}>
-                    <Icon size={18} strokeWidth={active ? 2.3 : 1.9} />
+                <span className={`
+                    flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all
+                    ${active ? 'bg-indigo-500/30 text-white border border-white/20' : 'bg-white/5 text-indigo-200/50 group-hover:bg-white/10 group-hover:text-white border border-white/5'}
+                `}>
+                    <Icon size={16} strokeWidth={active ? 2.5 : 2} />
                 </span>
 
                 {!isCollapsed && (
-                    <span className="flex-1 text-[13px] font-[580] tracking-[0.005em]">
+                    <span className={`flex-1 text-[13px] ${active ? 'font-[750]' : 'font-[600]'} tracking-tight`}>
                         {label}
                     </span>
                 )}
@@ -68,23 +72,10 @@ const Sidebar = ({ isCollapsed, toggleSidebar, isMobileOpen, closeMobileSidebar 
     const userRole = (user.role || '').toUpperCase();
 
     return (
-        <aside className={`sidebar cfo-sidebar flex flex-col ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open' : ''}`}>
+        <aside className={`sidebar cfo-sidebar flex flex-col ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open' : ''} border-r border-white/5`}>
 
-            {/* ── Header ── */}
-            <div className={`flex items-center px-3 py-4 flex-shrink-0 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-                {!isCollapsed && (
-                    <div className="flex items-center justify-center w-full px-2 py-6 overflow-hidden">
-                        <div className="w-24 h-24 shrink-0 rounded-[2.25rem] overflow-hidden flex items-center justify-center bg-white shadow-[0_20px_45px_rgba(79,70,229,0.35)] border-2 border-white/40 p-1.5 transition-transform hover:scale-105 duration-300">
-                            <img src="/images/fj.png.png" alt="FJ" className="w-full h-full object-contain drop-shadow-sm" />
-                        </div>
-                    </div>
-                )}
-
-                {isCollapsed && (
-                    <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center bg-white/10 border border-white/15">
-                        <img src="/images/fj.png.png" alt="FJ" className="w-full h-full object-contain" />
-                    </div>
-                )}
+            {/* ── Header: Toggle Only ── */}
+            <div className={`flex items-center px-4 py-4 flex-shrink-0 ${isCollapsed ? 'justify-center' : 'justify-end'}`}>
 
                 {/* Desktop toggle button */}
                 <button

@@ -76,6 +76,8 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                 description: '',
                 department_id: departments[0]?.id || '',
                 assigned_to_emp_id: '',
+                start_date: '',
+                end_date: '',
                 priority: 'MEDIUM',
                 sequence_no: subtasks.length + 1
             };
@@ -116,7 +118,7 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
         const rid = template.id || template.recurring_id;
         try {
             const res = await api.patch(`/recurring-tasks/${rid}`, formData);
-            toast.success('Directive configuration updated');
+            toast.success('Task configuration updated');
             onSave(res.data?.data || res.data);
             onClose();
         } catch (err) {
@@ -137,7 +139,7 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                             <RefreshCw size={20} />
                         </div>
                         <div>
-                            <h2 className="text-xl font-black text-slate-800 tracking-tight leading-none pt-1">Configure Directive</h2>
+                            <h2 className="text-xl font-black text-slate-800 tracking-tight leading-none pt-1">Configure Task</h2>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Automation Governance</p>
                         </div>
                     </div>
@@ -232,7 +234,7 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                         )}
 
                         <div>
-                            <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Directive Goal (Description)</label>
+                            <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Task Goal (Description)</label>
                             <textarea 
                                 rows="3"
                                 className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-medium transition-all text-sm"
@@ -301,6 +303,24 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                                                     <option value="MEDIUM">Medium</option>
                                                     <option value="HIGH">High</option>
                                                 </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Start Date</label>
+                                                <input 
+                                                    type="date"
+                                                    className="w-full bg-slate-50/50 border-none rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-600 focus:ring-0"
+                                                    value={st.start_date || ''}
+                                                    onChange={(e) => handleUpdateSubtask(st.id, { start_date: e.target.value })}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">End Date</label>
+                                                <input 
+                                                    type="date"
+                                                    className="w-full bg-slate-50/50 border-none rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-600 focus:ring-0"
+                                                    value={st.end_date || ''}
+                                                    onChange={(e) => handleUpdateSubtask(st.id, { end_date: e.target.value })}
+                                                />
                                             </div>
                                         </div>
                                     </div>

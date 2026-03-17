@@ -97,7 +97,13 @@ const RecurringTasksPage = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                 <div className="flex items-center gap-5">
                     <button 
-                        onClick={() => navigate('/dashboard')}
+                        onClick={() => {
+    if (window.history.length > 1) {
+        navigate(-1); // go back safely
+    } else {
+        navigate('/cfo/dashboard'); // fallback (change if needed)
+    }
+}}
                         className="p-3 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all text-slate-500 hover:text-slate-900 shadow-sm"
                     >
                         <ArrowLeft size={20} />
@@ -111,7 +117,7 @@ const RecurringTasksPage = () => {
                                 Recurring Tasks
                             </h1>
                         </div>
-                        <p className="text-slate-400 font-bold capitalize tracking-[0.3em] text-[10px] ml-11">Governance & Automated Directives</p>
+                        <p className="text-slate-400 font-bold capitalize tracking-[0.3em] text-[10px] ml-11">Governance & Automated Tasks</p>
                     </div>
                 </div>
 
@@ -156,7 +162,7 @@ const RecurringTasksPage = () => {
                     {loading ? (
                         <div className="h-[400px] flex flex-col items-center justify-center gap-4">
                             <Loader2 size={40} className="text-indigo-500 animate-spin" />
-                            <p className="text-[10px] font-black text-slate-400 capitalize tracking-widest">Hydrating Directive Registry</p>
+                            <p className="text-[10px] font-black text-slate-400 capitalize tracking-widest">Hydrating Task Registry</p>
                         </div>
                     ) : templates.length === 0 ? (
                         <div className="h-[400px] flex flex-col items-center justify-center gap-6">
@@ -164,7 +170,7 @@ const RecurringTasksPage = () => {
                                 <Clock size={64} className="text-slate-200 mx-auto" strokeWidth={1} />
                             </div>
                             <div className="text-center">
-                                <h3 className="text-lg font-black text-slate-800">No Recurring Directives</h3>
+                                <h3 className="text-lg font-black text-slate-800">No Recurring Tasks</h3>
                                 <p className="text-slate-400 text-sm font-medium mt-1">Initialize your first automated workflow to see it here.</p>
                             </div>
                         </div>
@@ -173,7 +179,7 @@ const RecurringTasksPage = () => {
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50/30">
                                     <tr className="border-b border-slate-100">
-                                        <th className="px-10 py-5 text-[10px] font-black text-slate-400 capitalize tracking-[0.2em]">Directive / Purpose</th>
+                                        <th className="px-10 py-5 text-[10px] font-black text-slate-400 capitalize tracking-[0.2em]">Task / Purpose</th>
                                         <th className="px-6 py-5 text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] text-center">Recurrence</th>
                                         <th className="px-6 py-5 text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] text-center">Owner</th>
                                         <th className="px-6 py-5 text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] text-center">Next Run</th>
@@ -192,8 +198,8 @@ const RecurringTasksPage = () => {
                                                             <RefreshCw size={20} />
                                                         </div>
                                                         <div>
-                                                            <p className="text-sm font-black text-slate-800 leading-tight mb-1 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{template.title}</p>
-                                                            <p className="text-[11px] text-slate-400 font-bold truncate max-w-[240px] italic">{template.description || 'No detailed directive provided'}</p>
+                                                            <p className="text-sm font-black text-slate-800 leading-tight mb-1 group-hover:text-indigo-600 transition-colors capitalize tracking-tight">{template.title}</p>
+                                                            <p className="text-[11px] text-slate-400 font-bold truncate max-w-[240px] italic">{template.description || 'No detailed task provided'}</p>
                                                         </div>
                                                     </div>
                                                 </td>

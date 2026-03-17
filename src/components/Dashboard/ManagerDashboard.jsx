@@ -286,7 +286,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                     const taskMap = {};
                     filtered.forEach(t => {
                         const id = t.task_id || t.id;
-                        const title = t.task_title || t.title || t.task_name || t.name || t.directive_title || t.directive_name;
+                        const title = t.task_title || t.subtask_title || t.title || t.task_name || t.name || t.directive_title || t.directive_name;
                         if (id && title) taskMap[id] = title;
                     });
 
@@ -345,7 +345,13 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                     const statusCounts = { NEW: 0, IN_PROGRESS: 0, SUBMITTED: 0, APPROVED: 0, REWORK: 0 };
                     const byEmp = new Map();
                     normalized.forEach((t) => {
-                        if (statusCounts[t.status] !== undefined) statusCounts[t.status] += 1;
+                        const s = t.status;
+                        if (s === 'NEW' || s === 'CREATED') statusCounts.NEW += 1;
+                        else if (['IN_PROGRESS', 'STARTED', 'PENDING', 'IN-PROGRESS'].includes(s)) statusCounts.IN_PROGRESS += 1;
+                        else if (s === 'SUBMITTED') statusCounts.SUBMITTED += 1;
+                        else if (s === 'APPROVED' || s === 'COMPLETED') statusCounts.APPROVED += 1;
+                        else if (s === 'REWORK' || s === 'CHANGES_REQUESTED') statusCounts.REWORK += 1;
+
                         const key = String(t.employee_id || t.assigneeName);
                         const row = byEmp.get(key) || {
                             emp_id: t.employee_id || key,
@@ -355,7 +361,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                             tasks_completed: 0,
                         };
                         row.tasks_assigned += 1;
-                        if (t.status === 'APPROVED') row.tasks_completed += 1;
+                        if (s === 'APPROVED' || s === 'COMPLETED') row.tasks_completed += 1;
                         byEmp.set(key, row);
                     });
 
@@ -392,7 +398,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                         setActivities(normalized.slice(0, 10).map(t => ({
                             id: t.id,
                             actor_name: t.assigneeName || 'Member',
-                            task_title: t.title || 'Directive',
+                            task_title: t.title || 'Task',
                             type: t.status === 'SUBMITTED' ? 'TASK_SUBMITTED' : t.status === 'APPROVED' ? 'TASK_APPROVED' : 'ACTIVITY',
                             created_at: new Date().toISOString()
                         })));
@@ -540,7 +546,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                 <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
                     <div>
                         <span className="text-5xl font-semibold tracking-tight">{stats.totalActive || 0}</span>
-                        <p className="text-[15px] font-medium mt-1 text-white/90">{currentDeptName} Directives</p>
+                        <p className="text-[15px] font-medium mt-1 text-white/90">{currentDeptName} Tasks</p>
                     </div>
                     <div className="absolute right-4 bottom-4 opacity-20">
                         <CheckSquare size={72} strokeWidth={1.5} />
@@ -633,7 +639,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                         <table className="w-full text-left">
                             <thead className="text-[12px] text-slate-400 border-b border-slate-100 bg-slate-50/30">
                                 <tr>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Directives</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Tasks</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap">Parent Task ID</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap">Parent Task</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap">Assignee</th>
@@ -778,7 +784,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                             ) : (
                                 activities.slice(0, 10).map((n, idx) => {
                                     const actorName = n.actor_name || n.user_name || n.actor?.name || 'Member';
-                                    const taskTitle = n.task_title || n.title || n.directive_title || n.task?.title || 'Directive';
+                                    const taskTitle = n.task_title || n.title || n.directive_title || n.task?.title || 'Task';
                                     const type = n.type || n.action || 'ACTIVITY';
 
                                     const getStyle = () => {

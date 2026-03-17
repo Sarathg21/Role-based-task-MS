@@ -640,10 +640,10 @@ const CFODashboard = () => {
                 normalizedTasks.forEach(t => {
                     const d = t.department;
                     if (!byDeptName[d]) byDeptName[d] = { new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, rework_tasks: 0, approved_tasks_computed: 0 };
-                    if (t.status === 'NEW') byDeptName[d].new_tasks++;
-                    if (t.status === 'IN_PROGRESS') byDeptName[d].in_progress_tasks++;
+                    if (t.status === 'NEW' || t.status === 'CREATED') byDeptName[d].new_tasks++;
+                    if (['IN_PROGRESS', 'STARTED', 'PENDING', 'IN-PROGRESS'].includes(t.status)) byDeptName[d].in_progress_tasks++;
                     if (t.status === 'SUBMITTED') byDeptName[d].submitted_tasks++;
-                    if (t.status === 'REWORK') byDeptName[d].rework_tasks++;
+                    if (t.status === 'REWORK' || t.status === 'CHANGES_REQUESTED') byDeptName[d].rework_tasks++;
                     if (t.status === 'APPROVED') byDeptName[d].approved_tasks_computed++;
                 });
                 return byDeptName;
@@ -701,17 +701,25 @@ const CFODashboard = () => {
                 const byDept = {};
 
                 normalized.forEach(t => {
-                    if (counts[t.status] !== undefined) counts[t.status]++;
+                    const s = t.status;
+                    if (s === 'NEW' || s === 'CREATED') counts.NEW++;
+                    else if (['IN_PROGRESS', 'STARTED', 'PENDING', 'IN-PROGRESS'].includes(s)) counts.IN_PROGRESS++;
+                    else if (s === 'SUBMITTED') counts.SUBMITTED++;
+                    else if (s === 'APPROVED' || s === 'COMPLETED') counts.APPROVED++;
+                    else if (s === 'REWORK' || s === 'CHANGES_REQUESTED') counts.REWORK++;
+                    else if (s === 'CANCELLED') counts.CANCELLED++;
+
                     const d = t.department;
                     if (!byDept[d]) byDept[d] = { department_id: d, name: d, department_name: d, total_tasks: 0, approved_tasks: 0, pending_tasks: 0, total: 0, completed: 0, new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, rework_tasks: 0 };
                     byDept[d].total_tasks++;
                     byDept[d].total++;
-                    if (t.status === 'APPROVED') { byDept[d].approved_tasks++; byDept[d].completed++; }
-                    if (!['APPROVED', 'CANCELLED'].includes(t.status)) byDept[d].pending_tasks++;
-                    if (t.status === 'NEW') byDept[d].new_tasks++;
-                    if (t.status === 'IN_PROGRESS') byDept[d].in_progress_tasks++;
-                    if (t.status === 'SUBMITTED') byDept[d].submitted_tasks++;
-                    if (t.status === 'REWORK') byDept[d].rework_tasks++;
+                    if (s === 'APPROVED' || s === 'COMPLETED') { byDept[d].approved_tasks++; byDept[d].completed++; }
+                    if (!TERMINAL_STATUSES.has(s)) byDept[d].pending_tasks++;
+                    
+                    if (s === 'NEW' || s === 'CREATED') byDept[d].new_tasks++;
+                    if (['IN_PROGRESS', 'STARTED', 'PENDING', 'IN-PROGRESS'].includes(s)) byDept[d].in_progress_tasks++;
+                    if (s === 'SUBMITTED') byDept[d].submitted_tasks++;
+                    if (s === 'REWORK' || s === 'CHANGES_REQUESTED') byDept[d].rework_tasks++;
                 });
 
                 const totalCount = normalized.length;
@@ -779,7 +787,7 @@ const CFODashboard = () => {
             const taskMap = {};
             [...todayRows, ...allTasks].forEach(t => {
                 const id = t.task_id || t.id;
-                const title = t.task_title || t.title || t.task_name || t.name || t.directive_title || t.directive_name;
+                const title = t.task_title || t.subtask_title || t.title || t.task_name || t.name || t.directive_title || t.directive_name;
                 if (id && title) taskMap[id] = title;
             });
 
@@ -848,7 +856,7 @@ const CFODashboard = () => {
                 return {
                     ...t,
                     task_id: t.task_id || t.id,
-                    title: t.title || 'Untitled Directive',
+                    title: t.title || 'Untitled Task',
                     status: String(t.status || ''),
                     department: t.department_name || t.department || t.dept_name || 'Accounts',
                     priority: String(t.priority || t.severity || 'Medium'),
