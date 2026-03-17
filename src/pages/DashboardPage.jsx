@@ -13,25 +13,46 @@ const roleDashboardMap = {
   CFO: CFODashboard,
 };
 
+const ROLE_GREET = {
+  CFO:      { emoji: '📊', greeting: 'Executive Overview' },
+  Manager:  { emoji: '🖥️',  greeting: 'Team Overview' },
+  Employee: { emoji: '✅', greeting: 'My Workspace' },
+  Admin:    { emoji: '⚙️', greeting: 'Admin Panel' },
+};
+
 const DashboardPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user?.role === 'Admin') {
-      navigate('/admin');
-    }
+    if (user?.role === 'Admin') navigate('/admin');
   }, [user, navigate]);
 
   const RoleComponent = roleDashboardMap[user?.role] || null;
+  const info = ROLE_GREET[user?.role] || { emoji: '👋', greeting: 'Overview' };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 animate-fade-in">
+      {/* ── Welcome Strip ── */}
       <div className="flex items-center justify-between">
-        <h1 className="text-[22px] font-bold text-slate-800 tracking-tight">Welcome back, {user?.name || 'User'}!</h1>
+        <div>
+          <p className="text-[11px] font-[700] uppercase tracking-[0.12em] text-indigo-400/80 mb-0.5">
+            {info.emoji} {info.greeting}
+          </p>
+          <h1
+            className="text-[24px] font-[800] text-slate-900 tracking-tight leading-tight"
+            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+          >
+            Welcome back, <span className="text-indigo-600">{user?.name || 'User'}</span>
+          </h1>
+        </div>
       </div>
 
-      {RoleComponent ? <RoleComponent /> : <div className="text-slate-500 p-8 text-center">No dashboard available for this role.</div>}
+      {/* ── Role Dashboard ── */}
+      {RoleComponent
+        ? <RoleComponent />
+        : <div className="text-slate-400 p-12 text-center text-sm">No dashboard available for this role.</div>
+      }
     </div>
   );
 };

@@ -159,7 +159,7 @@ const AdminDashboard = () => {
     const COLORS = ['#8b5cf6', '#10b981', '#f59e0b', '#3b82f6'];
 
     return (
-        <div className="space-y-6 animate-fade-in pb-8 mt-4">
+        <div className="space-y-4 pb-8">
             {/* Top Metrics Row */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
@@ -203,7 +203,7 @@ const AdminDashboard = () => {
             {/* Main Content Split */}
             <div className="flex flex-col xl:flex-row gap-6">
                 {/* Left Side - Team Members Table */}
-                <div className="flex-[7] bg-white rounded-[1.5rem] p-0 shadow-sm border border-slate-100 flex flex-col min-h-[500px]">
+                <div className="flex-[7] bg-white rounded-2xl p-0 shadow-sm border border-slate-100 flex flex-col">
                     <div className="flex items-center justify-between pt-6 px-6 border-b border-slate-100 pb-4">
                         <h2 className="text-[17px] font-bold text-slate-800">Team Members</h2>
                     </div>

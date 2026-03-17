@@ -19,6 +19,7 @@ import DeptHealthMatrixPage from './pages/DeptHealthMatrixPage';
 import OKRDashboardPage from './pages/OKRDashboardPage';
 import OKRSubTaskPage from './pages/OKRSubTaskPage';
 import RecurringTasksPage from './pages/RecurringTasksPage';
+import EmployeePerformanceDashboard from './pages/EmployeePerformanceDashboard';
 import AccessDeniedPage from './pages/AccessDeniedPage';
 
 function App() {
@@ -134,6 +135,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['CFO', 'Admin']}>
                 <RecurringTasksPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="performance-dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['CFO', 'Admin']}>
+                <EmployeePerformanceDashboard />
               </ProtectedRoute>
             }
           />

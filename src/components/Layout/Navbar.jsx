@@ -1,26 +1,60 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Bell, Search, CheckCircle, AlertCircle, Calendar } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { Bell, Search, CheckCircle, AlertCircle, ChevronRight, Menu, X } from 'lucide-react';
 import api from '../../services/api';
 
-const Navbar = () => {
+const PAGE_TITLES = {
+    '/dashboard':    { title: 'Dashboard',      subtitle: null },
+    '/tasks/team':   { title: 'Team Tasks',     subtitle: 'Manage directives across your team' },
+    '/tasks':        { title: 'My Tasks',       subtitle: 'Your active directives & assignments' },
+    '/reports':      { title: 'Reports',        subtitle: 'Analytics & performance insights' },
+    '/admin':        { title: 'Admin Control',  subtitle: 'Manage users, roles & permissions' },
+    '/org-tree':     { title: 'Org Hierarchy',  subtitle: 'Visualise your organisation tree' },
+    '/health-matrix':{ title: 'Health Matrix',  subtitle: 'Department health at a glance' },
+    '/okr-dashboard':{ title: 'OKR Dashboard',  subtitle: 'Objectives & key results overview' },
+    '/okr-subtask':  { title: 'Sub-task Tracking', subtitle: 'OKR decomposition & progress' },
+    '/recurring-tasks':{ title: 'Automated Tasks', subtitle: 'Scheduled & recurring directives' },
+    '/profile':      { title: 'Profile',        subtitle: 'Account settings & preferences' },
+};
+
+const ROLE_SUBTITLES = {
+    CFO:      'Monitor Work Execution & Business Performance',
+    ADMIN:    'Enterprise Resource & Access Management',
+    MANAGER:  'Team Oversight & Performance Tracking',
+    EMPLOYEE: 'Your personal workspace & task board',
+};
+
+const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const [notifications, setNotifications] = useState([]);
     const [showNotifications, setShowNotifications] = useState(false);
     const notifRef = useRef(null);
-
     const [searchTerm, setSearchTerm] = useState('');
-    const location = useLocation();
-    const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
-    const roleUpper = (user?.role || '').toUpperCase();
+    const [showMobileSearch, setShowMobileSearch] = useState(false);
 
-    const [fromDate, setFromDate] = useState(localStorage.getItem('dashboard_from_date') || '');
-    const [toDate, setToDate] = useState(localStorage.getItem('dashboard_to_date') || '');
+    const roleUpper = (user?.role || '').toUpperCase();
+    const pageInfo = PAGE_TITLES[location.pathname] || {};
+    const subtitle = pageInfo.subtitle || ROLE_SUBTITLES[roleUpper] || '';
+    const isDashboard = location.pathname === '/dashboard' || location.pathname === '/';
+
+    const getFirstDayOfMonth = () => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    };
+
+    const getToday = () => {
+        return new Date().toISOString().slice(0, 10);
+    };
+
+    const [fromDate, setFromDate] = useState(getFirstDayOfMonth());
+    const [toDate, setToDate] = useState(getToday());
 
     useEffect(() => {
+        // We still use localStorage for inter-component communication as a fallback,
+        // but we don't treat it as a source of truth across browser refreshes anymore.
         localStorage.setItem('dashboard_from_date', fromDate);
         localStorage.setItem('dashboard_to_date', toDate);
         window.dispatchEvent(new Event('dashboard-filter-change'));
@@ -31,8 +65,6 @@ const Navbar = () => {
         try {
             const res = await api.get('/notifications');
             const raw = res.data;
-            // Handle every possible backend shape:
-            // [], { notifications: [] }, { data: [] }, { items: [] }, { results: [] }, { records: [] }
             let data = [];
             if (Array.isArray(raw)) {
                 data = raw;
@@ -48,38 +80,37 @@ const Navbar = () => {
 
     useEffect(() => {
         fetchNotifications();
+        const poll = setInterval(fetchNotifications, 30000);
+        const onRefresh = () => fetchNotifications();
+        window.addEventListener('refresh-notifications', onRefresh);
 
-        const pollInterval = setInterval(fetchNotifications, 30000);
-
-        const handleRefresh = () => fetchNotifications();
-        window.addEventListener('refresh-notifications', handleRefresh);
-
-        const handleClickOutside = (e) => {
+        const handleClick = (e) => {
             if (notifRef.current && !notifRef.current.contains(e.target)) {
                 setShowNotifications(false);
             }
         };
-
-        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('mousedown', handleClick);
         window.addEventListener('focus', fetchNotifications);
 
         return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('mousedown', handleClick);
             window.removeEventListener('focus', fetchNotifications);
-            window.removeEventListener('refresh-notifications', handleRefresh);
-            clearInterval(pollInterval);
+            window.removeEventListener('refresh-notifications', onRefresh);
+            clearInterval(poll);
         };
     }, [user]);
 
     const markAsRead = async (id) => {
         try {
             await api.post(`/notifications/${id}/read`);
-            setNotifications(prev => prev.map(n => {
-                const nId = String(n.id || n.notification_id || '');
-                return nId === String(id) ? { ...n, is_read: true, read: true } : n;
-            }));
+            setNotifications(prev =>
+                prev.map(n => {
+                    const nId = String(n.id || n.notification_id || '');
+                    return nId === String(id) ? { ...n, is_read: true, read: true } : n;
+                })
+            );
         } catch (err) {
-            console.error('Failed to mark notification as read', err);
+            console.error('Failed to mark read', err);
         }
     };
 
@@ -88,192 +119,243 @@ const Navbar = () => {
             await api.post('/notifications/read-all');
             setNotifications(prev => prev.map(n => ({ ...n, is_read: true, read: true })));
         } catch (err) {
-            console.error('Failed to mark all as read', err);
+            console.error('Failed to mark all read', err);
         }
     };
 
-    const safeNotifications = Array.isArray(notifications) ? notifications : [];
-    const unreadCount = safeNotifications.filter(n => !(n.is_read || n.read || n.isRead)).length;
+    const safeNotifs  = Array.isArray(notifications) ? notifications : [];
+    const unreadCount = safeNotifs.filter(n => !(n.is_read || n.read || n.isRead)).length;
 
     const handleSearch = (e) => {
         if (e.key === 'Enter' && searchTerm.trim()) {
             navigate(`/tasks?search=${encodeURIComponent(searchTerm.trim())}`);
             setSearchTerm('');
+            setShowMobileSearch(false);
         }
     };
 
     return (
-        <header className="navbar cfo-navbar sticky top-0 bg-white/100 backdrop-blur-md z-40 border-b border-slate-100 flex items-center justify-between px-6 py-4">
-            {/* Left Side: Title (logo only for CFO/Admin) */}
-            <div className="flex items-center gap-4 w-[400px]">
-                {['CFO', 'ADMIN'].includes(roleUpper) && (
-                    <div className="w-10 h-10 shrink-0 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex items-center justify-center">
-                        <img src="/images/fj.png.png" alt="FJ Group" className="w-8 h-8 object-contain" />
-                    </div>
-                )}
-                <div className="flex flex-col">
-                    <h1 className="text-[17px] font-bold text-slate-900 leading-tight tracking-tight">
-                        {(() => {
-                            const role = roleUpper;
-                            if (role === 'CFO') {
-                                if (location.pathname === '/reports') return 'CFO Reports';
-                                if (location.pathname === '/tasks/team') return 'CFO Team Tasks';
-                                return 'CFO Dashboard';
-                            }
-                            if (role === 'ADMIN') return 'Admin Control';
-                            if (role === 'MANAGER') return 'Manager Hub';
-                            if (location.pathname === '/dashboard' || location.pathname === '/') return 'Employee Dashboard';
-                            return 'My Task';
-                        })()}
-                    </h1>
-                    <p className="text-[10px] font-bold text-slate-400 leading-none mt-1">
-                        {user?.role === 'CFO' ? 'Monitor Work Execution & Business Performance' : 
-                         'Enterprise Resource & Task Management System'}
-                    </p>
-                </div>
-            </div>
+        <>
+            <header className="navbar cfo-navbar sticky top-0 z-40 flex items-center justify-between px-3 sm:px-6 gap-2 sm:gap-4">
 
-            {/* Center Side: Search Bar - Hidden for CFO */}
-            {roleUpper !== 'CFO' ? (
-                <div className={`flex-1 max-w-4xl flex items-center gap-4`}>
-                    <div className="cfo-search flex items-center gap-3 px-6 py-2.5 rounded-full border border-slate-200 transition-all bg-slate-50/50 focus-within:bg-white focus-within:ring-2 focus-within:ring-violet-400/20 shadow-sm w-full mx-auto">
-                        <Search className="text-slate-400 shrink-0" size={20} strokeWidth={2.4} />
-                        <input
-                            type="text"
-                            placeholder="Search for tasks or employees..."
-                            className="w-full bg-transparent border-none focus:outline-none text-sm font-semibold text-slate-700 placeholder:text-slate-400"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            onKeyDown={handleSearch}
-                        />
-                    </div>
-                </div>
-            ) : (
-                <div className="flex-1" />
-            )}
-
-            {/* Right Side: Notifications & Profile */}
-            <div className="flex items-center gap-4 shrink-0 justify-end">
-
-                <div className="relative" ref={notifRef}>
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-shrink-0">
+                    {/* Mobile hamburger */}
                     <button
-                        onClick={() => {
-                            const newState = !showNotifications;
-                            setShowNotifications(newState);
-                            if (newState) fetchNotifications();
-                        }}
-                        className={`relative p-2.5 rounded-xl transition-all duration-200 ${showNotifications ? 'bg-violet-100 text-violet-600' : 'text-slate-500 hover:text-violet-600 hover:bg-violet-50'}`}
+                        className="p-1.5 px-2.5 -ml-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 rounded-xl md:hidden transition-all active:scale-95"
+                        onClick={onMobileMenuToggle}
+                        aria-label="Toggle sidebar"
                     >
-                        <Bell size={19} />
-                        {unreadCount > 0 && (
-                            <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] flex items-center justify-center bg-rose-500 text-white text-[9px] font-bold rounded-full border border-white px-0.5 animate-pulse">
-                                {unreadCount > 9 ? '9+' : unreadCount}
-                            </span>
-                        )}
+                        {isMobileSidebarOpen ? <X size={20} /> : <Menu size={20} />}
                     </button>
 
-                    {showNotifications && (
-                        <div className="absolute right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100/80 z-50 flex flex-col animate-scale-in" style={{ width: '360px', maxHeight: '440px' }}>
-                            <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Bell size={15} className="text-violet-500" />
-                                    <h3 className="text-sm font-bold text-slate-800">Notifications</h3>
-                                </div>
-                                {unreadCount > 0 && <span className="text-xs font-bold text-white bg-violet-500 px-2 py-0.5 rounded-full">{unreadCount} new</span>}
-                            </div>
-
-                            <div className="overflow-y-auto flex-1 px-2 py-2 space-y-1" style={{ maxHeight: '340px' }}>
-                                {safeNotifications.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center py-10 gap-2">
-                                        <Bell size={28} className="text-slate-300" />
-                                        <p className="text-sm text-slate-400 font-medium">No new activity</p>
-                                    </div>
-                                ) : (
-                                    safeNotifications.map((n, idx) => {
-                                        const isRead = n.is_read || n.read || n.isRead;
-                                        return (
-                                            <div
-                                                key={n.id || n.notification_id || idx}
-                                                onClick={() => !isRead && markAsRead(n.id || n.notification_id)}
-                                                className={`flex gap-3 px-3 py-3 rounded-xl cursor-pointer transition-all duration-150 ${!isRead ? 'bg-violet-50/70 hover:bg-violet-50 border border-violet-100/50' : 'hover:bg-slate-50 opacity-60 hover:opacity-90'}`}
-                                            >
-                                                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${n.type === 'SUCCESS' ? 'bg-emerald-100' : n.type === 'WARNING' ? 'bg-amber-100' : 'bg-blue-100'}`}>
-                                                    {n.type === 'SUCCESS' ? <CheckCircle size={14} className="text-emerald-600" /> : <AlertCircle size={14} className={n.type === 'WARNING' ? 'text-amber-600' : 'text-blue-600'} />}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between mb-0.5">
-                                                        <span className="text-[10px] font-bold text-slate-400">{n.title || n.subject || 'Notification'}</span>
-                                                        <span className="text-[9px] text-slate-400">{n.time || (n.created_at ? new Date(n.created_at).toLocaleDateString() : 'Just now')}</span>
-                                                    </div>
-                                                    <p className={`text-[11px] leading-tight ${!isRead ? 'text-slate-800 font-bold' : 'text-slate-500 font-medium'}`}>
-                                                        {(() => {
-                                                            const title = n.task_title ? <span className="font-bold text-violet-600">"{n.task_title}"</span> : <span className="italic">this task</span>;
-                                                            const actor = <span className="font-bold text-slate-800">{n.actor_name || 'Manager'}</span>;
-                                                            switch (n.type) {
-                                                                case 'TASK_CREATED':
-                                                                case 'TASK_REASSIGNED':
-                                                                    return <>Task {title} assigned to you</>;
-                                                                case 'TASK_STARTED':
-                                                                    return <>You started task {title}</>;
-                                                                case 'TASK_SUBMITTED':
-                                                                    return <>You submitted task {title}</>;
-                                                                case 'TASK_REWORK':
-                                                                    return <>{actor} requested rework on task {title}</>;
-                                                                case 'TASK_APPROVED':
-                                                                    return <>Task {title} approved</>;
-                                                                case 'TASK_CANCELLED':
-                                                                    return <>Task {title} cancelled</>;
-                                                                default:
-                                                                    return <>{actor} {n.message}</>;
-                                                            }
-                                                        })()}
-                                                    </p>
-                                                    {n.comment && <span className="block text-[10px] text-slate-400 mt-1 italic pl-2 border-l-2 border-slate-100">"{n.comment}"</span>}
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-
-                            {safeNotifications.length > 0 && (
-                                <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/70 rounded-b-2xl flex justify-between items-center">
-                                    <span className="text-xs text-slate-400">{safeNotifications.length} total</span>
-                                    <button onClick={markAllRead} className="text-xs text-violet-600 hover:text-violet-800 font-bold transition-colors">Mark all as read</button>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                    <div className="flex flex-col min-w-0">
+                        <h1
+                            className="text-[14px] sm:text-[18px] font-[800] text-slate-800 leading-tight tracking-tight truncate"
+                            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                        >
+                            {(() => {
+                                if (roleUpper === 'CFO') {
+                                    if (location.pathname === '/reports')      return 'CFO Reports';
+                                    if (location.pathname === '/tasks/team')   return 'CFO Team Tasks';
+                                    return 'CFO Dashboard';
+                                }
+                                if (roleUpper === 'ADMIN') return 'Admin Control';
+                                if (roleUpper === 'MANAGER') return 'Manager Hub';
+                                if (isDashboard) return 'Employee Dashboard';
+                                return pageInfo.title || 'My Task';
+                            })()}
+                        </h1>
+                        {subtitle && (
+                            <p className="text-[10.5px] font-[550] text-slate-400 mt-0.5 leading-none tracking-wide hidden sm:block">
+                                {subtitle}
+                            </p>
+                        )}
+                    </div>
                 </div>
 
-                <button
-                    onClick={() => navigate('/profile')}
-                    className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-slate-200 bg-white transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] shadow-sm group"
-                >
-                    {user?.gender?.toLowerCase() === 'female' ? (
-                        <UserFemale size={18} className="text-violet-600" />
-                    ) : (
-                        <User size={18} className="text-violet-600" />
+                {/* ── Center: Search (non-CFO) or Date filters (CFO dashboard) ── */}
+                <div className="flex-1 flex items-center justify-center gap-3 max-w-2xl navbar-search-hide-mobile">
+                    {roleUpper !== 'CFO' ? (
+                        <div className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-slate-200/80 bg-slate-50/80 focus-within:bg-white focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-xs">
+                            <Search size={15} className="text-slate-400 shrink-0" strokeWidth={2.2} />
+                            <input
+                                type="text"
+                                placeholder="Search tasks or employees..."
+                                className="w-full bg-transparent border-none outline-none text-[13px] font-[500] text-slate-700 placeholder:text-slate-400"
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                onKeyDown={handleSearch}
+                            />
+                        </div>
+                    ) : isDashboard ? (
+                        <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-[650] text-slate-400 uppercase tracking-wider whitespace-nowrap">Filter</span>
+                            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+                                <input
+                                    type="date"
+                                    value={fromDate}
+                                    onChange={e => setFromDate(e.target.value)}
+                                    className="bg-transparent border-none outline-none text-[12px] font-[600] text-slate-600 cursor-pointer"
+                                />
+                            </div>
+                            <ChevronRight size={12} className="text-slate-300" />
+                            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+                                <input
+                                    type="date"
+                                    value={toDate}
+                                    onChange={e => setToDate(e.target.value)}
+                                    className="bg-transparent border-none outline-none text-[12px] font-[600] text-slate-600 cursor-pointer"
+                                />
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
+
+                {/* ── Right: Search icon (mobile) + Notifications + Profile ── */}
+                <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+
+                    {/* Mobile search toggle (non-CFO only) */}
+                    {roleUpper !== 'CFO' && (
+                        <button
+                            onClick={() => setShowMobileSearch(!showMobileSearch)}
+                            className="flex md:hidden p-2 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50/60 transition-all"
+                        >
+                            <Search size={17} strokeWidth={2} />
+                        </button>
                     )}
-                    <span className="text-[13px] font-bold text-slate-700 leading-none group-hover:text-violet-600 transition-colors tracking-tight">{user?.name || 'AP Exec 1'}</span>
-                </button>
-            </div>
-        </header >
+
+                    {/* Bell */}
+                    <div className="relative" ref={notifRef}>
+                        <button
+                            onClick={() => {
+                                const next = !showNotifications;
+                                setShowNotifications(next);
+                                if (next) fetchNotifications();
+                            }}
+                            className={`relative p-2 rounded-xl transition-all duration-200 ${
+                                showNotifications
+                                    ? 'bg-indigo-50 text-indigo-600'
+                                    : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50/60'
+                            }`}
+                        >
+                            <Bell size={18} strokeWidth={2} />
+                            {unreadCount > 0 && (
+                                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center bg-rose-500 text-white text-[9px] font-[800] rounded-full border-2 border-white px-0.5 leading-none">
+                                    {unreadCount > 9 ? '9+' : unreadCount}
+                                </span>
+                            )}
+                        </button>
+
+                        {showNotifications && (
+                            <div
+                                className="absolute right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 flex flex-col animate-scale-in overflow-hidden notif-panel"
+                                style={{ width: '340px', maxHeight: '440px' }}
+                            >
+                                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+                                    <div className="flex items-center gap-2">
+                                        <Bell size={14} className="text-indigo-500" />
+                                        <span className="text-[13px] font-[750] text-slate-800">Notifications</span>
+                                    </div>
+                                    {unreadCount > 0 && (
+                                        <span className="text-[10px] font-[750] text-white bg-indigo-500 px-2 py-0.5 rounded-full">
+                                            {unreadCount} new
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="overflow-y-auto flex-1 px-2 py-2 space-y-1" style={{ maxHeight: '340px' }}>
+                                    {safeNotifs.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center py-10 gap-2">
+                                            <Bell size={26} className="text-slate-200" />
+                                            <p className="text-[12px] text-slate-400 font-[600]">No new activity</p>
+                                        </div>
+                                    ) : (
+                                        safeNotifs.map((n, idx) => {
+                                            const isRead = n.is_read || n.read || n.isRead;
+                                            return (
+                                                <div
+                                                    key={n.id || n.notification_id || idx}
+                                                    onClick={() => !isRead && markAsRead(n.id || n.notification_id)}
+                                                    className={`flex gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
+                                                        !isRead
+                                                            ? 'bg-indigo-50/70 hover:bg-indigo-50 border border-indigo-100/60'
+                                                            : 'hover:bg-slate-50 opacity-55 hover:opacity-80'
+                                                    }`}
+                                                >
+                                                    <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${
+                                                        n.type === 'SUCCESS' ? 'bg-emerald-100' : n.type === 'WARNING' ? 'bg-amber-100' : 'bg-indigo-100'
+                                                    }`}>
+                                                        {n.type === 'SUCCESS'
+                                                            ? <CheckCircle size={13} className="text-emerald-600" />
+                                                            : <AlertCircle size={13} className={n.type === 'WARNING' ? 'text-amber-600' : 'text-indigo-600'} />
+                                                        }
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between mb-0.5">
+                                                            <span className="text-[10px] font-[700] text-slate-400">{n.title || n.subject || 'Notification'}</span>
+                                                            <span className="text-[9px] text-slate-400">{n.time || (n.created_at ? new Date(n.created_at).toLocaleDateString() : 'Just now')}</span>
+                                                        </div>
+                                                        <p className={`text-[11.5px] leading-snug ${!isRead ? 'text-slate-800 font-[650]' : 'text-slate-500 font-[500]'}`}>
+                                                            {n.message || 'Notification received'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+
+                                {safeNotifs.length > 0 && (
+                                    <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/60 flex justify-between items-center">
+                                        <span className="text-[10.5px] text-slate-400">{safeNotifs.length} total</span>
+                                        <button onClick={markAllRead} className="text-[11px] font-[700] text-indigo-600 hover:text-indigo-800 transition-colors">
+                                            Mark all read
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Profile Pill */}
+                    <button
+                        onClick={() => navigate('/profile')}
+                        className="flex items-center gap-1.5 sm:gap-2.5 pl-1.5 pr-2 sm:pr-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-indigo-200 transition-all shadow-xs group active:scale-[0.98]"
+                    >
+                        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-[11px] font-[800] shrink-0 shadow-sm">
+                            {(user?.name || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-[12.5px] font-[700] text-slate-700 group-hover:text-indigo-700 transition-colors leading-none hidden sm:block" style={{ letterSpacing: '-0.01em' }}>
+                            {user?.name || 'User'}
+                        </span>
+                    </button>
+                </div>
+            </header>
+
+            {/* ── Mobile Search Bar (slides down) ── */}
+            {showMobileSearch && roleUpper !== 'CFO' && (
+                <div className="flex md:hidden px-3 py-2 bg-white border-b border-slate-100 shadow-sm z-30 sticky top-[56px]">
+                    <div className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+                        <Search size={15} className="text-slate-400 shrink-0" strokeWidth={2.2} />
+                        <input
+                            type="text"
+                            placeholder="Search tasks or employees..."
+                            className="w-full bg-transparent border-none outline-none text-[13px] font-[500] text-slate-700 placeholder:text-slate-400"
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            onKeyDown={handleSearch}
+                            autoFocus
+                        />
+                        {searchTerm && (
+                            <button onClick={() => setSearchTerm('')} className="text-slate-400 hover:text-slate-600">
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+        </>
     );
 };
-
-const User = ({ size, className }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-    </svg>
-);
-
-const UserFemale = ({ size, className }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-        <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" />
-        <path d="m11 12-2 4h6l-2-4" />
-        <path d="M9 16l-1 5h8l-1-5" />
-    </svg>
-);
 
 export default Navbar;

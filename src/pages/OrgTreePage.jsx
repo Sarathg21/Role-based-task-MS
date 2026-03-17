@@ -37,7 +37,7 @@ const AddNodeForm = ({ parentRole, departments, onAdd, onCancel }) => {
 
     return (
         <div className="mt-3 bg-white border-2 border-violet-300 rounded-xl p-3 shadow-xl w-52 z-30 relative">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-violet-600 mb-2">
+            <p className="text-[10px] font-bold capitalize tracking-wider text-violet-600 mb-2">
                 + Add {childRole}
             </p>
             {error && <p className="text-red-500 text-[10px] mb-1">{error}</p>}
@@ -169,7 +169,7 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
                 <span className="text-[9px] text-slate-400 font-mono mb-1">{emp_id}</span>
 
                 {/* Role badge */}
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold border ${badgeCls}`}>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold border capitalize ${badgeCls}`}>
                     {role}
                 </span>
                 {dept && (
@@ -334,7 +334,7 @@ const OrgTreePage = () => {
                             <Network size={22} className="text-violet-600" />
                             Organization Hierarchy
                         </h1>
-                        <p className="text-xs font-bold text-slate-400 mt-0.5 tracking-widest uppercase">
+                        <p className="text-xs font-bold text-slate-400 mt-0.5 tracking-widest capitalize">
                             Manage your team structure and branch relationships
                         </p>
                     </div>
@@ -342,17 +342,17 @@ const OrgTreePage = () => {
 
                 <div className="flex gap-4 items-center bg-white px-5 py-3 rounded-2xl border border-slate-100 shadow-sm">
                     <div className="text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Managers</p>
+                        <p className="text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] mb-0.5">Managers</p>
                         <p className="text-sm font-black text-slate-800 tabular-nums">{calculatedManagers}</p>
                     </div>
                     <div className="w-px h-8 bg-slate-100" />
                     <div className="text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Employees</p>
+                        <p className="text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] mb-0.5">Employees</p>
                         <p className="text-sm font-black text-slate-800 tabular-nums">{calculatedEmployees}</p>
                     </div>
                     <div className="w-px h-8 bg-slate-100" />
                     <div className="text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Total Staff</p>
+                        <p className="text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] mb-0.5">Total Staff</p>
                         <p className="text-sm font-black text-violet-600 tabular-nums">{totalEmployees}</p>
                     </div>
                 </div>
@@ -383,7 +383,7 @@ const OrgTreePage = () => {
                         {/* Orphans */}
                         {treeData?.orphan_managers?.length > 0 && (
                             <div className="mt-16">
-                                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider text-center mb-6">Unlinked Departments</p>
+                                <p className="text-xs text-slate-400 font-semibold capitalize tracking-wider text-center mb-6">Unlinked Departments</p>
                                 <div className="flex gap-12 justify-center flex-wrap">
                                     {treeData.orphan_managers.map(node => (
                                         <OrgNode
@@ -399,7 +399,7 @@ const OrgTreePage = () => {
 
                         {treeData?.orphan_employees?.length > 0 && (
                             <div className="mt-16">
-                                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider text-center mb-6">Unassigned Staff</p>
+                                <p className="text-xs text-slate-400 font-semibold capitalize tracking-wider text-center mb-6">Unassigned Staff</p>
                                 <div className="flex gap-8 justify-center flex-wrap">
                                     {treeData.orphan_employees.map(node => (
                                         <OrgNode
@@ -420,7 +420,7 @@ const OrgTreePage = () => {
             <div className="bg-white p-4 rounded-[1.5rem] border border-slate-100 flex justify-between items-center shadow-sm">
                 <div className="flex gap-6 items-center">
                     <div className="flex items-center gap-4 border-r border-slate-100 pr-6 mr-2">
-                        <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">Zoom</span>
+                        <span className="text-[10px] font-black tracking-widest capitalize text-slate-400">Zoom</span>
                         <input
                             type="range"
                             min="0.3"
@@ -435,18 +435,18 @@ const OrgTreePage = () => {
 
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-[#9B51E0] shadow-sm" />
-                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">CFO / Admin</span>
+                        <span className="text-[10px] font-black text-slate-600 capitalize tracking-widest">CFO/Admin</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-[#4285F4] shadow-sm" />
-                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Manager</span>
+                        <span className="text-[10px] font-black text-slate-600 capitalize tracking-widest">Manager</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-[#10B981] shadow-sm" />
-                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Employee</span>
+                        <span className="text-[10px] font-black text-slate-600 capitalize tracking-widest">Employee</span>
                     </div>
                 </div>
-                <div className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">
+                <div className="text-[10px] font-bold text-slate-400 tracking-widest capitalize">
                     Use slider to zoom · Drag canvas to navigate · Click nodes to expand branches
                 </div>
             </div>

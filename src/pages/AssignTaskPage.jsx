@@ -3,11 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Loader2, Clock } from 'lucide-react';
+import { ArrowLeft, Loader2, Clock, Plus, Trash2 } from 'lucide-react';
 
 const AssignTaskPage = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    
+    // State for assignees - define this early to avoid reference errors
+    const [eligibleAssignees, setEligibleAssignees] = useState([]);
+    const [departments, setDepartments] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
 
     const [formData, setFormData] = useState({
         title: '',
@@ -16,31 +22,60 @@ const AssignTaskPage = () => {
         priority: 'MEDIUM',
         dueDate: '',
         isRecurring: false,
-        recurringFrequency: 'MONTHLY',
-        recurringDay: 1,
-        dueOffset: 5
+        recurringFrequency: 'WEEKLY',
+        recurringDay: 1, // Monthly Day
+        weeklyDay: 'MON',
+        yearlyMonth: 1,
+        yearlyDay: 1,
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: '',
+        status: 'ACTIVE'
     });
+    const [subtasks, setSubtasks] = useState([]);
     const [attachment, setAttachment] = useState(null);
 
-    const [eligibleAssignees, setEligibleAssignees] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false);
-
     useEffect(() => {
-        const fetchAssignees = async () => {
+        const fetchMetadata = async () => {
             try {
-                // Correct endpoint: /employees/assignable
-                const response = await api.get('/employees/assignable');
-                setEligibleAssignees(response.data);
+                const [empRes, deptRes] = await Promise.all([
+                    api.get('/employees/assignable'),
+                    api.get('/departments')
+                ]);
+                setEligibleAssignees(empRes.data);
+                setDepartments(deptRes.data);
             } catch (err) {
-                console.error("Failed to fetch assignees", err);
-                toast.error('Failed to load assignable employees');
+                console.error("Failed to fetch metadata", err);
+                toast.error('Failed to load metadata');
             } finally {
                 setLoading(false);
             }
         };
-        fetchAssignees();
+        fetchMetadata();
     }, []);
+
+    const addSubtask = () => {
+        setSubtasks([...subtasks, {
+            title: '',
+            description: '',
+            department_id: '',
+            assigned_to_emp_id: '',
+            priority: 'MEDIUM',
+            sequence_no: subtasks.length + 1
+        }]);
+    };
+
+    const removeSubtask = (index) => {
+        const newList = subtasks.filter((_, i) => i !== index);
+        // Re-sequence
+        const resequenced = newList.map((st, i) => ({ ...st, sequence_no: i + 1 }));
+        setSubtasks(resequenced);
+    };
+
+    const handleSubtaskChange = (index, field, value) => {
+        const newList = [...subtasks];
+        newList[index][field] = value;
+        setSubtasks(newList);
+    };
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -48,51 +83,80 @@ const AssignTaskPage = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const confirmed = window.confirm("Are you sure you want to assign this task?");
+        const typeLabel = formData.isRecurring ? "recurring task" : "task";
+        const confirmed = window.confirm(`Are you sure you want to assign this ${typeLabel}?`);
         if (!confirmed) return;
         setSubmitting(true);
 
         try {
-            const payload = {
-                title: formData.title,
-                description: formData.description,
-                priority: formData.priority,
-                assigned_to_emp_id: formData.assignee,
-                due_date: formData.dueDate,
-                parent_task_id: null,
-                is_recurring: formData.isRecurring,
-                recurring_frequency: formData.isRecurring ? formData.recurringFrequency : null,
-                recurring_day: formData.isRecurring ? parseInt(formData.recurringDay) : null,
-                due_offset_days: formData.isRecurring ? parseInt(formData.dueOffset) : null
-            };
+            if (formData.isRecurring) {
+                // Handle Recurring Task Creation
+                const recurringPayload = {
+                    title: formData.title,
+                    description: formData.description,
+                    department_id: departments.find(d => d.name === (eligibleAssignees.find(e => e.emp_id === formData.assignee)?.department_id || eligibleAssignees.find(e => e.emp_id === formData.assignee)?.department))?.id || user?.department_id,
+                    assigned_to_emp_id: formData.assignee,
+                    assigned_by_emp_id: user?.id,
+                    priority: formData.priority,
+                    frequency: formData.recurringFrequency,
+                    weekly_day: formData.recurringFrequency === 'WEEKLY' ? formData.weeklyDay : null,
+                    monthly_day: formData.recurringFrequency === 'MONTHLY' ? parseInt(formData.recurringDay) : null,
+                    yearly_month: formData.recurringFrequency === 'YEARLY' ? parseInt(formData.yearlyMonth) : null,
+                    yearly_day: formData.recurringFrequency === 'YEARLY' ? parseInt(formData.yearlyDay) : null,
+                    start_date: formData.startDate,
+                    end_date: formData.endDate || null,
+                    status: formData.status
+                };
 
-            // Step 1: Create the task
-            const taskRes = await api.post('/tasks', payload);
-            const newTaskId = taskRes.data.id || taskRes.data.task_id;
+                const res = await api.post('/recurring-tasks', recurringPayload);
+                const recurringId = res.data.id || res.data.recurring_id;
 
-            // Step 2: Upload attachment if provided
-            if (attachment && newTaskId) {
-                const formDataUpload = new FormData();
-                formDataUpload.append('file', attachment);
-                try {
-                    await api.post(`/tasks/${newTaskId}/attachments`, formDataUpload, {
-                        headers: { 'Content-Type': 'multipart/form-data' }
-                    });
-                } catch (uploadErr) {
-                    console.warn('Task created but attachment upload failed:', uploadErr);
-                    toast.success('Task assigned! (Attachment upload had an issue)');
-                    navigate('/tasks');
-                    return;
+                // Add subtasks one by one
+                if (subtasks.length > 0) {
+                    for (const st of subtasks) {
+                        await api.post(`/recurring-tasks/${recurringId}/subtasks`, {
+                            title: st.title,
+                            description: st.description,
+                            department_id: st.department_id,
+                            assigned_to_emp_id: st.assigned_to_emp_id,
+                            priority: st.priority,
+                            sequence_no: st.sequence_no
+                        });
+                    }
                 }
-            }
+                toast.success('Recurring task defined successfully!');
+                navigate('/recurring-tasks');
+            } else {
+                // Handle Normal Task Creation
+                const payload = {
+                    title: formData.title,
+                    description: formData.description,
+                    priority: formData.priority,
+                    assigned_to_emp_id: formData.assignee,
+                    due_date: formData.dueDate,
+                    parent_task_id: null
+                };
 
-            toast.success('Task assigned successfully!');
-            navigate('/tasks');
-        } catch (err) {
-            console.error('Failed to assign task', err);
-            if (!err.response || err.response.status !== 422) {
-                toast.error('Failed to assign task: ' + (err.response?.data?.detail || 'Unknown error'));
+                const taskRes = await api.post('/tasks', payload);
+                const newTaskId = taskRes.data.id || taskRes.data.task_id;
+
+                if (attachment && newTaskId) {
+                    const formDataUpload = new FormData();
+                    formDataUpload.append('file', attachment);
+                    try {
+                        await api.post(`/tasks/${newTaskId}/attachments`, formDataUpload, {
+                            headers: { 'Content-Type': 'multipart/form-data' }
+                        });
+                    } catch (uploadErr) {
+                        console.warn('Attachment upload failed:', uploadErr);
+                    }
+                }
+                toast.success('Task assigned successfully!');
+                navigate('/tasks');
             }
+        } catch (err) {
+            console.error('Failed to create task', err);
+            toast.error('Failed: ' + (err.response?.data?.detail || err.message));
         } finally {
             setSubmitting(false);
         }
@@ -213,39 +277,47 @@ const AssignTaskPage = () => {
                         {formData.isRecurring && <p className="text-[10px] text-violet-500 font-bold mt-1 uppercase">Dynamic date will be used for recurring tasks</p>}
                     </div>
 
-                    <div className="bg-violet-50/50 p-6 rounded-2xl border border-violet-100 space-y-4">
+                    <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100 space-y-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-white shadow-sm text-violet-600">
-                                    <Clock size={18} />
+                                <div className="p-2.5 rounded-xl bg-white shadow-sm text-indigo-600">
+                                    <Clock size={18} strokeWidth={2.5} />
                                 </div>
-                                <div>
-                                    <h4 className="text-sm font-bold text-slate-800">Recurring Task</h4>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Automatically repeat this directive</p>
+                                <div className="pt-0.5">
+                                    <h4 className="text-[14px] font-black text-slate-800 leading-none">Task Type</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Normal or Recurring</p>
                                 </div>
                             </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    className="sr-only peer" 
-                                    checked={formData.isRecurring}
-                                    onChange={(e) => setFormData({ ...formData, isRecurring: e.target.checked })}
-                                />
-                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
-                            </label>
+                            <div className="flex bg-white p-1 rounded-xl border border-slate-200">
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, isRecurring: false })}
+                                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${!formData.isRecurring ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}
+                                >
+                                    Normal
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, isRecurring: true })}
+                                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formData.isRecurring ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}
+                                >
+                                    Recurring
+                                </button>
+                            </div>
                         </div>
 
                         {formData.isRecurring && (
-                            <>
-                                <div className="animate-fade-in pt-4 border-t border-violet-100 flex items-center gap-4">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">Frequency:</label>
-                                    <div className="flex bg-white p-1 rounded-xl border border-violet-100 w-full shadow-sm">
-                                        {['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].map((f) => (
+                            <div className="animate-fade-in space-y-6 pt-4 border-t border-indigo-100">
+                                {/* Frequency Selector */}
+                                <div className="flex items-center gap-4">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest shrink-0">Frequency:</label>
+                                    <div className="flex bg-white p-1 rounded-xl border border-indigo-100 w-full shadow-sm">
+                                        {['WEEKLY', 'MONTHLY', 'YEARLY'].map((f) => (
                                             <button
                                                 key={f}
                                                 type="button"
                                                 onClick={() => setFormData({ ...formData, recurringFrequency: f })}
-                                                className={`flex-1 py-2 rounded-lg text-[10px] font-black tracking-widest transition-all ${formData.recurringFrequency === f ? 'bg-violet-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                                                className={`flex-1 py-2 rounded-lg text-[10px] font-black tracking-widest transition-all ${formData.recurringFrequency === f ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
                                             >
                                                 {f}
                                             </button>
@@ -253,33 +325,158 @@ const AssignTaskPage = () => {
                                     </div>
                                 </div>
 
-                                {formData.recurringFrequency === 'MONTHLY' && (
-                                    <div className="animate-fade-in pt-4 border-t border-violet-100 grid grid-cols-2 gap-4">
+                                {/* Dynamic Recurrence Fields */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {formData.recurringFrequency === 'WEEKLY' && (
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Day of Month</label>
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block ml-1">Day of Week</label>
+                                            <select 
+                                                className="w-full px-4 py-2.5 rounded-xl border border-indigo-100 bg-white font-bold text-[12px] focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all"
+                                                value={formData.weeklyDay}
+                                                onChange={(e) => setFormData({ ...formData, weeklyDay: e.target.value })}
+                                            >
+                                                {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(day => (
+                                                    <option key={day} value={day}>{day}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    {formData.recurringFrequency === 'MONTHLY' && (
+                                        <div>
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block ml-1">Day of Month</label>
                                             <input 
-                                                type="number" 
-                                                name="recurringDay"
-                                                min="1" max="31"
-                                                className="w-full px-4 py-2 rounded-xl border border-violet-100 bg-white font-bold text-xs focus:ring-2 focus:ring-violet-400/20 outline-none"
+                                                type="number" min="1" max="31"
+                                                className="w-full px-4 py-2.5 rounded-xl border border-indigo-100 bg-white font-bold text-[12px] focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all"
                                                 value={formData.recurringDay}
-                                                onChange={handleChange}
+                                                onChange={(e) => setFormData({ ...formData, recurringDay: e.target.value })}
                                             />
                                         </div>
-                                        <div>
-                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Due After (Days)</label>
-                                            <input 
-                                                type="number" 
-                                                name="dueOffset"
-                                                min="1"
-                                                className="w-full px-4 py-2 rounded-xl border border-violet-100 bg-white font-bold text-xs focus:ring-2 focus:ring-violet-400/20 outline-none"
-                                                value={formData.dueOffset}
-                                                onChange={handleChange}
-                                            />
-                                        </div>
+                                    )}
+
+                                    {formData.recurringFrequency === 'YEARLY' && (
+                                        <>
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block ml-1">Month</label>
+                                                <select 
+                                                    className="w-full px-4 py-2.5 rounded-xl border border-indigo-100 bg-white font-bold text-[12px] focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all"
+                                                    value={formData.yearlyMonth}
+                                                    onChange={(e) => setFormData({ ...formData, yearlyMonth: e.target.value })}
+                                                >
+                                                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                                                        <option key={m} value={m}>{new Date(0, m - 1).toLocaleString('en', { month: 'long' })}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block ml-1">Day</label>
+                                                <input 
+                                                    type="number" min="1" max="31"
+                                                    className="w-full px-4 py-2.5 rounded-xl border border-indigo-100 bg-white font-bold text-[12px] focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all"
+                                                    value={formData.yearlyDay}
+                                                    onChange={(e) => setFormData({ ...formData, yearlyDay: e.target.value })}
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block ml-1">Start Date</label>
+                                        <input 
+                                            type="date"
+                                            className="w-full px-4 py-2.5 rounded-xl border border-indigo-100 bg-white font-bold text-[12px] focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all"
+                                            value={formData.startDate}
+                                            onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                                        />
                                     </div>
-                                )}
-                            </>
+                                    <div>
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 block ml-1">End Date (Optional)</label>
+                                        <input 
+                                            type="date"
+                                            className="w-full px-4 py-2.5 rounded-xl border border-indigo-100 bg-white font-bold text-[12px] focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all"
+                                            value={formData.endDate}
+                                            onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Subtask Templates */}
+                                <div className="pt-6 border-t border-indigo-100">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <h4 className="text-[14px] font-black text-slate-800 leading-none">Subtask Templates</h4>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Predefined subtasks for each recurrence</p>
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            onClick={addSubtask}
+                                            className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2"
+                                        >
+                                            <Plus size={14} strokeWidth={3} /> Add Subtask
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                        {subtasks.length === 0 ? (
+                                            <div className="p-8 text-center bg-white rounded-2xl border border-dashed border-indigo-100">
+                                                <p className="text-[11px] font-bold text-slate-400 italic">No subtask templates added yet.</p>
+                                            </div>
+                                        ) : (
+                                            subtasks.map((st, idx) => (
+                                                <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative group animate-fade-in">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => removeSubtask(idx)}
+                                                        className="absolute top-4 right-4 text-slate-300 hover:text-rose-500 transition-colors"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div className="md:col-span-2">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Subtask Title</label>
+                                                            <input 
+                                                                type="text"
+                                                                className="w-full px-3 py-2 rounded-lg border border-slate-100 bg-slate-50 focus:bg-white focus:border-indigo-300 outline-none text-[13px] font-semibold"
+                                                                placeholder="Subtask Title..."
+                                                                value={st.title}
+                                                                onChange={(e) => handleSubtaskChange(idx, 'title', e.target.value)}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Department</label>
+                                                            <select 
+                                                                className="w-full px-3 py-2 rounded-lg border border-slate-100 bg-slate-50 focus:bg-white focus:border-indigo-300 outline-none text-[12px] font-semibold"
+                                                                value={st.department_id}
+                                                                onChange={(e) => handleSubtaskChange(idx, 'department_id', e.target.value)}
+                                                            >
+                                                                <option value="">Select Dept</option>
+                                                                {departments.map(d => (
+                                                                    <option key={d.id} value={d.id}>{d.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Assignee</label>
+                                                            <select 
+                                                                className="w-full px-3 py-2 rounded-lg border border-slate-100 bg-slate-50 focus:bg-white focus:border-indigo-300 outline-none text-[12px] font-semibold"
+                                                                value={st.assigned_to_emp_id}
+                                                                onChange={(e) => handleSubtaskChange(idx, 'assigned_to_emp_id', e.target.value)}
+                                                            >
+                                                                <option value="">Select Assignee</option>
+                                                                {eligibleAssignees.map(p => (
+                                                                    <option key={p.emp_id} value={p.emp_id}>{p.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
                         )}
                     </div>
 

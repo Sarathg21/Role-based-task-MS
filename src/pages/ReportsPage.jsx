@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { getEmployeeRankings } from '../utils/rankingEngine';
 import ChartPanel from '../components/Charts/ChartPanel';
-import { Download, FileSpreadsheet, TrendingUp, TrendingDown, Calendar, ArrowRight, CheckSquare, BarChart2, Activity, Users, ClipboardCheck, Play, Upload, AlertTriangle } from 'lucide-react';
+import { Download, FileSpreadsheet, TrendingUp, TrendingDown, Calendar, ArrowRight, CheckSquare, BarChart2, Activity, Users, ClipboardCheck, Play, Upload, AlertTriangle, Trophy, AlertCircle, Building2, Landmark, HandCoins } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
     LineChart, Line, ComposedChart, Area, Cell, PieChart, Pie
@@ -27,6 +27,15 @@ const toDateKey = (value) => {
     return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
 };
 
+const getFirstDayOfMonth = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+};
+
+const getToday = () => {
+    return new Date().toISOString().slice(0, 10);
+};
+
 const inRange = (dateKey, fromDate, toDate) => {
     if (!dateKey) return !fromDate && !toDate;
     if (fromDate && dateKey < fromDate) return false;
@@ -37,9 +46,9 @@ const inRange = (dateKey, fromDate, toDate) => {
 
 const TaskDistributionCard = ({ data, title = "Task Distribution" }) => {
     if (!data || Object.keys(data).length === 0) return (
-        <div className="bg-white border border-slate-100 shadow-sm rounded-2xl p-8 text-center h-[320px] flex flex-col items-center justify-center">
-            <Activity className="w-10 h-10 text-slate-200 mb-4 opacity-50" />
-            <p className="text-slate-400 font-bold capitalize tracking-widest text-[10px]">Syncing Distribution...</p>
+        <div className="bg-white border border-slate-100 shadow-sm rounded-[2rem] p-8 text-center h-[350px] flex flex-col items-center justify-center">
+            <Activity className="w-10 h-10 text-indigo-200 mb-4 animate-pulse" />
+            <p className="text-slate-400 font-medium capitalize tracking-widest text-[11px]">Syncing Distribution Analysis...</p>
         </div>
     );
 
@@ -53,64 +62,110 @@ const TaskDistributionCard = ({ data, title = "Task Distribution" }) => {
         'Cancelled': '#94a3b8'
     };
 
-    const displayData = [
-        { name: 'New', value: data.new_tasks || 0, color: COLORS['New'] },
-        { name: 'In Progress', value: data.in_progress_tasks || 0, color: COLORS['In Progress'] },
-        { name: 'Submitted', value: data.submitted_tasks || 0, color: COLORS['Submitted'] },
-        { name: 'Approved', value: data.approved_tasks || data.completed_tasks || 0, color: COLORS['Approved'] },
-        { name: 'Rework', value: data.rework_tasks || data.rework_count || 0, color: COLORS['Rework'] },
-        { name: 'Overdue', value: data.overdue_tasks || 0, color: COLORS['Overdue'] }
-    ].filter(d => d.value > 0);
+    const statusMap = [
+        { key: 'new_tasks', name: 'New', color: COLORS['New'] },
+        { key: 'in_progress_tasks', name: 'In Progress', color: COLORS['In Progress'] },
+        { key: 'submitted_tasks', name: 'Submitted', color: COLORS['Submitted'] },
+        { key: 'approved_tasks', name: 'Approved', color: COLORS['Approved'] },
+        { key: 'rework_tasks', name: 'Rework', color: COLORS['Rework'] },
+        { key: 'overdue_tasks', name: 'Overdue', color: COLORS['Overdue'] }
+    ];
 
-    const grandTotal = displayData.reduce((acc, d) => acc + d.value, 0) || 1;
+    const allStatusData = statusMap.map(s => {
+        let val = data[s.key] || 0;
+        if (s.name === 'Approved' && val === 0) val = data.completed_tasks || 0;
+        if (s.name === 'Rework' && val === 0) val = data.rework_count || 0;
+        return { name: s.name, value: val, color: s.color };
+    });
+
+    const displayDataForPie = allStatusData.filter(d => d.value > 0);
+    const grandTotal = allStatusData.reduce((acc, d) => acc + d.value, 0) || 0;
 
     return (
-        <div className="bg-white border border-slate-100 shadow-sm rounded-2xl p-6 transition-all hover:shadow-md h-full flex flex-col min-h-[320px]">
-            <h3 className="text-[13px] font-black text-slate-700 mb-6 flex items-center gap-2 capitalize tracking-tight">
-                <BarChart2 size={14} className="text-indigo-500" />
-                {title}
-            </h3>
+        <div className="bg-white border border-slate-100 shadow-sm rounded-[2rem] p-8 transition-all hover:shadow-xl hover:shadow-indigo-500/5 group">
+            <div className="flex justify-between items-center mb-10">
+                <div className="space-y-1">
+                    <h3 className="text-[20px] font-semibold text-slate-800 flex items-center gap-2.5 tracking-tight">
+                        <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+                           <BarChart2 size={18} strokeWidth={2.5} />
+                        </div>
+                        {title}
+                    </h3>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.15em] pl-10">Directives Status Analysis</p>
+                </div>
+                <div className="px-5 py-2 bg-slate-50 border border-slate-100 rounded-2xl text-[12px] font-semibold text-slate-600 shadow-inner">
+                    Total: <span className="text-indigo-600 font-bold tabular-nums">{grandTotal}</span>
+                </div>
+            </div>
             
-            <div className="flex flex-1 items-center gap-8 px-2">
-                <div className="relative w-40 h-40 shrink-0">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160}>
+            <div className="flex flex-col xl:flex-row items-center gap-12">
+                {/* Modern Circle Diagram */}
+                <div className="relative w-56 h-56 shrink-0 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-indigo-50/20 rounded-full blur-2xl group-hover:bg-indigo-100/30 transition-colors duration-700" />
+                    <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                             <Pie
-                                data={displayData}
+                                data={displayDataForPie.length > 0 ? displayDataForPie : [{ name: 'Empty', value: 1, color: '#f1f5f9' }]}
                                 cx="50%"
                                 cy="50%"
-                                innerRadius={48}
-                                outerRadius={75}
-                                paddingAngle={2}
+                                innerRadius={70}
+                                outerRadius={105}
+                                paddingAngle={4}
                                 dataKey="value"
                                 stroke="none"
+                                animationBegin={0}
+                                animationDuration={1000}
                             >
-                                {displayData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                {(displayDataForPie.length > 0 ? displayDataForPie : [{ name: 'Empty', value: 1, color: '#f1f5f9' }]).map((entry, index) => (
+                                    <Cell 
+                                        key={`cell-${index}`} 
+                                        fill={entry.color} 
+                                        style={entry.name !== 'Empty' ? { filter: `drop-shadow(0 4px 6px ${entry.color}33)` } : {}}
+                                    />
                                 ))}
                             </Pie>
                             <Tooltip 
-                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: '10px' }}
+                                contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', fontSize: '12px', padding: '12px 16px' }}
                             />
                         </PieChart>
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-[9px] font-bold text-slate-400 capitalize tracking-tighter">Total</span>
-                        <span className="text-2xl font-black text-slate-800 tabular-nums">{grandTotal === 1 && displayData.length === 0 ? 0 : grandTotal}</span>
+                        <span className="text-[11px] font-black text-slate-400 tracking-[0.2em] uppercase opacity-60 mb-1">Impact</span>
+                        <div className="flex items-baseline gap-1">
+                             <span className="text-[42px] font-black text-slate-800 tabular-nums leading-none tracking-tighter">
+                                {grandTotal}
+                            </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500/60 uppercase mt-1">Directives</span>
                     </div>
                 </div>
 
-                <div className="flex-1 space-y-3.5">
-                    {displayData.map((item, idx) => {
-                        const pct = Math.round((item.value / grandTotal) * 100);
+                {/* Structured Legend with Metadata - Showing all statuses for completeness */}
+                <div className="flex-1 w-full space-y-3">
+                    {allStatusData.map((item, idx) => {
+                        const pct = grandTotal > 0 ? Math.round((item.value / grandTotal) * 100) : 0;
                         return (
-                            <div key={idx} className="flex items-center justify-between group">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                                    <span className="text-[12px] font-bold text-slate-600 group-hover:text-slate-900 transition-colors capitalize tracking-tight">{item.name}</span>
+                            <div key={idx} className={`bg-slate-50/50 hover:bg-white border border-transparent hover:border-slate-100 rounded-2xl p-4 transition-all duration-300 group/item ${item.value === 0 ? 'opacity-40 grayscale-[0.5]' : ''}`}>
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: item.color }} />
+                                        <span className="text-[14px] font-bold text-slate-700 capitalize">{item.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-[12px] font-semibold text-slate-400 tabular-nums">{item.value} Directives</span>
+                                        <span className="text-[16px] font-black text-slate-900 tabular-nums">{pct}%</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[13px] font-black text-slate-800 tabular-nums w-8 text-right">{pct}%</span>
+                                {/* Visual Progress Bar */}
+                                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(0,0,0,0.1)]"
+                                        style={{ 
+                                            backgroundColor: item.color, 
+                                            width: `${pct}%`,
+                                            opacity: item.value > 0 ? 0.8 : 0.2
+                                        }}
+                                    />
                                 </div>
                             </div>
                         );
@@ -145,8 +200,8 @@ const ReportsPage = () => {
     const [filters, setFilters] = useState({
         employeeId: '',
         departmentId: '',
-        fromDate: '',
-        toDate: ''
+        fromDate: getFirstDayOfMonth(),
+        toDate: getToday()
     });
 
     const [availableDepartments, setAvailableDepartments] = useState([]);
@@ -165,6 +220,8 @@ const ReportsPage = () => {
     const [employeeSummary, setEmployeeSummary] = useState(null);
     const [monthlyTrend, setMonthlyTrend] = useState([]);
     const [topPerformer, setTopPerformer] = useState(null);
+    const [cfoTopEmployees, setCfoTopEmployees] = useState([]);
+    const [deptTopPerformers, setDeptTopPerformers] = useState({});
 
     const fetchReportData = async () => {
         setLoading(true);
@@ -246,6 +303,10 @@ const ReportsPage = () => {
             const data = response.data;
             const payload = data?.data || data;
 
+            if (isCFO && payload.top_5_employees) {
+                setCfoTopEmployees(payload.top_5_employees);
+            }
+
             // Comprehensive stat extraction
             // Handle single object (Employee/Dashboard) or array (CFO/Manager)
             let stats = payload?.department_stats
@@ -271,7 +332,69 @@ const ReportsPage = () => {
             if (!stats) stats = (Array.isArray(payload) ? payload : (payload?.items || []));
 
             if (Array.isArray(stats) && stats.length > 0) {
+                const BASE_DEPTS = ['Fixed Assets', 'Accounts Payables', 'Accounts Receivables', 'Treasury', 'MIS Report'];
+                
+                if (isCFO && !filters.employeeId && !filters.departmentId) {
+                    const mergedGlobal = new Map();
+                    
+                    // Seed with BASE_DEPTS + availableDepartments
+                    const allKnownDepts = new Set([
+                        ...BASE_DEPTS,
+                        ...availableDepartments.map(d => typeof d === 'string' ? d : (d.name || d.department_id))
+                    ]);
+
+                    allKnownDepts.forEach(name => {
+                        mergedGlobal.set(name, {
+                            name,
+                            department_id: name,
+                            total_tasks: 0,
+                            approved_tasks: 0,
+                            performance_index: 0,
+                            on_time_pct: 0
+                        });
+                    });
+
+                    // Overwrite/Add with real data from API
+                    stats.forEach(s => {
+                        const key = s.name || s.department_name || s.department_id || 'N/A';
+                        const existing = mergedGlobal.get(key) || {};
+                        mergedGlobal.set(key, { ...existing, ...s });
+                    });
+
+                    setGlobalReportData(Array.from(mergedGlobal.values()));
+                } else {
+                    if (!filters.employeeId && !filters.departmentId) {
+                        setGlobalReportData(stats);
+                    }
+                }
+                
                 setReportData(stats);
+                
+                // Even if we have stats, try to populate deptTopPerformers if it's currently empty
+                if (isCFO && Object.keys(deptTopPerformers).length === 0) {
+                    const topP = {};
+                    stats.forEach(s => {
+                        const score = Math.round(s.performance_index || s.score || 0);
+                        const currentId = s.emp_id || s.id;
+                        if (currentId) {
+                            const dName = s.department || s.department_name || 'N/A';
+                            if (!topP[dName] || score > (topP[dName].score || 0)) {
+                                topP[dName] = { 
+                                    emp_id: currentId, 
+                                    score, 
+                                    name: s.name || currentId,
+                                    total: Number(s.total_tasks || s.total || s.tasks_count || 0),
+                                    completed: Number(s.approved_tasks || s.completed || s.tasks_completed || 0),
+                                    pending: Number(s.pending_tasks || s.pending || 0),
+                                    overdue_tasks: Number(s.overdue_tasks || s.overdue || 0),
+                                    rework_tasks: Number(s.rework_tasks || s.rework || 0)
+                                };
+                            }
+                        }
+                    });
+                    if (Object.keys(topP).length > 0) setDeptTopPerformers(topP);
+                }
+
                 setLoading(false);
                 return;
             }
@@ -361,9 +484,13 @@ const ReportsPage = () => {
                 const byDept = new Map();
                 const globalByDept = new Map();
 
-                // Seed with ALL available departments
-                availableDepartments.forEach(d => {
-                    const name = typeof d === 'string' ? d : (d.name || d.department_id);
+                // Seed with official manifest
+                const allKnownDepts = new Set([
+                    'Fixed Assets', 'Accounts Payables', 'Accounts Receivables', 'Treasury', 'MIS Report',
+                    ...availableDepartments.map(d => typeof d === 'string' ? d : (d.name || d.department_id))
+                ]);
+
+                allKnownDepts.forEach(name => {
                     const entry = { department_id: name, total_tasks: 0, approved_tasks: 0, pending_tasks: 0, avg_reworks: 0, _reworks: 0 };
                     byDept.set(name, { ...entry });
                     globalByDept.set(name, { ...entry });
@@ -412,6 +539,34 @@ const ReportsPage = () => {
 
                 setReportData(Array.from(byDept.values()).filter(d => d.total_tasks > 0 || !filters.departmentId));
                 setGlobalReportData(Array.from(globalByDept.values()));
+
+                // Calculate Top Performer per Department for CFO view
+                const empMap = new Map();
+                normalizedTasks.forEach(t => {
+                    const key = t.employeeId;
+                    if (!empMap.has(key)) empMap.set(key, { id: key, name: t.employeeName, dept: t.departmentName, total: 0, approved: 0 });
+                    const s = empMap.get(key);
+                    s.total++;
+                    if (t.status === 'APPROVED') s.approved++;
+                });
+                const topP = {};
+                empMap.forEach(s => {
+                    const score = s.total > 0 ? Math.round((s.approved / s.total) * 100) : 0;
+                    if (!topP[s.dept] || score > (topP[s.dept].score || 0)) {
+                        topP[s.dept] = { 
+                            emp_id: s.id, 
+                            score, 
+                            name: s.name,
+                            total: s.total,
+                            completed: s.approved,
+                            pending: Math.max(0, s.total - s.approved),
+                            // Approximate these from global data if we have them
+                            overdue_tasks: 0,
+                            rework_tasks: 0
+                        };
+                    }
+                });
+                setDeptTopPerformers(topP);
             } else {
                 const today = new Date().toISOString().slice(0, 10);
                 const byEmp = new Map();
@@ -459,6 +614,18 @@ const ReportsPage = () => {
     };
 
     useEffect(() => {
+        const handleFilterChange = () => {
+            setFilters(prev => ({
+                ...prev,
+                fromDate: localStorage.getItem('dashboard_from_date') || getFirstDayOfMonth(),
+                toDate: localStorage.getItem('dashboard_to_date') || getToday()
+            }));
+        };
+        window.addEventListener('dashboard-filter-change', handleFilterChange);
+        return () => window.removeEventListener('dashboard-filter-change', handleFilterChange);
+    }, []);
+
+    useEffect(() => {
         const fetchMeta = async () => {
             try {
                 const [dRes, eRes] = await Promise.all([
@@ -478,67 +645,164 @@ const ReportsPage = () => {
         fetchReportData();
     }, [filters]);
 
-    const { topList, performanceData, topPerformer: bestPerformer, deptScores, topDept, underperformingDept, workloadData, empWorkloadData, empPerformanceData, aggregateDistribution } = useMemo(() => {
+    const { topList, performanceData, topPerformer: bestPerformer, deptScores, topDept, underperformingDept, workloadData, empWorkloadData, empPerformanceData, aggregateDistribution, deptQuickStats } = useMemo(() => {
         const empty = {
             topList: [], performanceData: [], topPerformer: null, deptScores: [],
             topDept: null, underperformingDept: null,
-            workloadData: [], empWorkloadData: [], empPerformanceData: []
+            workloadData: [], empWorkloadData: [], empPerformanceData: [],
+            aggregateDistribution: { new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, approved_tasks: 0, rework_tasks: 0, overdue_tasks: 0 },
+            deptQuickStats: { 
+                FA: {total:0, pending:0, topEmpId: 'N/A', score: 0}, 
+                AP: {total:0, pending:0, topEmpId: 'N/A', score: 0}, 
+                AR: {total:0, pending:0, topEmpId: 'N/A', score: 0} 
+            }
         };
 
         const role = (user?.role || '').toUpperCase();
         const isCFO = (role === 'CFO' || role === 'ADMIN');
-        const isManager = role === 'MANAGER';
-
         const hasData = Array.isArray(reportData) && reportData.length > 0;
         const arr = hasData ? reportData : [];
 
         if (!hasData) return empty;
 
-        const first = arr[0] || {};
-        // If it's a Manager, it's definitely employees. 
-        // If it's a CFO, we check if they have specific employee ID filters
-        const isDeptShape = isCFO && !filters.employeeId && (!!first.department_id || !!first.department_stats);
+        const isDeptShape = isCFO && !filters.employeeId;
 
+        const CORE_DEPTS = ['FA', 'AP', 'AR', 'Treasury', 'MIS'];
         const deptLabelShort = (name = '') => {
-            const n = String(name);
-            if (n.toLowerCase().includes('accounts receivables')) return 'AR';
-            if (n.toLowerCase().includes('accounts payables')) return 'AP';
+            const n = String(name || '');
+            if (n.toLowerCase().includes('accounts receivables') || n.toLowerCase() === 'ar') return 'AR';
+            if (n.toLowerCase().includes('accounts payables') || n.toLowerCase() === 'ap') return 'AP';
             if (n.toLowerCase().includes('executive office')) return 'Exec';
-            if (n.toLowerCase().includes('fixed assets')) return 'FA';
+            if (n.toLowerCase().includes('fixed assets') || n.toLowerCase() === 'fa') return 'FA';
             if (n.toLowerCase().includes('treasury')) return 'Treasury';
-            if (n.toLowerCase().includes('mis report')) return 'MIS';
+            if (n.toLowerCase().includes('mis report') || n.toLowerCase().includes('mis')) return 'MIS';
             return n.length > 20 ? n.slice(0, 17) + '…' : n;
         };
 
-        const mapped = arr.map(item => {
+        // Aggregated map to prevent duplicates AND ensure core depts exist
+        const aggregatedDepts = new Map();
+        
+        // 1. Pre-fill with core depts (0 scores)
+        CORE_DEPTS.forEach(code => {
+            aggregatedDepts.set(code, { name: code, total: 0, completed: 0, pending: 0, onTimePct: 0 });
+        });
+
+        // 2. Populate with real global data
+        (Array.isArray(globalReportData) && globalReportData.length > 0 ? globalReportData : []).forEach(item => {
+            const shortName = deptLabelShort(item.name || item.employee_name || item.department_name || item.department_id || 'Unit');
             const total = Number(item.total_tasks || item.total || item.tasks_assigned || item.tasks_count || 0);
             const completed = Number(item.approved_tasks || item.approved || item.tasks_completed || item.tasks_done || item.completed || 0);
             const pending = Number(item.pending_tasks || item.pending || (total - completed) || 0);
-
             let onTimePct = Number(item.on_time_pct || item.performance || item.performance_index || item.completion_rate || 0);
-            if (onTimePct === 0 && total > 0) {
-                onTimePct = Math.round((completed / total) * 100);
+            if (onTimePct === 0 && total > 0) onTimePct = Math.round((completed / total) * 100);
+
+            const existing = aggregatedDepts.get(shortName) || { name: shortName, total: 0, completed: 0, pending: 0, onTimePct: 0 };
+            
+            // For dept visualization, we take the one with the highest total tasks or highest performance if mapping multiple
+            if (total >= existing.total) {
+                aggregatedDepts.set(shortName, {
+                    name: shortName,
+                    total,
+                    completed,
+                    pending: Math.max(0, pending),
+                    onTimePct
+                });
+            }
+        });
+
+        const globalMapped = Array.from(aggregatedDepts.values());
+
+        const getDeptQuickStat = (id) => {
+            const shortId = deptLabelShort(id);
+            const d = globalMapped.find(item => 
+                item.name === id || item.name === shortId || deptLabelShort(item.name) === shortId
+            );
+            const deptName = availableDepartments.find(ad => 
+                (ad.department_id || ad.id) === id || ad.name === id || (ad.department_id || ad.id) === shortId
+            )?.name || id;
+            
+            let top = deptTopPerformers[deptName] || deptTopPerformers[id] || deptTopPerformers[shortId];
+            if (!top) {
+                top = cfoTopEmployees.find(e => {
+                    const empIdVal = String(e.emp_id || e.id || '').toUpperCase();
+                    return empIdVal.includes(shortId.toUpperCase()) || empIdVal.includes(id.toUpperCase());
+                });
+            }
+            if (!top) {
+                const fuzzyKey = Object.keys(deptTopPerformers).find(k => 
+                    String(k || '').toLowerCase().includes(String(id || '').toLowerCase()) || 
+                    String(k || '').toLowerCase().includes(shortId.toLowerCase())
+                );
+                if (fuzzyKey) top = deptTopPerformers[fuzzyKey];
+            }
+            if (!top && cfoTopEmployees.length > 0) {
+                top = cfoTopEmployees.find(e => String(e.emp_id || '').toUpperCase().startsWith(`EMP_${shortId.toUpperCase()}`));
+            }
+            
+            // Last resort: find any employee in availableEmployees who belongs to this dept
+            if (!top && availableEmployees.length > 0) {
+                const empInDept = availableEmployees.find(e => {
+                    const eDept = String(e.department || '').toLowerCase();
+                    return eDept.includes(id.toLowerCase()) || eDept.includes(deptName.toLowerCase()) || 
+                           (id.length > 2 && eDept.includes(shortId.toLowerCase()));
+                });
+                if (empInDept) {
+                    top = { emp_id: empInDept.emp_id || empInDept.id, name: empInDept.name };
+                }
+            }
+            
+            // If still nothing, try matching by ID prefix (e.g. EMP_AR)
+            if (!top && availableEmployees.length > 0) {
+                const empWithPattern = availableEmployees.find(e => {
+                    const eid = String(e.emp_id || e.id || '').toUpperCase();
+                    return eid.startsWith(`EMP_${shortId.toUpperCase()}`);
+                });
+                if (empWithPattern) {
+                    top = { emp_id: empWithPattern.emp_id || empWithPattern.id, name: empWithPattern.name };
+                }
+            }
+
+            if (!d && !top) return { total: 0, pending: 0, topEmpId: 'N/A', score: 0 };
+            return { 
+                total: d?.total || 0, 
+                pending: d?.pending || 0,
+                topEmpId: top?.emp_id || top?.id || 'N/A',
+                score: Math.round(top?.score || top?.onTimePct || d?.onTimePct || 0)
+            };
+        };
+
+        const mapped = arr.map(item => {
+            const total = Number(item.total_tasks || item.total || 0);
+            const completed = Number(item.approved_tasks || item.completed || 0);
+            const pending = Number(item.pending_tasks || (total - completed) || 0);
+            let onTimePct = Number(item.on_time_pct || item.performance || item.performance_index || 0);
+            if (onTimePct === 0 && total > 0) onTimePct = Math.round((completed / total) * 100);
+            const name = item.name || item.employee_name || item.department_name || item.department_id || 'Unit';
+            
+            let topEmpId = 'N/A';
+            let displayDept = item.department || item.department_name || 'N/A';
+            if (isDeptShape) {
+                const s = getDeptQuickStat(name);
+                topEmpId = s.topEmpId;
+                if (topEmpId !== 'N/A') displayDept = topEmpId;
+            } else {
+                topEmpId = item.emp_id || item.id || 'N/A';
             }
 
             return {
                 id: item.emp_id || item.id || item.department_id || Math.random(),
-                name: item.name || item.employee_name || item.department_name || item.department_id || 'Unit',
+                name,
                 role: item.role || item.designation || (isDeptShape ? 'Department' : 'Employee'),
-                department: item.department || item.department_name || 'N/A',
-                total,
-                completed,
-                pending: Math.max(0, pending),
-                onTimePct,
-                avgReworks: Number(item.avg_reworks || (item._reworks / (total || 1)) || 0).toFixed(2),
+                department: displayDept,
+                topEmpId,
+                total, completed, pending: Math.max(0, pending), onTimePct,
                 score: onTimePct,
-                manager: item.manager_name || 'Supervisor',
-                // Specialized status counts
-                new_tasks: Number(item.new_tasks || 0),
-                in_progress_tasks: Number(item.in_progress_tasks || 0),
-                submitted_tasks: Number(item.submitted_tasks || 0),
+                new_tasks: Number(item.new_tasks || item.new || 0),
+                in_progress_tasks: Number(item.in_progress_tasks || item.in_progress || 0),
+                submitted_tasks: Number(item.submitted_tasks || item.submitted || 0),
                 approved_tasks: completed,
-                rework_tasks: Number(item.rework_tasks || item._reworks || 0),
-                overdue_tasks: Number(item.overdue_tasks || 0)
+                rework_tasks: Number(item.rework_tasks || item.rework || item.rework_count || 0),
+                overdue_tasks: Number(item.overdue_tasks || item.overdue || 0)
             };
         });
 
@@ -551,60 +815,103 @@ const ReportsPage = () => {
             overdue_tasks: acc.overdue_tasks + (curr.overdue_tasks || 0),
         }), { new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, approved_tasks: 0, rework_tasks: 0, overdue_tasks: 0 });
 
-        const globalMapped = (Array.isArray(globalReportData) && globalReportData.length > 0 ? globalReportData : []).map(item => {
-            const total = Number(item.total_tasks || item.total || item.tasks_assigned || item.tasks_count || 0);
-            const completed = Number(item.approved_tasks || item.approved || item.tasks_completed || item.tasks_done || item.completed || 0);
-            const pending = Number(item.pending_tasks || item.pending || (total - completed) || 0);
-
-            let onTimePct = Number(item.on_time_pct || item.performance || item.performance_index || item.completion_rate || 0);
-            if (onTimePct === 0 && total > 0) {
-                onTimePct = Math.round((completed / total) * 100);
-            }
-
-            return {
-                name: deptLabelShort(item.name || item.employee_name || item.department_name || item.department_id || 'Unit'),
-                total,
-                completed,
-                pending: Math.max(0, pending),
-                onTimePct
-            };
-        });
-
         const sorted = [...mapped].sort((a, b) => b.onTimePct - a.onTimePct);
 
-        // Top performers list:
-        // - For CFO/Admin on employee data: show TOP performer of EACH department
-        // - Otherwise: simple global top N
         let topList = [];
         if (!isDeptShape && isCFO) {
             const bestByDept = {};
-            sorted.forEach((u) => {
-                const dept = u.department || 'N/A';
-                if (!bestByDept[dept] || u.onTimePct > bestByDept[dept].onTimePct) {
-                    bestByDept[dept] = u;
-                }
+            sorted.forEach(u => {
+                const d = u.department || 'N/A';
+                if (!bestByDept[d] || u.onTimePct > bestByDept[d].onTimePct) bestByDept[d] = u;
             });
             topList = Object.values(bestByDept).sort((a, b) => b.onTimePct - a.onTimePct);
         } else {
             topList = sorted.slice(0, 5);
         }
 
-        const safeTop = (topPerformer?.name && !topPerformer.name.toLowerCase().includes('employee')) ? topPerformer : null;
-        const fallbackTop = (topList[0]?.name && !topList[0].name.toLowerCase().includes('employee')) ? topList[0] : null;
+        let rawTop = topPerformer?.name ? topPerformer : null;
+        if (!rawTop) {
+            if (isCFO && cfoTopEmployees.length > 0) {
+                const b = cfoTopEmployees[0];
+                rawTop = { 
+                    id: b.emp_id || b.id, 
+                    emp_id: b.emp_id || b.id, 
+                    name: b.name || b.emp_id || 'Top Strategic Asset',
+                    onTimePct: b.score || 0,
+                    score: b.score || 0,
+                    department: b.department || 'Office'
+                };
+            } else if (topList.length > 0) {
+                rawTop = topList[0];
+            }
+        }
+
+        // Deep lookup to match metrics (total, completed, etc) from available records
+        let finalTop = rawTop;
+        if (finalTop) {
+            const empId = finalTop.emp_id || finalTop.id;
+            
+            // Normalize rawTop fields first in case it's a direct API response without normalization
+            finalTop = {
+                ...finalTop,
+                total: finalTop.total || Number(finalTop.total_tasks || finalTop.tasks_count || finalTop.tasks_assigned || 0),
+                completed: finalTop.completed || Number(finalTop.approved_tasks || finalTop.completed_tasks || finalTop.tasks_completed || finalTop.tasks_done || 0),
+                overdue_tasks: finalTop.overdue_tasks || Number(finalTop.overdue || 0),
+                rework_tasks: finalTop.rework_tasks || Number(finalTop.rework || 0)
+            };
+            if (!finalTop.pending) finalTop.pending = Math.max(0, finalTop.total - finalTop.completed);
+
+            // First check if this employee exists in our current mapped list with full stats
+            const matchedStats = mapped.find(u => String(u.emp_id || u.id) === String(empId));
+            if (matchedStats) {
+                finalTop = { ...finalTop, ...matchedStats };
+            } else {
+                // Check in globalReportData if mapped was department-level
+                const globalMatch = (Array.isArray(globalReportData) ? globalReportData : []).find(u => 
+                    String(u.emp_id || u.id) === String(empId) || 
+                    String(u.name) === String(finalTop.name)
+                );
+                
+                if (globalMatch) {
+                    const total = Number(globalMatch.total_tasks || globalMatch.total || globalMatch.tasks_count || 0);
+                    const completed = Number(globalMatch.approved_tasks || globalMatch.completed || globalMatch.completed_tasks || 0);
+                    finalTop = { 
+                        ...finalTop, 
+                        total, 
+                        completed, 
+                        pending: Math.max(0, total - completed),
+                        overdue_tasks: Number(globalMatch.overdue_tasks || globalMatch.overdue || 0),
+                        rework_tasks: Number(globalMatch.rework_tasks || globalMatch.rework || globalMatch.avg_reworks || 0),
+                        onTimePct: globalMatch.on_time_pct || globalMatch.performance_index || globalMatch.score || finalTop.onTimePct || 0
+                    };
+                }
+            }
+            
+            // Refine name from metadata if possible
+            if (availableEmployees.length > 0) {
+                const meta = availableEmployees.find(e => String(e.emp_id || e.id) === String(empId));
+                if (meta?.name) finalTop.name = meta.name;
+            }
+        }
 
         return {
             performanceData: mapped,
             topList,
-            topPerformer: safeTop || fallbackTop,
+            topPerformer: finalTop,
             deptScores: isDeptShape ? globalMapped.map(d => ({ name: d.name, Performance: d.onTimePct })) : [],
             topDept: sorted[0] ? { name: sorted[0].name, Performance: sorted[0].onTimePct, Tasks: sorted[0].total } : null,
             underperformingDept: sorted.length > 1 ? { name: sorted[sorted.length - 1].name, Performance: sorted[sorted.length - 1].onTimePct, Tasks: sorted[sorted.length - 1].total } : null,
             workloadData: isDeptShape ? globalMapped.map(d => ({ name: d.name, Total: d.total, Completed: d.completed, Pending: d.pending })) : mapped.map(d => ({ name: d.name, Total: d.total, Completed: d.completed, Pending: d.pending })),
             empWorkloadData: !isDeptShape ? mapped.map(u => ({ name: u.name, Completed: u.completed, Pending: u.pending })) : [],
             empPerformanceData: !isDeptShape ? mapped.map(u => ({ name: u.name, Performance: u.onTimePct })) : [],
-            aggregateDistribution
+            aggregateDistribution,
+            deptQuickStats: {
+                FA: getDeptQuickStat('FA'),
+                AP: getDeptQuickStat('AP'),
+                AR: getDeptQuickStat('AR')
+            }
         };
-    }, [reportData, globalReportData, user?.role, filters.employeeId, availableDepartments, topPerformer]);
+    }, [reportData, globalReportData, user?.role, filters.employeeId, availableDepartments, topPerformer, cfoTopEmployees, deptTopPerformers]);
 
 
     const downloadFile = async (format) => {
@@ -690,27 +997,27 @@ const ReportsPage = () => {
     }
 
     return (
-        <div className="space-y-3" style={{ fontFamily: "'Aptos', sans-serif" }}>
+        <div className="space-y-3">
             {/* ══ ANALYTICS EXECUTIVE LIGHT HERO ══ */}
-            <div className="rounded-[1.2rem] bg-white shadow-sm relative border border-slate-100 px-4 py-2 overflow-hidden mb-2 group">
+            <div className="rounded-[1.5rem] bg-white shadow-md relative border border-slate-100 px-6 py-4 overflow-hidden mb-6 group transition-all">
                 {/* Clean Accents */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-40 group-hover:opacity-70 transition-opacity" />
                 <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl -ml-32 -mb-32 opacity-40 group-hover:opacity-70 transition-opacity" />
 
                 <div className="relative z-10 flex items-center justify-between w-full">
-                    <div className="flex items-center gap-2">
-                        <div className="bg-slate-900 p-1.5 rounded-[0.6rem] shadow-sm">
-                            <TrendingUp size={14} className="text-emerald-400" />
+                    <div className="flex items-center gap-3">
+                        <div className="bg-slate-900 p-2.5 rounded-[0.8rem] shadow-md hover:scale-110 transition-transform">
+                            <TrendingUp size={20} className="text-emerald-400" />
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5 bg-slate-50 p-1 rounded-[0.8rem] border border-slate-100 shadow-sm transition-all max-w-5xl">
+                    <div className="flex flex-wrap items-center gap-2.5 bg-slate-50 p-1.5 rounded-[1rem] border border-slate-100 shadow-sm transition-all w-full sm:max-w-7xl justify-end">
                         {(user?.role === 'CFO' || user?.role === 'ADMIN') && (
                             <select
-                                className="pl-4 pr-10 py-1.5 bg-white text-slate-900 border border-slate-200 rounded-xl text-[10px] font-bold capitalize tracking-wider focus:outline-none focus:ring-4 focus:ring-emerald-500/10 appearance-none cursor-pointer hover:border-emerald-500/30 transition-all min-w-[150px] shadow-sm"
+                                className="pl-5 pr-12 py-3 bg-white text-slate-900 border border-slate-200 rounded-xl text-[13px] font-semibold capitalize tracking-wider focus:outline-none focus:ring-4 focus:ring-emerald-500/10 appearance-none cursor-pointer hover:border-emerald-500/30 transition-all min-w-[180px] shadow-sm"
                                 value={filters.departmentId}
                                 onChange={(e) => setFilters({ ...filters, departmentId: e.target.value })}
-                                style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.8rem' }}
+                                style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1rem' }}
                             >
                                 <option value="">Department All</option>
                                 {availableDepartments.map((d, idx) => {
@@ -722,10 +1029,10 @@ const ReportsPage = () => {
                         )}
 
                         <select
-                            className="pl-4 pr-10 py-1.5 bg-white text-slate-900 border border-slate-200 rounded-xl text-[10px] font-bold capitalize tracking-wider focus:outline-none focus:ring-4 focus:ring-indigo-500/10 appearance-none cursor-pointer hover:border-indigo-500/30 transition-all min-w-[150px] shadow-sm"
+                            className="pl-5 pr-12 py-3 bg-white text-slate-900 border border-slate-200 rounded-xl text-[13px] font-semibold capitalize tracking-wider focus:outline-none focus:ring-4 focus:ring-indigo-500/10 appearance-none cursor-pointer hover:border-indigo-500/30 transition-all min-w-[180px] shadow-sm"
                             value={filters.employeeId}
                             onChange={(e) => setFilters({ ...filters, employeeId: e.target.value })}
-                            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '0.8rem' }}
+                            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'3\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1rem' }}
                         >
                             <option value="">All Personnel</option>
                             {availableEmployees.map((u, idx) => (
@@ -733,40 +1040,40 @@ const ReportsPage = () => {
                             ))}
                         </select>
 
-                        <div className="flex items-center gap-3 bg-white px-4 py-1.5 rounded-xl border border-slate-200 shadow-sm">
-                            <div className="flex items-center gap-2">
-                                <span className="text-[8px] font-bold text-slate-400 capitalize tracking-widest">From</span>
+                        <div className="flex items-center gap-4 bg-white px-5 py-3 rounded-xl border border-slate-200 shadow-sm">
+                            <div className="flex items-center gap-2.5">
+                                <span className="text-[10px] font-black text-slate-400 capitalize tracking-widest">From</span>
                                 <input
                                     type="date"
-                                    className="bg-transparent text-[10px] font-bold outline-none cursor-pointer text-slate-900 border-none p-0 focus:ring-0"
+                                    className="bg-transparent text-[13px] font-semibold outline-none cursor-pointer text-slate-900 border-none p-0 focus:ring-0"
                                     value={filters.fromDate}
                                     onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
                                 />
                             </div>
-                            <div className="w-px h-6 bg-slate-100" />
-                            <div className="flex items-center gap-2">
-                                <span className="text-[8px] font-bold text-slate-400 capitalize tracking-widest">To</span>
+                            <div className="w-px h-8 bg-slate-100" />
+                            <div className="flex items-center gap-2.5">
+                                <span className="text-[10px] font-black text-slate-400 capitalize tracking-widest">To</span>
                                 <input
                                     type="date"
-                                    className="bg-transparent text-[10px] font-bold outline-none cursor-pointer text-slate-900 border-none p-0 focus:ring-0"
+                                    className="bg-transparent text-[13px] font-semibold outline-none cursor-pointer text-slate-900 border-none p-0 focus:ring-0"
                                     value={filters.toDate}
                                     onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
                                 />
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                             <button
                                 onClick={handleDownloadPDF}
-                                className="bg-slate-900 text-white hover:bg-slate-800 transition-all px-3 py-1 rounded-lg font-bold text-[8.5px] capitalize tracking-widest shadow-sm flex items-center gap-1.5 active:scale-95"
+                                className="bg-white text-slate-900 hover:bg-slate-50 border border-slate-200 shadow-md transition-all px-5 py-3 rounded-xl font-semibold text-[11px] capitalize tracking-widest flex items-center gap-2 active:scale-95 whitespace-nowrap"
                             >
-                                <Download size={11} className="text-indigo-400" /> PDF
+                                <Download size={14} className="text-indigo-400" /> Pdf
                             </button>
                             <button
                                 onClick={handleDownloadExcel}
-                                className="bg-white text-slate-900 hover:bg-slate-50 border border-slate-200 shadow-sm transition-all px-3 py-1 rounded-lg font-bold text-[8.5px] capitalize tracking-widest flex items-center gap-1.5 active:scale-95"
+                                className="bg-white text-slate-900 hover:bg-slate-50 border border-slate-200 shadow-md transition-all px-5 py-3 rounded-xl font-semibold text-[11px] capitalize tracking-widest flex items-center gap-2 active:scale-95 whitespace-nowrap"
                             >
-                                <FileSpreadsheet size={11} className="text-emerald-500" /> EXCEL
+                                <FileSpreadsheet size={14} className="text-emerald-500" /> Excel
                             </button>
                         </div>
                     </div>
@@ -828,12 +1135,12 @@ const ReportsPage = () => {
                         </div>
                         <div className="flex items-baseline gap-1 relative z-10">
                             <span className="text-3xl font-black">{employeeSummary.score || 0}%</span>
-                            <span className="text-xs font-bold opacity-60">/ {employeeSummary.dept_avg || 0}%</span>
+                            <span className="text-xs font-semibold opacity-60">/ {employeeSummary.dept_avg || 0}%</span>
                         </div>
                     </div>
                 </div>
             ) : (
-                (['ADMIN', 'CFO', 'MANAGER'].includes((user?.role || '').toUpperCase())) && (topList.length > 0 || workloadData?.length > 0) && (
+                isManager && (topList.length > 0 || workloadData?.length > 0) && (
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
                         {topDept && (
                             <div className="mesh-gradient-emerald rounded-2xl p-4 border border-emerald-200/50 shadow-md flex flex-col justify-center relative overflow-hidden group/top card-gloss h-24">
@@ -841,9 +1148,9 @@ const ReportsPage = () => {
                                     <TrendingUp size={18} className="text-emerald-600" />
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-[9px] font-bold capitalize tracking-[0.1em] text-emerald-600/70 mb-1">Leader</span>
-                                    <span className="text-sm font-bold text-emerald-900 capitalize tracking-tight leading-none mb-1">{topDept.name}</span>
-                                    <span className="text-2xl font-bold text-emerald-600 tabular-nums">{topDept.Performance}%</span>
+                                    <span className="text-[9px] font-semibold capitalize tracking-[0.1em] text-emerald-600/70 mb-1">Leader</span>
+                                    <span className="text-lg font-bold text-emerald-900 capitalize tracking-tight leading-none mb-1">{topDept.name}</span>
+                                    <span className="text-2xl font-semibold text-emerald-600 tabular-nums">{Number.isNaN(topDept.Performance) ? 0 : topDept.Performance}%</span>
                                 </div>
                             </div>
                         )}
@@ -854,9 +1161,9 @@ const ReportsPage = () => {
                                     <TrendingDown size={18} className="text-rose-600" />
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-[9px] font-bold capitalize tracking-[0.1em] text-rose-600/70 mb-1">Intervention</span>
-                                    <span className="text-sm font-bold text-rose-900 capitalize tracking-tight leading-none mb-1">{underperformingDept.name}</span>
-                                    <span className="text-2xl font-bold text-rose-600 tabular-nums">{underperformingDept.Performance}%</span>
+                                    <span className="text-[9px] font-semibold capitalize tracking-[0.1em] text-rose-600/70 mb-1">Intervention</span>
+                                    <span className="text-lg font-bold text-rose-900 capitalize tracking-tight leading-none mb-1">{underperformingDept.name}</span>
+                                    <span className="text-2xl font-semibold text-rose-600 tabular-nums">{Number.isNaN(underperformingDept.Performance) ? 0 : underperformingDept.Performance}%</span>
                                 </div>
                             </div>
                         )}
@@ -868,11 +1175,11 @@ const ReportsPage = () => {
                                         <div key={`${d.name}-${idx}`} className="flex flex-col">
                                             <div className="flex items-center gap-1.5 mb-1">
                                                 <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
-                                                <span className="text-[10px] font-bold text-slate-800 capitalize tracking-tight truncate">{d.name}</span>
+                                                <span className="text-[10px] font-semibold text-slate-800 capitalize tracking-tight leading-none whitespace-normal break-words">{d.name}</span>
                                             </div>
                                             <div className="flex items-center gap-2 pl-3">
-                                                <span className="text-lg font-bold text-slate-900">{d.Total}</span>
-                                                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 rounded-md">
+                                                <span className="text-lg font-semibold text-slate-900">{d.Total}</span>
+                                                <span className="text-[9px] font-semibold text-amber-600 bg-amber-50 px-1 rounded-md">
                                                     {d.Pending} P
                                                 </span>
                                             </div>
@@ -884,52 +1191,153 @@ const ReportsPage = () => {
                     </div>
                 )
             )}
+            {/* ── EXECUTIVE KPI INSIGHT ROW ── */}
+            {(['ADMIN', 'CFO'].includes((user?.role || '').toUpperCase())) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
+                    {[
+                        { 
+                            label: 'Leader', 
+                            value: topDept?.name || 'N/A', 
+                            sub: `${topDept?.Performance || 0}% Success`,
+                            icon: Trophy, 
+                            color: 'text-amber-600', 
+                            bg: 'bg-amber-50'
+                        },
+                        { 
+                            label: 'Intervention', 
+                            value: underperformingDept?.name || 'N/A', 
+                            sub: `${underperformingDept?.Performance || 0}% Rate`,
+                            icon: AlertCircle, 
+                            color: 'text-rose-600', 
+                            bg: 'bg-rose-50'
+                        },
+                        { 
+                            label: 'Fixed Assets (FA)', 
+                            value: deptQuickStats?.FA?.topEmpId || 'N/A', 
+                            sub: `${deptQuickStats?.FA?.score || 0}% Success`,
+                            icon: Building2, 
+                            color: 'text-indigo-600', 
+                            bg: 'bg-indigo-50'
+                        },
+                        { 
+                            label: 'Accounts Payable (AP)', 
+                            value: deptQuickStats?.AP?.topEmpId || 'N/A', 
+                            sub: `${deptQuickStats?.AP?.score || 0}% Rate`,
+                            icon: Landmark, 
+                            color: 'text-emerald-600', 
+                            bg: 'bg-emerald-50'
+                        },
+                        { 
+                            label: 'Accounts Receivable (AR)', 
+                            value: deptQuickStats?.AR?.topEmpId || 'N/A', 
+                            sub: `${deptQuickStats?.AR?.score || 0}% Score`,
+                            icon: HandCoins, 
+                            color: 'text-blue-600', 
+                            bg: 'bg-blue-50'
+                        }
+                    ].map((kpi, i) => (
+                        <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col gap-2 hover:shadow-md transition-all group min-h-[140px]">
+                            <div className="flex items-center gap-3 mb-1">
+                                <div className={`w-9 h-9 rounded-xl ${kpi.bg} flex items-center justify-center ${kpi.color} border border-white shadow-sm shrink-0 group-hover:scale-110 transition-transform`}>
+                                    <kpi.icon size={18} strokeWidth={2.5} />
+                                </div>
+                                <span className="text-[10px] font-semibold text-slate-400 capitalize tracking-widest leading-none">
+                                    {kpi.label}
+                                </span>
+                            </div>
+
+                            <div className="mt-auto">
+                                <h4 className="text-[20px] font-medium text-slate-800 tracking-tight leading-none whitespace-normal group-hover:text-indigo-600 transition-colors transition-all">
+                                    {kpi.value}
+                                </h4>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className={`text-[12px] font-semibold ${kpi.color} tabular-nums`}>
+                                        {kpi.sub}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* ── CHARTS ROW - MOVED UP FOR VISIBILITY ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <ChartPanel title="Department Top Performer">
-                    {bestPerformer ? (
-                        <div className="h-full flex flex-col justify-center items-center gap-4 py-4">
-                            <div className="relative group">
-                                <div className="absolute -inset-2 bg-gradient-to-r from-emerald-500 to-indigo-500 rounded-full blur opacity-40 group-hover:opacity-60 transition duration-1000 group-hover:duration-200" />
-                                <div className="relative w-20 h-20 bg-white rounded-full flex items-center justify-center text-slate-800 font-black text-2xl shadow-xl border-4 border-slate-50 overflow-hidden">
-                                    {bestPerformer.name && !bestPerformer.name.toLowerCase().includes('employee') ? (
-                                        bestPerformer.name.charAt(0).toUpperCase()
-                                    ) : (
-                                        <User size={30} className="text-slate-300" />
-                                    )}
+            {/* Top Performer Highlights - MATCHING IMAGE */}
+                    <div className="grid grid-cols-1 gap-4">
+                         {/* Top Performer Employee (matches image) */}
+                        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-md p-10 hover:shadow-xl transition-all group overflow-hidden relative">
+                            {/* Title from image */}
+                            <h3 className="text-[22px] font-semibold text-slate-800 mb-8 tracking-tight">
+                                Department Top Performer
+                            </h3>
+
+                                <div className="flex flex-col lg:flex-row items-center gap-6 lg:gap-12">
+                                    {/* Left: Profile Section */}
+                                    <div className="flex items-center gap-10 min-w-fit">
+                                        <div className="relative w-36 h-36 shrink-0">
+                                            <div className="w-full h-full rounded-full bg-gradient-to-tr from-indigo-100 via-white to-indigo-50 border-[6px] border-white flex items-center justify-center text-5xl font-semibold text-slate-800 shadow-[0_15px_40px_rgba(79,70,229,0.15)] overflow-hidden ring-[12px] ring-indigo-50/20 group-hover:scale-105 transition-transform duration-500">
+                                                {(bestPerformer?.name || 'U').charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="absolute bottom-1 right-1 w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 border-[4px] border-white flex items-center justify-center text-white shadow-lg animate-bounce-subtle z-20">
+                                                <TrendingUp size={22} strokeWidth={3} />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <h4 className="text-[32px] font-medium text-slate-800 leading-tight tracking-tight">
+                                                {bestPerformer?.name || 'Unit Alpha'}
+                                            </h4>
+                                            <div className="flex items-center gap-4">
+                                                <div className="px-5 py-1.5 bg-slate-900 text-white text-[11px] font-semibold capitalize tracking-widest rounded-xl shadow-lg flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                                    {bestPerformer?.emp_id || bestPerformer?.id || 'Global'}
+                                                </div>
+                                                <p className="text-[16px] font-medium text-slate-400 capitalize tracking-tight">
+                                                    {bestPerformer?.department && bestPerformer.department !== 'N/A' ? bestPerformer.department : 'Executive Strategic Asset'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Right: Premium Metrics Clustering */}
+                                    <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-x-6 sm:gap-x-12 gap-y-6 max-w-3xl ml-auto py-6 sm:py-8 px-6 sm:px-12 bg-slate-50/50 backdrop-blur-sm rounded-[2rem] sm:rounded-[3rem] border border-slate-100 shadow-[inset_0_2px_15px_rgba(0,0,0,0.02)]">
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[11px] font-extrabold text-slate-400 capitalize tracking-normal">Efficiency</span>
+                                            <span className="text-3xl font-semibold text-indigo-600 tabular-nums">{(bestPerformer?.onTimePct || 0).toFixed(0)}%</span>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[11px] font-extrabold text-slate-400 capitalize tracking-normal">Total Items</span>
+                                            <span className="text-3xl font-semibold text-slate-800 tabular-nums">{bestPerformer?.total || 0}</span>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[11px] font-extrabold text-emerald-600/70 capitalize tracking-normal">Completed</span>
+                                            <span className="text-3xl font-semibold text-emerald-600 tabular-nums">{bestPerformer?.completed || 0}</span>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[11px] font-extrabold text-amber-600/70 capitalize tracking-normal">Pending</span>
+                                            <span className="text-3xl font-semibold text-amber-500 tabular-nums">{bestPerformer?.pending || 0}</span>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[11px] font-extrabold text-rose-600/70 capitalize tracking-normal">Overdue</span>
+                                            <span className="text-3xl font-semibold text-rose-600 tabular-nums">{bestPerformer?.overdue_tasks || 0}</span>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[11px] font-extrabold text-violet-600/70 capitalize tracking-normal">Reworks</span>
+                                            <span className="text-3xl font-semibold text-violet-600 tabular-nums">{bestPerformer?.rework_tasks || 0}</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="absolute -bottom-1 -right-1 bg-amber-400 text-white w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
-                                    <TrendingUp size={14} />
-                                </div>
-                            </div>
-                            <div className="text-center">
-                                <h4 className="font-black text-slate-800 text-lg capitalize tracking-tight">{bestPerformer.name}</h4>
-                                <p className="text-[10px] font-bold text-slate-400 capitalize tracking-[0.2em]">{bestPerformer.department || bestPerformer.role || 'Personnel'}</p>
-                            </div>
-                            <div className="flex items-center gap-8 mt-2">
-                                <div className="text-center">
-                                    <p className="text-[10px] font-bold text-emerald-500 tracking-widest uppercase mb-1">Score</p>
-                                    <p className="text-2xl font-black text-slate-900">{bestPerformer.score || bestPerformer.onTimePct}%</p>
-                                </div>
-                                <div className="w-px h-10 bg-slate-100" />
-                                <div className="text-center">
-                                    <p className="text-[10px] font-bold text-indigo-500 tracking-widest uppercase mb-1">Tasks</p>
-                                    <p className="text-2xl font-black text-slate-900">{bestPerformer.completed || bestPerformer.completed_tasks || 0}</p>
-                                </div>
-                            </div>
+
+                            {/* Decorative background circle */}
+                            <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-indigo-50/30 rounded-full blur-3xl -z-10" />
                         </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                            <Users size={32} className="opacity-20 mb-2" />
-                            <span className="text-[10px] font-bold capitalize tracking-widest">No performer data</span>
-                        </div>
-                    )}
-                </ChartPanel>
+                    </div>
+
 
                 <TaskDistributionCard 
-                    data={filters.employeeId ? (mapped.find(e => String(e.id) === String(filters.employeeId)) || aggregateDistribution) : aggregateDistribution}
+                    data={filters.employeeId ? (performanceData.find(e => String(e.id) === String(filters.employeeId)) || aggregateDistribution) : aggregateDistribution}
                     title={filters.employeeId ? "Task Distribution (Personal)" : "Task Distribution (Aggregate)"}
+                    titleClassName="text-[18px] font-semibold"
                 />
 
                 {/* ── Manager: employee-wise charts ── */}
@@ -939,7 +1347,7 @@ const ReportsPage = () => {
                             {empWorkloadData.length > 0 ? (
                                 <BarChart data={empWorkloadData}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} />
+                                    <XAxis dataKey="name" tick={{ fontSize: 18 }} interval={0} />
                                     <YAxis tick={{ fontSize: 10 }} />
                                     <Tooltip />
                                     <Legend wrapperStyle={{ fontSize: '10px' }} />
@@ -949,24 +1357,58 @@ const ReportsPage = () => {
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
                                     <CheckSquare size={32} className="opacity-20 mb-2" />
-                                    <span className="text-[10px] font-bold capitalize tracking-widest">No workload data</span>
+                                    <span className="text-[10px] font-semibold capitalize tracking-widest">No workload data</span>
                                 </div>
                             )}
                         </ChartPanel>
 
-                        <ChartPanel title="Employee Performance Index (%)">
+                        <ChartPanel title="Employee Performance Index (%)" height={280} compact={false}>
                             {empPerformanceData.length > 0 ? (
-                                <BarChart data={empPerformanceData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} />
-                                    <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-                                    <Tooltip formatter={v => [`${v}%`, 'Completion Rate']} />
-                                    <Bar dataKey="Performance" fill="#8b5cf6" name="Performance %" radius={[4, 4, 0, 0]} />
+                                <BarChart data={empPerformanceData} margin={{ top: 20, right: 20, bottom: 40, left: 10 }}>
+                                    <defs>
+                                        <linearGradient id="empPerfGradient" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="#4f46e5" stopOpacity={1}/>
+                                            <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis 
+                                        dataKey="name" 
+                                        tick={{ fontSize: 11, fontWeight: 700, fill: '#64748b' }} 
+                                        interval={0} 
+                                        angle={-40} 
+                                        textAnchor="end"
+                                        height={60}
+                                        axisLine={false}
+                                        tickLine={false}
+                                    />
+                                    <YAxis 
+                                        domain={[0, 100]} 
+                                        tick={{ fontSize: 10, fontWeight: 600, fill: '#94a3b8' }} 
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tickFormatter={(v) => `${v}%`}
+                                    />
+                                    <Tooltip 
+                                        cursor={{ fill: '#f8fafc' }}
+                                        contentStyle={{ borderRadius: '14px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
+                                        formatter={v => [`${v}%`, 'Performance']}
+                                    />
+                                    {/* Background bar to show potential */}
+                                    <Bar dataKey={() => 100} fill="#f1f5f9" radius={[6, 6, 0, 0]} barSize={28} isAnimationActive={false} />
+                                    <Bar 
+                                        dataKey="Performance" 
+                                        fill="url(#empPerfGradient)" 
+                                        name="Rank Score" 
+                                        radius={[6, 6, 0, 0]} 
+                                        barSize={28} 
+                                        label={{ position: 'top', fontSize: 10, fontWeight: 800, fill: '#6366f1', formatter: (v) => `${v}%` }}
+                                    />
                                 </BarChart>
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
                                     <TrendingUp size={32} className="opacity-20 mb-2" />
-                                    <span className="text-[10px] font-bold capitalize tracking-widest">No performance data</span>
+                                    <span className="text-[10px] font-semibold capitalize tracking-widest">No performance data</span>
                                 </div>
                             )}
                         </ChartPanel>
@@ -982,7 +1424,7 @@ const ReportsPage = () => {
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                     <XAxis 
                                         dataKey="month" 
-                                        tick={{ fontSize: 10, fontWeight: 'bold', fill: '#64748b' }} 
+                                        tick={{ fontSize: 10, fill: '#64748b' }} 
                                         tickFormatter={(val) => {
                                             const [y, m] = val.split('-');
                                             return new Date(y, m - 1).toLocaleString('default', { month: 'short' });
@@ -990,20 +1432,20 @@ const ReportsPage = () => {
                                         axisLine={false}
                                         tickLine={false}
                                     />
-                                    <YAxis yAxisId="left" tick={{ fontSize: 10, fontWeight: 'bold', fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                    <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 10, fontWeight: 'bold', fill: '#8b5cf6' }} axisLine={false} tickLine={false} />
+                                    <YAxis yAxisId="left" tick={{ fontSize: 12, fontWeight: 600, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                    <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 12, fontWeight: 600, fill: '#8b5cf6' }} axisLine={false} tickLine={false} />
                                     <Tooltip 
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                        labelStyle={{ fontWeight: 'bold', color: '#1e293b' }}
+                                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
+                                        labelStyle={{ color: '#1e293b', fontWeight: 900 }}
                                     />
-                                    <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', paddingTop: '10px' }} />
+                                    <Legend wrapperStyle={{ fontSize: '13px', fontWeight: 700, textTransform: 'capitalize', paddingTop: '15px' }} />
                                     <Bar yAxisId="left" dataKey="completed_tasks" fill="#10b981" name="Approved Tasks" radius={[4, 4, 0, 0]} barSize={30} />
                                     <Line yAxisId="right" type="monotone" dataKey="score" stroke="#8b5cf6" name="Performance Score %" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />
                                 </ComposedChart>
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
                                     <TrendingUp size={32} className="opacity-20 mb-2" />
-                                    <span className="text-[10px] font-bold capitalize tracking-widest">No trend data available</span>
+                                    <span className="text-[10px] font-semibold capitalize tracking-widest">No trend data available</span>
                                 </div>
                             )}
                         </ChartPanel>
@@ -1013,142 +1455,216 @@ const ReportsPage = () => {
                 {/* ── CFO / Admin: dept-wise charts ── */}
                 {(['ADMIN', 'CFO'].includes((user?.role || '').toUpperCase())) && (
                     <>
-                        <ChartPanel title="Division Workload Distribution">
+                        <ChartPanel title="Division Workload Distribution" titleClassName="text-[20px] mb-6 font-bold" height={350}>
                             {workloadData.length > 0 ? (
-                                <BarChart data={workloadData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                                    <YAxis tick={{ fontSize: 10 }} />
-                                    <Tooltip />
-                                    <Legend wrapperStyle={{ fontSize: '10px' }} />
-                                    <Bar dataKey="Completed" stackId="a" fill="#10b981" name="Completed" />
-                                    <Bar dataKey="Pending" stackId="a" fill="#f59e0b" name="Pending" />
+                                <BarChart data={workloadData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                                    <defs>
+                                        <linearGradient id="completedGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="#10b981" stopOpacity={1}/>
+                                            <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
+                                        </linearGradient>
+                                        <linearGradient id="pendingGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
+                                            <stop offset="100%" stopColor="#d97706" stopOpacity={0.8}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis 
+                                        dataKey="name" 
+                                        tick={{ fontSize: 13, fontWeight: 700, fill: '#475569' }} 
+                                        interval={0} 
+                                        height={50} 
+                                        axisLine={false} 
+                                        tickLine={false} 
+                                    />
+                                    <YAxis 
+                                        tick={{ fontSize: 13, fontWeight: 600, fill: '#64748b' }} 
+                                        axisLine={false} 
+                                        tickLine={false} 
+                                    />
+                                    <Tooltip 
+                                        cursor={{ fill: '#f8fafc' }}
+                                        contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', padding: '16px' }}
+                                    />
+                                    <Legend 
+                                        verticalAlign="top" 
+                                        align="right"
+                                        iconType="circle"
+                                        wrapperStyle={{ fontSize: '13px', fontBold: true, paddingBottom: '20px' }} 
+                                    />
+                                    <Bar dataKey="Completed" stackId="a" fill="url(#completedGrad)" name="Approved Directives" radius={[0, 0, 0, 0]} barSize={40} label={{ position: 'center', fill: '#fff', fontSize: 11, fontWeight: 800 }} />
+                                    <Bar dataKey="Pending" stackId="a" fill="url(#pendingGrad)" name="Pending Items" radius={[6, 6, 0, 0]} barSize={40} label={{ position: 'center', fill: '#fff', fontSize: 11, fontWeight: 800 }} />
                                 </BarChart>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                    <CheckSquare size={32} className="opacity-20 mb-2" />
-                                    <span className="text-[10px] font-bold capitalize tracking-widest">No workload data</span>
-                                </div>
-                            )}
-                        </ChartPanel>
-
-                        <ChartPanel title="Perf. Index (%)">
-                            {deptScores.length > 0 ? (
-                                <BarChart data={deptScores}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                                    <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-                                    <Tooltip />
-                                    <Bar dataKey="Performance" fill="#8b5cf6" name="Rate %" radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                    <TrendingUp size={32} className="opacity-20 mb-2" />
-                                    <span className="text-[10px] font-bold capitalize tracking-widest">No performance data</span>
+                                <div className="flex flex-col items-center justify-center min-h-[300px] text-slate-400">
+                                    <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4">
+                                       <Activity size={32} className="opacity-20 animate-pulse text-indigo-500" />
+                                    </div>
+                                    <span className="text-[12px] font-semibold capitalize tracking-widest text-center">Calibrating workload metrics...</span>
                                 </div>
                             )}
                         </ChartPanel>
                     </>
                 )}
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                        <div>
-                            <h3 className="text-sm font-bold text-slate-800 capitalize tracking-tight">Performance Report</h3>
+
+            {/* ── FULL WIDTH PERFORMANCE INDEX CHART ── */}
+            {(['ADMIN', 'CFO'].includes((user?.role || '').toUpperCase())) && deptScores.length > 0 && (
+                <div className="w-full">
+                    <ChartPanel title="Department Performance Index (%)" height={380} compact={false} titleClassName="text-[20px] mb-10 font-bold">
+                        <BarChart data={deptScores} margin={{ top: 30, right: 30, bottom: 80, left: 10 }}>
+                            <defs>
+                                <linearGradient id="deptPerfGradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#6366f1" stopOpacity={1}/>
+                                    <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.7}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis
+                                dataKey="name"
+                                tick={{ fontSize: 13, fontWeight: 800, fill: '#475569' }}
+                                interval={0}
+                                textAnchor="middle"
+                                height={50}
+                                axisLine={false}
+                                tickLine={false}
+                            />
+                            <YAxis
+                                domain={[0, 100]}
+                                tick={{ fontSize: 13, fontWeight: 600, fill: '#64748b' }}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(v) => `${v}%`}
+                                label={{ value: 'Performance Score', angle: -90, position: 'insideLeft', style: { fontSize: '10px', fill: '#94a3b8', fontWeight: 600 } }}
+                            />
+                            <Tooltip
+                                cursor={{ fill: '#f8fafc' }}
+                                contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px rgba(0,0,0,0.1)', padding: '20px' }}
+                                formatter={(val) => [`${val}%`, 'Dept Efficiency']}
+                            />
+                            {/* Background bar to show potential total */}
+                            <Bar dataKey={() => 100} fill="#f8fafc" radius={[12, 12, 0, 0]} barSize={40} isAnimationActive={false} />
+                            <Bar
+                                dataKey="Performance"
+                                fill="url(#deptPerfGradient)"
+                                radius={[12, 12, 0, 0]}
+                                barSize={40}
+                                label={{ 
+                                    position: 'top', 
+                                    fill: '#4f46e5', 
+                                    fontSize: 14, 
+                                    fontWeight: 900, 
+                                    formatter: (val) => `${val}%`,
+                                    offset: 10
+                                }}
+                            >
+                                {deptScores.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} cursor="pointer" fillOpacity={entry.Performance < 50 ? 0.7 : 1} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ChartPanel>
+                </div>
+            )}
+
+            {/* ── BOTTOM TABLES: unified seamless card ── */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
+                    {/* Performance Report */}
+                    <div className="overflow-hidden">
+                        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                            <h3 className="text-[18px] font-semibold text-slate-800 capitalize tracking-tight">Performance Report</h3>
+                            <button
+                                onClick={() => setFilters({ employeeId: '', departmentId: '', fromDate: '', toDate: '' })}
+                                className="text-[12px] font-semibold text-violet-600 bg-violet-50 px-2 py-1 rounded-lg hover:bg-violet-100 transition-colors capitalize px-4"
+                            >
+                                Reset
+                            </button>
                         </div>
-                        <button
-                            onClick={() => setFilters({ employeeId: '', departmentId: '', fromDate: '', toDate: '' })}
-                            className="text-[9px] font-bold text-violet-600 bg-violet-50 px-2 py-1 rounded-lg hover:bg-violet-100 transition-colors"
-                        >
-                            RESET
-                        </button>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-white text-slate-500 text-[14px] capitalize font-semibold tracking-widest border-b border-slate-100">
+                                    <tr>
+                                        <th className="px-6 py-4">Employee</th>
+                                        <th className="px-3 py-4 text-center">Total</th>
+                                        <th className="px-3 py-4 text-center">Done</th>
+                                        <th className="px-3 py-4 text-center">On-Time %</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {performanceData.length > 0 ? (
+                                        performanceData.map((row, idx) => (
+                                            <tr key={`${row.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors group">
+                                                <td className="px-6 py-4">
+                                                    <div className="text-[17px] font-medium text-slate-900 group-hover:text-indigo-600 transition-colors capitalize leading-tight">{row.name}</div>
+                                                    <div className="text-[11px] text-slate-400 font-bold capitalize tracking-tighter mt-1">{row.department}</div>
+                                                </td>
+                                                <td className="px-3 py-4 text-center text-[17px] font-semibold text-slate-700 tabular-nums">{row.total}</td>
+                                                <td className="px-3 py-4 text-center">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 font-semibold text-[17px] tabular-nums">
+                                                        {row.completed}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-4 text-center">
+                                                    <span className="text-[17px] font-semibold text-indigo-600 tabular-nums">{row.onTimePct}%</span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="4" className="py-8 text-center text-slate-400 italic">No data found</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50/80 text-slate-500 text-[9px] capitalize font-bold tracking-widest border-b border-slate-200/60">
-                                <tr>
-                                    <th className="px-3 py-2">Employee</th>
-                                    <th className="px-3 py-2 text-center">Total</th>
-                                    <th className="px-3 py-3 text-center">Done</th>
-                                    <th className="px-3 py-2 text-center">On-Time %</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 text-[11px] text-slate-700">
-                                {performanceData.length > 0 ? (
-                                    performanceData.map((row, idx) => (
-                                        <tr key={`${row.id}-${idx}`} className="hover:bg-slate-50/80 transition-all border-b border-slate-50 last:border-0 group">
-                                            <td className="px-3 py-1.5">
-                                                <div className="font-bold text-slate-800 group-hover:text-violet-600 transition-colors">{row.name}</div>
-                                                <div className="text-[8px] text-slate-400 font-bold capitalize tracking-widest">{row.department}</div>
-                                            </td>
-                                            <td className="px-3 py-1.5 text-center font-extrabold text-slate-600 tabular-nums">{row.total}</td>
-                                            <td className="px-3 py-1.5 text-center">
-                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-bold text-[9px]">
-                                                    {row.completed}
-                                                </span>
-                                            </td>
-                                            <td className="px-3 py-1.5">
-                                                <div className="flex items-center gap-2 justify-center">
-                                                    <span className="text-[9px] font-extrabold text-slate-700 tabular-nums">{row.onTimePct}%</span>
+                    {/* Top High Performers */}
+                    <div className="overflow-hidden">
+                        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/30">
+                            <h3 className="text-[18px] font-semibold text-slate-800 capitalize tracking-tight">Top High Performers</h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-white text-slate-500 text-[14px] capitalize font-semibold tracking-widest border-b border-slate-100">
+                                    <tr>
+                                        <th className="px-6 py-4">Rank</th>
+                                        <th className="px-6 py-4">Entity</th>
+                                        <th className="px-6 py-4 text-right">Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {topList.length > 0 ? topList.map((emp, i) => (
+                                        <tr key={`${emp.id}-${i}`} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="px-6 py-4 text-[17px] font-semibold text-slate-600">
+                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-[14px] ${
+                                                    i === 0 ? 'bg-amber-100 text-amber-600 shadow-sm' :
+                                                    i === 1 ? 'bg-slate-100 text-slate-500' :
+                                                    i === 2 ? 'bg-orange-50 text-orange-600' :
+                                                    'bg-slate-50 text-slate-400'
+                                                }`}>
+                                                    {i + 1}
                                                 </div>
                                             </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-[17px] font-medium text-slate-900 capitalize leading-tight">{emp.name}</div>
+                                                <div className="text-[11px] text-slate-400 font-bold capitalize tracking-tighter mt-1">{emp.role}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-right text-[17px] font-semibold text-indigo-600 tabular-nums">
+                                                {emp.score}%
+                                            </td>
                                         </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan="4" className="py-4 text-center text-slate-400 italic">No data found</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/30">
-                        <h3 className="text-sm font-bold text-slate-800 capitalize tracking-tight">Top High Performers</h3>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50/50 text-slate-500 text-[9px] capitalize font-bold tracking-widest border-b border-slate-100">
-                                <tr>
-                                    <th className="px-3 py-2">Rank</th>
-                                    <th className="px-3 py-2">Entity</th>
-                                    <th className="px-3 py-2 text-right">Score</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 text-[11px] text-slate-700">
-                                {topList.length > 0 ? topList.map((emp, i) => (
-                                    <tr key={`${emp.id}-${i}`} className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="px-3 py-1.5">
-                                            <div className={`w-5 h-5 rounded flex items-center justify-center font-bold text-[9px] ${i === 0 ? 'bg-amber-100 text-amber-600' :
-                                                i === 1 ? 'bg-slate-100 text-slate-500' :
-                                                    i === 2 ? 'bg-orange-50 text-orange-600' :
-                                                        'bg-slate-50 text-slate-400'
-                                                }`}>
-                                                {i + 1}
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-1.5">
-                                            <div className="font-bold text-slate-800">{emp.name}</div>
-                                            <div className="text-[8px] text-slate-400 font-bold capitalize tracking-tighter">{emp.role}</div>
-                                        </td>
-                                        <td className="px-3 py-1.5 text-right font-bold text-violet-600 tabular-nums">
-                                            {emp.score}%
-                                        </td>
-                                    </tr>
-                                )) : (
-                                    <tr>
-                                        <td colSpan="3" className="px-4 py-10 text-center text-slate-400 italic">
-                                            No ranking data available.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan="3" className="px-4 py-10 text-center text-slate-400 italic">
+                                                No ranking data available.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>

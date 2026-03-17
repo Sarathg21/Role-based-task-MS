@@ -50,7 +50,7 @@ const DepartmentPerformanceGrid = ({ data }) => {
 
     const getStatusText = (status) => {
         if (!status || status === 'NO_DATA') return 'No Data';
-        return status.split('_').map(word => 
+        return status.split('_').map(word =>
             word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
         ).join(' ');
     };
@@ -64,9 +64,9 @@ const DepartmentPerformanceGrid = ({ data }) => {
 
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                    <thead className="text-[10px] text-slate-400 font-bold border-b border-slate-100">
+                    <thead className="text-[14px] text-slate-400 font-bold border-b border-slate-100">
                         <tr>
-                            <th className="py-4 px-4 font-bold text-[16px]" style={{ fontFamily: 'Aptos, sans-serif' }}>Department</th>
+                            <th className="py-4 px-4 font-bold text-[17px]">Department</th>
                             <th className="py-4 px-4 font-bold text-center">Total</th>
                             <th className="py-4 px-4 font-bold text-center">Overdue</th>
                             <th className="py-4 px-4 font-bold text-center text-indigo-500">In Progress</th>
@@ -79,7 +79,7 @@ const DepartmentPerformanceGrid = ({ data }) => {
                         {data.map((dept, idx) => (
                             <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
                                 <td className="py-4 px-4">
-                                    <span className="text-[16px] font-semibold text-slate-800 capitalize tracking-tighter" style={{ fontFamily: 'Aptos, sans-serif' }}>
+                                    <span className="text-[14px] font-medium text-slate-800 capitalize tracking-tight">
                                         {dept.department_name || dept.name || 'Unknown'}
                                     </span>
                                 </td>
@@ -103,15 +103,15 @@ const DepartmentPerformanceGrid = ({ data }) => {
                                                 style={{ width: `${dept.completion_pct || 0}%` }}
                                             />
                                         </div>
-                                        <span className="text-[12px] font-black text-slate-700 w-10 tabular-nums">
+                                        <span className="text-[17px] font-black text-slate-700 w-12 tabular-nums">
                                             {Math.round(dept.completion_pct || 0)}%
                                         </span>
                                     </div>
                                 </td>
                                 <td className="py-4 px-4 text-right">
                                     <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-100 bg-white shadow-sm transition-transform group-hover:scale-105">
-                                        <div className={`w-2 h-2 rounded-full ${getStatusColor(dept.status)}`} />
-                                        <span className="text-[9px] font-black text-slate-500 capitalize tracking-widest">
+                                        <div className={`w-3 h-3 rounded-full ${getStatusColor(dept.status)}`} />
+                                        <span className="text-[12px] font-black text-slate-500 capitalize tracking-widest">
                                             {getStatusText(dept.status)}
                                         </span>
                                     </div>
@@ -152,19 +152,19 @@ const EmployeeRiskPanel = ({ tasks, onIssueClick }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 {riskData.map((emp, i) => (
                     <div key={i} className="p-4 rounded-2xl bg-rose-50/20 border border-rose-100/50 flex flex-col justify-between group hover:bg-white transition-all">
-                        <div className="flex items-start justify-between mb-2">
-                            <p className="text-[13px] font-black text-slate-800 leading-tight">{emp.name}</p>
-                            <span className="text-sm">⚠</span>
-                        </div>
+                                <div className="flex items-start justify-between mb-2">
+                                    <p className="text-[16px] font-black text-slate-800 leading-tight">{emp.name}</p>
+                                    <span className="text-sm">⚠</span>
+                                </div>
                         <div className="flex items-end justify-between">
-                            <p className="text-[10px] text-slate-400 font-bold capitalize tracking-widest leading-none">
+                            <p className="text-[12px] text-slate-400 font-bold capitalize tracking-widest leading-none">
                                 {emp.overdue} Overdue
                             </p>
                             <button
                                 onClick={() => onIssueClick(emp.name)}
-                                className="px-2 py-1 rounded bg-rose-100/50 text-rose-600 text-[10px] font-black hover:bg-rose-500 hover:text-white transition-all active:scale-95 shadow-sm border border-rose-100"
+                                    className="px-2 py-1 rounded bg-rose-100/50 text-rose-600 text-[12px] font-semibold hover:bg-rose-500 hover:text-white transition-all active:scale-95 shadow-sm border border-rose-100"
                             >
-                                {emp.total} ISSUES
+                                {emp.total} Issues
                             </button>
                         </div>
                     </div>
@@ -181,7 +181,7 @@ const ExecutiveHealthPanel = ({ metrics, departments }) => {
     return (
         <div className="bg-white border border-slate-100 shadow-sm rounded-[2rem] p-8 transition-all hover:shadow-md">
             <h3 className="text-[12px] font-bold text-slate-500 mb-8 flex items-center gap-3">
-                <Shield size={16} className="text-violet-600" />
+                <Shield size={15} className="text-violet-600" />
                 Organization Health Panel
             </h3>
 
@@ -208,19 +208,19 @@ const ExecutiveHealthPanel = ({ metrics, departments }) => {
                     <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-100 relative overflow-hidden group hover:scale-[1.02] transition-transform">
                         <div className="flex items-center gap-3 mb-2 relative z-10">
                             <span className="text-xl">🏆</span>
-                            <span className="text-[10px] font-black text-emerald-700 capitalize tracking-widest">Top Dept</span>
+                            <span className="text-[15px] font-semibold text-emerald-700 capitalize tracking-widest">Top Dept</span>
                         </div>
-                        <h4 className="text-[15px] font-black text-slate-900 border-l-4 border-emerald-500 pl-3 relative z-10 capitalize tracking-tight">
-                            {topDept?.department || topDept?.name || 'ACCOUNTS'}
+                        <h4 className="text-[15px] font-medium text-slate-900 border-l-4 border-emerald-500 pl-3 relative z-10 capitalize tracking-tight">
+                            {topDept?.department || topDept?.name || 'Accounts'}
                         </h4>
                     </div>
                     <div className="p-5 rounded-2xl bg-rose-50/50 border border-rose-100 relative overflow-hidden group hover:scale-[1.02] transition-transform">
                         <div className="flex items-center gap-3 mb-2 relative z-10">
                             <span className="text-xl">⚠</span>
-                            <span className="text-[10px] font-black text-rose-700 capitalize tracking-widest">Bottom Dept</span>
+                            <span className="text-[15px] font-semibold text-rose-700 capitalize tracking-widest">Bottom Dept</span>
                         </div>
-                        <h4 className="text-[15px] font-black text-slate-900 border-l-4 border-rose-500 pl-3 relative z-10 capitalize tracking-tight">
-                            {bottomDept?.department || bottomDept?.name || 'WHSE'}
+                        <h4 className="text-[15px] font-medium text-slate-900 border-l-4 border-rose-500 pl-3 relative z-10 capitalize tracking-tight">
+                            {bottomDept?.department || bottomDept?.name || 'Whse'}
                         </h4>
                     </div>
                 </div>
@@ -272,17 +272,17 @@ const TaskTrendsChart = ({ data }) => {
             const inProgress = getVal(['in_progress', 'in_progress_tasks', 'inProgress']);
             const submitted = getVal(['submitted', 'submitted_tasks', 'submitted_count']);
             const rework = getVal(['rework', 'rework_tasks', 'rework_count']);
-            
+
             // Pending is a sum of current "active" states
-            const pending = getVal(['Pending', 'pending', 'pending_tasks', 'pending_count', 'pendingTasks']) ?? 
-                            ((inProgress || 0) + (submitted || 0) + (rework || 0));
-            
+            const pending = getVal(['Pending', 'pending', 'pending_tasks', 'pending_count', 'pendingTasks']) ??
+                ((inProgress || 0) + (submitted || 0) + (rework || 0));
+
             // New tasks variants
             const initialNew = getVal(['New', 'new', 'new_tasks', 'new_count', 'total_new', 'newTasks']);
-            
+
             // Total volume fallback logic
             const total = getVal(['total_tasks', 'total', 'total_count', 'count', 'tasks']) || 0;
-            
+
             let n = initialNew || 0;
             let p = pending || 0;
             let o = overdue || 0;
@@ -306,9 +306,9 @@ const TaskTrendsChart = ({ data }) => {
     return (
         <div className="bg-[#fbfcff] rounded-[2rem] border border-slate-100 shadow-sm p-10 h-[520px] flex flex-col">
             <div className="flex items-center justify-between mb-8">
-                <h3 className="text-[17px] font-black text-[#2d3748] tracking-tight">Task Trends - Last 6 Months</h3>
+                <h3 className="text-[17px] font-semibold text-[#2d3748] tracking-tight">Task Trends - Last 6 Months</h3>
                 <div className="flex bg-white border border-slate-100 rounded-2xl px-5 py-2.5 cursor-pointer hover:bg-slate-50 transition-all shadow-sm">
-                    <span className="text-[12px] font-black text-slate-500 mr-3">Last 6 Months</span>
+                    <span className="text-[12px] font-semibold text-slate-500 mr-3">Last 6 Months</span>
                     <ChevronDown size={16} className="text-slate-400" />
                 </div>
             </div>
@@ -327,39 +327,39 @@ const TaskTrendsChart = ({ data }) => {
                 ))}
             </div>
 
-            <div className="flex-1 w-full">
+            <div className="flex-1 w-full min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={trends} margin={{ top: 10, right: 30, bottom: 30, left: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis 
-                            dataKey="name" 
-                            axisLine={false} 
-                            tickLine={false} 
+                        <XAxis
+                            dataKey="name"
+                            axisLine={false}
+                            tickLine={false}
                             tick={{ fontSize: 13, fontWeight: 'bold', fill: '#64748b' }}
                             height={60}
                             dy={20}
                             interval={0}
                         />
-                        <YAxis 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fontSize: 12, fontWeight: 700, fill: '#adb5bd' }} 
+                        <YAxis
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 12, fontWeight: 700, fill: '#adb5bd' }}
                             domain={['auto', 'auto']}
                         />
-                        <Tooltip 
+                        <Tooltip
                             contentStyle={{ borderRadius: '1.5rem', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', padding: '15px' }}
                             cursor={{ fill: '#f7fafc', opacity: 0.4 }}
                         />
                         <Bar dataKey="New" fill="#3b82f6" barSize={10} radius={[5, 5, 0, 0]} />
                         <Bar dataKey="Pending" fill="#febc6b" barSize={10} radius={[5, 5, 0, 0]} />
                         <Bar dataKey="Overdue" fill="#ff697e" barSize={10} radius={[5, 5, 0, 0]} />
-                        
-                        <Line 
-                            type="monotone" 
-                            dataKey="Completed" 
-                            stroke="#38b2ac" 
-                            strokeWidth={4} 
-                            dot={{ fill: '#fff', stroke: '#38b2ac', strokeWidth: 3, r: 6 }} 
+
+                        <Line
+                            type="monotone"
+                            dataKey="Completed"
+                            stroke="#38b2ac"
+                            strokeWidth={4}
+                            dot={{ fill: '#fff', stroke: '#38b2ac', strokeWidth: 3, r: 6 }}
                             activeDot={{ r: 8, strokeWidth: 0 }}
                             connectNulls
                         />
@@ -374,7 +374,7 @@ const OrganizationHealth = ({ metrics }) => {
     return (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 overflow-hidden">
             <h3 className="text-[15px] font-semibold text-slate-700 mb-6">Organization Health</h3>
-            
+
             <div className="space-y-6">
                 <div className="flex items-center justify-between group cursor-help">
                     <div className="flex items-center gap-3">
@@ -382,13 +382,13 @@ const OrganizationHealth = ({ metrics }) => {
                             <Target size={18} />
                         </div>
                         <div className="grid">
-                            <span className="text-[12px] font-bold text-slate-800 leading-tight">Avg Completion Rate</span>
-                            <span className="text-[10px] text-slate-400 font-bold capitalize tracking-tight">Accounts Receivable</span>
+                            <span className="text-[14px] font-medium text-slate-700 leading-tight">Avg Completion Rate</span>
+                            <span className="text-[11px] text-slate-400 font-normal capitalize tracking-tight">Accounts Receivable</span>
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-[18px] font-bold text-slate-800">{metrics?.orgCompletionRate || 23.74}%</span>
-                        <div className="w-1 h-8 bg-emerald-400 rounded-full" />
+                        <span className="text-[28px] font-semibold text-indigo-700">{metrics?.orgCompletionRate || 23.74}%</span>
+                        <div className="w-2 h-10 bg-emerald-400 rounded-full" />
                     </div>
                 </div>
 
@@ -398,13 +398,13 @@ const OrganizationHealth = ({ metrics }) => {
                             <Clock size={18} />
                         </div>
                         <div className="grid">
-                            <span className="text-[12px] font-bold text-slate-800 leading-tight">Avg On-Time %</span>
-                            <span className="text-[10px] text-slate-400 font-bold capitalize tracking-tight">Fixed Assets</span>
+                            <span className="text-[14px] font-medium text-slate-700 leading-tight">Avg On-Time %</span>
+                            <span className="text-[11px] text-slate-400 font-normal capitalize tracking-tight">Fixed Assets</span>
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-[18px] font-bold text-slate-800">{metrics?.avgOnTime || 80}%</span>
-                        <div className="w-1 h-8 bg-sky-400 rounded-full" />
+                        <span className="text-[28px] font-semibold text-indigo-700">{metrics?.avgOnTime || 80}%</span>
+                        <div className="w-2 h-10 bg-sky-400 rounded-full" />
                     </div>
                 </div>
             </div>
@@ -414,10 +414,10 @@ const OrganizationHealth = ({ metrics }) => {
 
 const ExportReportsPanel = ({ fromDate, toDate }) => {
     const handleDownload = async (format) => {
-        const toastId = toast.loading(`Preparing ${format.toUpperCase()} report...`);
+        const toastId = toast.loading(`Preparing ${format.charAt(0).toUpperCase() + format.slice(1)} report...`);
         try {
             const endpoint = format === 'pdf' ? '/reports/cfo/export-pdf' : '/reports/cfo/export-excel';
-            
+
             // Clean params to avoid "undefined" strings in URL
             const params = {};
             if (fromDate) params.from_date = fromDate;
@@ -441,16 +441,16 @@ const ExportReportsPanel = ({ fromDate, toDate }) => {
             const contentType = response.headers['content-type'] || (format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             const blob = new Blob([response.data], { type: contentType });
             const url = window.URL.createObjectURL(blob);
-            
+
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `CFO_Report_${format.toUpperCase()}_${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
+            link.setAttribute('download', `CFO_Report_${format.charAt(0).toUpperCase() + format.slice(1)}_${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
             document.body.appendChild(link);
             link.click();
             link.parentNode.removeChild(link);
             window.URL.revokeObjectURL(url);
-            
-            toast.success(`${format.toUpperCase()} downloaded successfully`, { id: toastId });
+
+            toast.success(`${format.charAt(0).toUpperCase() + format.slice(1)} downloaded successfully`, { id: toastId });
         } catch (err) {
             console.error(`Export failed:`, err);
             toast.error(err.message || `Failed to download ${format} report`, { id: toastId });
@@ -566,13 +566,23 @@ const CFODashboard = () => {
         } catch (e) { return 'Recent'; }
     };
 
-    const [fromDate, setFromDate] = useState(localStorage.getItem('dashboard_from_date') || '');
-    const [toDate, setToDate] = useState(localStorage.getItem('dashboard_to_date') || '');
+    const getFirstDayOfMonth = () => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    };
+
+    const getToday = () => {
+        return new Date().toISOString().slice(0, 10);
+    };
+
+    const [fromDate, setFromDate] = useState(getFirstDayOfMonth());
+    const [toDate, setToDate] = useState(getToday());
 
     useEffect(() => {
         const handleFilterChange = () => {
-            setFromDate(localStorage.getItem('dashboard_from_date') || '');
-            setToDate(localStorage.getItem('dashboard_to_date') || '');
+            // Dashboard still syncs via event hub, but won't be 'stuck' across refreshes
+            setFromDate(localStorage.getItem('dashboard_from_date') || getFirstDayOfMonth());
+            setToDate(localStorage.getItem('dashboard_to_date') || getToday());
         };
 
         window.addEventListener('dashboard-filter-change', handleFilterChange);
@@ -591,7 +601,7 @@ const CFODashboard = () => {
     ];
 
 
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = async (signal) => {
         setLoading(true);
         const queryParams = {};
         if (fromDate) { queryParams.start_date = fromDate; queryParams.from_date = fromDate; }
@@ -599,12 +609,13 @@ const CFODashboard = () => {
 
         try {
             const [dataRes, todayRes, metricsRes, trendsRes, deptsRes] = await Promise.all([
-                api.get('/dashboard/cfo', { params: queryParams }).catch(() => ({ data: {} })),
-                api.get('/dashboard/cfo/today', { params: queryParams }).catch(() => ({ data: {} })),
-                api.get('/dashboard/cfo/org-metrics', { params: queryParams }).catch(() => ({ data: {} })),
-                api.get('/dashboard/cfo/trends').catch(() => ({ data: {} })),
-                api.get('/dashboard/cfo/departments', { params: queryParams }).catch(() => ({ data: {} }))
+                api.get('/dashboard/cfo', { params: queryParams, signal }).catch(() => ({ data: {} })),
+                api.get('/dashboard/cfo/today', { params: queryParams, signal }).catch(() => ({ data: {} })),
+                api.get('/dashboard/cfo/org-metrics', { params: queryParams, signal }).catch(() => ({ data: {} })),
+                api.get('/dashboard/cfo/trends', { signal }).catch(() => ({ data: {} })),
+                api.get('/dashboard/cfo/departments', { params: queryParams, signal }).catch(() => ({ data: {} }))
             ]);
+
             const metricsPayload = metricsRes?.data?.data || metricsRes?.data || {};
             setOrgMetrics(metricsPayload);
 
@@ -735,8 +746,8 @@ const CFODashboard = () => {
             };
 
             // Always fetch all org tasks to compute per-dept status breakdowns
-            // Simplified fetch to avoid 422 - prioritize simple scope and then fallback
-            const fetchOrgTasks = async () => {
+            // Uses a short 12s timeout so slow requests fail fast rather than blocking for 60s
+            const fetchOrgTasks = async (signal) => {
                 const candidates = [
                     { scope: 'org', limit: 200 },
                     { scope: 'all', limit: 200 },
@@ -745,11 +756,11 @@ const CFODashboard = () => {
 
                 for (const params of candidates) {
                     try {
-                        const res = await api.get('/tasks', { params });
+                        const res = await api.get('/tasks', { params, signal, timeout: 12000 });
                         if (res?.data) return res;
                     } catch (e) {
-                        // Only continue to fallback if it's a validation error (422) or missing endpoint
-                        if (e.response?.status === 422 || e.response?.status === 404 || e.response?.status === 400) {
+                        if (e.name === 'CanceledError' || e.name === 'AbortError' || e.code === 'ERR_CANCELED') throw e;
+                        if (e.response?.status === 422 || e.response?.status === 404 || e.response?.status === 400 || e.code === 'ECONNABORTED') {
                             console.warn(`Org task fetch fail for ${JSON.stringify(params)}, trying fallback...`);
                             continue;
                         }
@@ -759,7 +770,7 @@ const CFODashboard = () => {
                 return null;
             };
 
-            const allTasksRes = await fetchOrgTasks();
+            const allTasksRes = await fetchOrgTasks(signal);
             const allTasks = allTasksRes?.data
                 ? (Array.isArray(allTasksRes.data) ? allTasksRes.data : (allTasksRes.data?.data || []))
                 : [];
@@ -780,7 +791,7 @@ const CFODashboard = () => {
                 const childId = t.task_id || t.id;
                 const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
                 const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name ||
-                              (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '');
+                    (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '');
                 if (pid && !ptitle && !taskMap[pid] && childId && !seenParentIds.has(pid)) {
                     seenParentIds.add(pid);
                     tasksNeedingParentFetch.push({ childId, pid });
@@ -806,48 +817,48 @@ const CFODashboard = () => {
             }
 
             // Pass 2: Normalize
-           // Pass 2: Normalize
-const normalizeRow = (t) => {
-    const pid =
-        t.parent_task_id ||
-        t.parent_id ||
-        (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+            // Pass 2: Normalize
+            const normalizeRow = (t) => {
+                const pid =
+                    t.parent_task_id ||
+                    t.parent_id ||
+                    (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
 
-    let ptitle =
-        t.parent_task_title ||
-        t.parentTaskTitle ||
-        t.parent_task_name ||
-        t.parent_title ||
-        t.parent_name ||
-        t.parent_directive_title ||
-        t.parent_directive_name ||
-        (t.parent_task
-            ? (t.parent_task.task_title ||
-               t.parent_task.title ||
-               t.parent_task.task_name ||
-               t.parent_task.name ||
-               t.parent_task.directive_title)
-            : '');
+                let ptitle =
+                    t.parent_task_title ||
+                    t.parentTaskTitle ||
+                    t.parent_task_name ||
+                    t.parent_title ||
+                    t.parent_name ||
+                    t.parent_directive_title ||
+                    t.parent_directive_name ||
+                    (t.parent_task
+                        ? (t.parent_task.task_title ||
+                            t.parent_task.title ||
+                            t.parent_task.task_name ||
+                            t.parent_task.name ||
+                            t.parent_task.directive_title)
+                        : '');
 
-    // fallback from fetched parents
-    if (!ptitle && pid && taskMap[pid]) {
-        ptitle = taskMap[pid];
-    }
+                // fallback from fetched parents
+                if (!ptitle && pid && taskMap[pid]) {
+                    ptitle = taskMap[pid];
+                }
 
-    return {
-        ...t,
-        task_id: t.task_id || t.id,
-        title: t.title || 'Untitled Directive',
-        status: String(t.status || '').toUpperCase(),
-        department: t.department_name || t.department || t.dept_name || 'Accounts',
-        priority: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
-        assigneeName: t.assigned_to_name || t.assignee || 'Unassigned',
+                return {
+                    ...t,
+                    task_id: t.task_id || t.id,
+                    title: t.title || 'Untitled Directive',
+                    status: String(t.status || ''),
+                    department: t.department_name || t.department || t.dept_name || 'Accounts',
+                    priority: String(t.priority || t.severity || 'Medium'),
+                    assigneeName: t.assigned_to_name || t.assignee || 'Unassigned',
 
-        // ✅ FIX
-        parent_task_id: pid ? pid : '-',
-        parent_task_title: ptitle ? ptitle : '-',
-    };
-};
+                    // ✅ FIX
+                    parent_task_id: pid ? pid : '-',
+                    parent_task_title: ptitle ? ptitle : '-',
+                };
+            };
 
             const allNormalized = allTasks.map(normalizeRow);
             const taskCountsByDept = buildDeptStatusCounts(allNormalized);
@@ -872,8 +883,10 @@ const normalizeRow = (t) => {
             });
             setTodayOrgTasks([]);
 
-        } catch (err) { console.error("CFO Dashboard Error:", err); }
-        finally {
+        } catch (err) {
+            if (err.name === 'CanceledError' || err.name === 'AbortError' || err.code === 'ERR_CANCELED') return; // stale request, ignore
+            console.error("CFO Dashboard Error:", err);
+        } finally {
 
 
             setLoading(false);
@@ -884,16 +897,20 @@ const normalizeRow = (t) => {
 
 
     useEffect(() => {
+        const controller = new AbortController();
+        const signal = controller.signal;
 
-    fetchDashboardData();
+        const run = () => fetchDashboardData(signal);
+        run();
 
-    const dashboardInterval = setInterval(fetchDashboardData, 30000);
+        // Poll every 60s — longer than the 12s org-task timeout so requests never stack
+        const dashboardInterval = setInterval(run, 60000);
 
-    return () => {
-        clearInterval(dashboardInterval);
-    };
-
-}, [fromDate, toDate]);
+        return () => {
+            controller.abort();
+            clearInterval(dashboardInterval);
+        };
+    }, [fromDate, toDate]);
 
 
 
@@ -968,24 +985,39 @@ const normalizeRow = (t) => {
     if (loading) return (
         <div className="flex flex-col items-center justify-center p-10 bg-white/50 backdrop-blur-xl rounded-2xl border border-slate-100 shadow-sm animate-pulse">
             <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-3" />
-            <p className="text-slate-500 font-black capitalize tracking-[0.2em] text-[10px]">Syncing Executive Intelligence...</p>
+            <p className="text-slate-500 font-semibold capitalize tracking-[0.2em] text-[10px]">Syncing Executive Intelligence...</p>
         </div>
     );
 
     const topDept = [...deptPerformance].sort((a, b) => b.completion_pct - a.completion_pct)[0];
     const bottomDept = [...deptPerformance].sort((a, b) => a.completion_pct - b.completion_pct)[0];
 
+    // Calculate Employees At Risk Count for the KPI card
+    const employeesAtRiskCount = (() => {
+        const byEmployee = {};
+        todayOrgTasks.forEach(t => {
+            const name = t.assigneeName || t.assigned_to_name || 'Unknown';
+            if (!byEmployee[name]) byEmployee[name] = { overdue: 0, rework: 0 };
+            if (t.is_overdue || t.overdue) byEmployee[name].overdue++;
+            if (t.status === 'REWORK') byEmployee[name].rework++;
+        });
+        return Object.values(byEmployee).filter(emp => {
+            const healthScore = Math.max(0, 100 - (emp.overdue * 15) - (emp.rework * 10));
+            return healthScore < 70;
+        }).length;
+    })();
+
     return (
-        <div className="space-y-4 animate-fade-in pb-8 mt-2">
+        <div className="space-y-4 pb-8">
             {/* View Mode Switcher */}
-            <div className="flex bg-slate-100/50 p-1 rounded-2xl w-fit border border-slate-200/50">
-                <button 
+            <div className="flex bg-slate-100/50 p-1 rounded-2xl w-fit max-w-full overflow-x-auto border border-slate-200/50">
+                <button
                     onClick={() => setViewMode('performance')}
-                    className={`px-6 py-2 rounded-xl text-[11px] font-black capitalize tracking-widest transition-all ${viewMode === 'performance' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-6 py-2 rounded-xl text-[11px] font-semibold capitalize tracking-widest transition-all ${viewMode === 'performance' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                     Performance
                 </button>
-                <button 
+                <button
                     onClick={() => {
                         if (!selectedDept && deptPerformance.length > 0) {
                             const first = deptPerformance[0];
@@ -993,7 +1025,7 @@ const normalizeRow = (t) => {
                         }
                         setViewMode('dept_view');
                     }}
-                    className={`px-6 py-2 rounded-xl text-[11px] font-black capitalize tracking-widest transition-all ${viewMode === 'dept_view' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`px-6 py-2 rounded-xl text-[11px] font-semibold capitalize tracking-widest transition-all ${viewMode === 'dept_view' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                     Department View
                 </button>
@@ -1001,8 +1033,8 @@ const normalizeRow = (t) => {
 
             {/* Department Selector for Dept View */}
             {viewMode === 'dept_view' && (
-                <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm animate-fade-in">
-                    <span className="text-[10px] font-black text-slate-400 capitalize tracking-widest pl-2">Select Department:</span>
+                <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm animate-fade-in">
+                    <span className="text-[10px] font-semibold text-slate-400 capitalize tracking-widest pl-2">Select Department:</span>
                     <CustomSelect
                         options={deptPerformance.map(d => ({ label: d.department_name || d.name, value: d.department_id || d.id || d.name }))}
                         value={selectedDept?.id || selectedDept?.name}
@@ -1018,375 +1050,290 @@ const normalizeRow = (t) => {
                 <>
                     <div className="space-y-4">
 
-            {/* ── KPI ROW: 5 cards in one row ── */}
-<div className="grid grid-cols-5 gap-6">
-    {[
-        { label: 'New Tasks', value: kpis?.new, icon: PlusCircle, color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-100' },
-        { label: 'In Progress', value: kpis?.inProgress, icon: Clock, color: 'text-indigo-500', bg: 'bg-indigo-50', border: 'border-indigo-100' },
-        { label: 'Submitted', value: kpis?.submitted, icon: CheckCircle, color: 'text-amber-500', bg: 'bg-amber-50', border: 'border-amber-100' },
-        { label: 'Rework Required', value: kpis?.rework, icon: Activity, color: 'text-rose-500', bg: 'bg-rose-50', border: 'border-rose-100' },
-        { label: 'Overdue Tasks', value: kpis?.overdue, icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-100' },
-    ].map((item, idx) => (
-        <div
-            key={idx}
-            className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 flex flex-col gap-3 hover:shadow-md transition-all group"
-        >
-            <div className="flex items-center justify-between mb-2">
-                <div className={`w-14 h-14 rounded-xl ${item.bg} flex items-center justify-center ${item.color} border border-white shadow-md group-hover:scale-110 transition-transform`}>
-                    <item.icon size={28} strokeWidth={2.5} />
-                </div>
+                        {/* ── KPI ROW: 5 cards in one row ── */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+                            {[
+                                { 
+                                    label: 'Active Tasks', 
+                                    value: dashboardData?.total_tasks || 0, 
+                                    icon: CheckSquare, 
+                                    color: 'text-indigo-600', 
+                                    bg: 'bg-indigo-50', 
+                                    trend: '5%',
+                                    trendLabel: 'vs last month',
+                                    trendUp: true
+                                },
+                                { 
+                                    label: 'Completed Tasks', 
+                                    value: dashboardData?.approved_tasks || 0, 
+                                    icon: CheckCircle, 
+                                    color: 'text-emerald-600', 
+                                    bg: 'bg-emerald-50', 
+                                    trend: '12%',
+                                    trendLabel: 'vs last month',
+                                    trendUp: true
+                                },
+                                { 
+                                    label: 'Departments On Track', 
+                                    value: deptPerformance.filter(d => d.status === 'ON_TRACK').length, 
+                                    icon: Target, 
+                                    color: 'text-teal-600', 
+                                    bg: 'bg-teal-50', 
+                                    trend: '2',
+                                    trendLabel: 'vs last month',
+                                    trendUp: true
+                                },
+                                { 
+                                    label: 'Employees At Risk', 
+                                    value: employeesAtRiskCount || 0, 
+                                    icon: AlertTriangle, 
+                                    color: 'text-rose-600', 
+                                    bg: 'bg-rose-50', 
+                                    trend: '2',
+                                    trendLabel: 'vs last month',
+                                    trendUp: true
+                                },
+                                { 
+                                    label: 'Org Completion Rate', 
+                                    value: `${Math.round(kpis?.orgCompletionRate || 0)}%`, 
+                                    icon: Activity, 
+                                    color: 'text-cyan-600', 
+                                    bg: 'bg-cyan-50', 
+                                    trend: 'Company Average'
+                                },
+                            ].map((item, idx) => (
+                                <div
+                                    key={idx}
+                                    className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col gap-2 hover:shadow-md transition-all group"
+                                >
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 mb-1">
+                                        <div className={`w-8 h-8 rounded-lg ${item.bg} flex items-center justify-center ${item.color} border border-white shadow-sm shrink-0`}>
+                                            <item.icon size={16} strokeWidth={2.5} />
+                                        </div>
+                                        <span className="text-[16px] font-medium text-slate-800 capitalize tracking-tight leading-4 whitespace-normal break-words overflow-visible">
+                                            {item.label}
+                                        </span>
+                                    </div>
 
-                {item.trend && (
-                    <span className="text-lg font-semibold text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100/50">
-                        ↑ {item.trend}
-                    </span>
-                )}
-            </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-5xl font-semibold tabular-nums text-slate-900 leading-none mb-3">
+                                            {item.value}
+                                        </span>
+                                        
+                                        {item.trend && (
+                                            <div className="flex items-center gap-1.5 pt-1">
+                                                {item.trendLabel ? (
+                                                    <>
+                                                        <span className={`text-[11px] font-medium ${item.trendUp ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                            {item.trendUp ? '↑' : '↓'} {item.trend}
+                                                        </span>
+                                                        <span className="text-[12px] font-medium text-slate-400">
+                                                            {item.trendLabel}
+                                                        </span>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-[12px] font-medium text-slate-400">
+                                                        {item.trend}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
 
-            <div className="grid gap-1">
-                <span className="text-base font-bold text-slate-500 capitalize tracking-tight whitespace-nowrap">
-                    {item.label}
-                </span>
+                        {/* ── ROW 2: Trends + Risk Monitor ── */}
+                        <div className="flex flex-col lg:grid lg:grid-cols-[1fr_320px] gap-4">
+                            <TaskTrendsChart data={trendsData} />
+                            
+                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col h-[520px]">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-[15px] font-semibold text-slate-700 flex items-center gap-2">
+                                        <AlertTriangle size={16} className="text-rose-500" />
+                                        Employee Risk Monitor
+                                    </h3>
+                                    <button onClick={() => navigate('/admin')} className="text-[10px] font-semibold text-indigo-500 capitalize tracking-widest hover:underline">View All</button>
+                                </div>
 
-                <span className="text-4xl font-black tabular-nums text-slate-800 leading-none">
-                    {item.value ?? 0}
-                </span>
-            </div>
+                                <div className="flex items-center text-[12px] font-bold text-slate-500 capitalize pb-2 border-b border-slate-100 mb-3 px-1">
+                                    <span className="w-[45%]">Employee</span>
+                                    <span className="w-[15%] text-center">Active</span>
+                                    <span className="w-[15%] text-center">Score</span>
+                                    <span className="w-[25%] text-right pr-2">Status</span>
+                                </div>
+                                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
+                                    {(() => {
+                                        const byEmployee = {};
+                                        todayOrgTasks.forEach(t => {
+                                            const name = t.assigneeName || t.assigned_to_name || 'Unknown';
+                                            if (!byEmployee[name]) {
+                                                byEmployee[name] = { name, overdue: 0, rework: 0, completed: 0, total: 0 };
+                                            }
+                                            const emp = byEmployee[name];
+                                            emp.total += 1;
+                                            if (t.status === 'APPROVED' || t.status === 'COMPLETED') emp.completed += 1;
+                                            if (t.status === 'REWORK') emp.rework += 1;
+                                            if (t.is_overdue || t.overdue) emp.overdue += 1;
+                                        });
 
-            {item.trend && (
-                <span className="text-base font-medium text-slate-400">
-                    vs last month
-                </span>
-            )}
+                                        const employees = Object.values(byEmployee).map(emp => {
+                                            const healthScore = Math.max(0, 100 - (emp.overdue * 15) - (emp.rework * 10));
+                                            return { ...emp, healthScore };
+                                        });
 
-            {item.sub && (
-                <span className="text-base font-medium text-slate-400 leading-none mt-1">
-                    {item.sub}
-                </span>
-            )}
-        </div>
-    ))}
-</div>
+                                        const items = employees
+                                            .sort((a, b) => a.healthScore - b.healthScore)
+                                            .slice(0, 6);
 
-            {/* ── MAIN CONTENT GRID ── */}
-            <div className="grid grid-cols-[1fr_320px] gap-4">
-                {/* ── LEFT COLUMN: Graphical Panels ── */}
-                <div className="flex flex-col gap-4">
-                    <TaskTrendsChart data={trendsData} />
+                                        if (items.length === 0) return (
+                                            <div className="py-8 text-center text-slate-400 opacity-50">
+                                                <Activity size={24} className="mx-auto mb-2" />
+                                                <p className="text-[11px] font-bold">No data available</p>
+                                            </div>
+                                        );
 
-                    {/* Department Performance Table - POLISHED */}
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
-                        <h3 className="text-[17px] font-black text-slate-800 mb-8 flex items-center gap-2">
-                            <Target size={18} className="text-emerald-500" />
-                            Department Performance
-                        </h3>
-                        {deptPerformance.length === 0 ? (
-                            <div className="py-12 text-center">
-                                <p className="text-[13px] font-bold text-slate-300 capitalize tracking-widest">No department data</p>
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left font-sans">
-                                    <thead>
-                                        <tr className="text-[11px] font-black text-slate-400 capitalize tracking-[0.1em] border-b border-slate-100">
-                                            <th className="pb-4 pr-6">Department Name</th>
-                                            <th className="pb-4 px-3 text-center">Total</th>
-                                            <th className="pb-4 px-3 text-center">Overdue</th>
-                                            <th className="pb-4 px-3 text-center">Progress</th>
-                                            <th className="pb-4 px-3 text-center">Completed</th>
-                                            <th className="pb-4 px-3 min-w-[150px]">Success Rate</th>
-                                            <th className="pb-4 pl-4 text-right">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {deptPerformance.map((dept, idx) => {
-                                            const status = dept.status || 'NO_DATA';
-                                            const statusStyles = {
-                                                ON_TRACK: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-                                                AT_RISK: 'bg-amber-50 text-amber-600 border-amber-100',
-                                                OFF_TRACK: 'bg-rose-50 text-rose-600 border-rose-100',
-                                                NO_DATA: 'bg-slate-50 text-slate-500 border-slate-100',
-                                            };
+                                        return items.map((emp, i) => {
+                                            const statusLabel = emp.healthScore >= 90 ? 'On Track' : emp.healthScore >= 70 ? 'Watch' : 'At Risk';
+                                            const statusColor = emp.healthScore >= 90 ? 'bg-emerald-500 text-white' : emp.healthScore >= 70 ? 'bg-amber-500 text-white' : 'bg-rose-500 text-white';
+                                            
                                             return (
-                                                <tr 
-                                                    key={idx} 
-                                                    className="hover:bg-slate-50/80 transition-all cursor-pointer group"
-                                                    onClick={() => handleDeptSelect(dept.department_id || dept.id || dept.name)}
-                                                >
-                                                    <td className="py-5 pr-6">
-                                                        <span className="text-[16px] font-black text-slate-900 capitalize tracking-tight group-hover:text-indigo-600 transition-colors" style={{ fontFamily: 'Aptos, sans-serif' }}>
-                                                            {dept.department_name || dept.name || 'Unknown'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-5 px-3 text-center text-[15px] font-black text-slate-600 tabular-nums">{dept.total_tasks || 0}</td>
-                                                    <td className="py-5 px-3 text-center text-[15px] font-black text-rose-500 tabular-nums">{dept.overdue_tasks || 0}</td>
-                                                    <td className="py-5 px-3 text-center text-[15px] font-black text-indigo-500 tabular-nums">{dept.in_progress_tasks || 0}</td>
-                                                    <td className="py-5 px-3 text-center text-[15px] font-black text-emerald-500 tabular-nums">{dept.approved_tasks || 0}</td>
-                                                    <td className="py-5 px-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                                                                <div className={`h-full rounded-full transition-all duration-1000 ${dept.completion_pct > 50 ? 'bg-emerald-400' : 'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.3)]'}`} style={{ width: `${dept.completion_pct || 0}%` }} />
-                                                            </div>
-                                                            <span className="text-[15px] font-black text-slate-800 tabular-nums min-w-[40px]">
-                                                                {Math.round(dept.completion_pct || 0)}%
-                                                            </span>
+                                                <div key={i} className="flex items-center gap-1 py-1.5 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 rounded-lg transition-all px-1">
+                                                    <div className="flex items-center gap-2 w-[45%] min-w-0 pr-1">
+                                                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0 overflow-hidden border border-slate-200 shadow-sm">
+                                                            <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(emp.name)}&background=f1f5f9&color=64748b&bold=true`} alt="" className="w-full h-full object-cover" />
                                                         </div>
-                                                    </td>
-                                                    <td className="py-5 pl-4 text-right">
-                                                        <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black capitalize tracking-widest border transition-transform group-hover:scale-110 ${statusStyles[status]}`}>
-                                                            {status.replace('_', ' ').toLowerCase()}
+                                                        <div className="min-w-0 grid">
+                                                            <p className="text-[14px] font-bold text-slate-800 truncate leading-tight">{emp.name}</p>
+                                                            <p className="text-[10px] text-slate-400 font-bold capitalize tracking-tighter">Employee</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="w-[15%] text-center text-[11px] font-medium text-slate-700">{emp.total - emp.completed}</div>
+                                                    <div className="w-[15%] text-center text-[11px] font-medium text-slate-800">{emp.healthScore}</div>
+                                                    <div className="w-[25%] text-right pr-1">
+                                                        <span className={`text-[10px] font-semibold px-1.5 py-1 rounded-md capitalize tracking-tighter whitespace-nowrap inline-block text-center w-full ${statusColor}`}>
+                                                            {statusLabel}
                                                         </span>
-                                                    </td>
-                                                </tr>
+                                                    </div>
+                                                </div>
                                             );
-                                        })}
-                                    </tbody>
-                                </table>
+                                        });
+                                    })()}
+                                </div>
+                                <button
+                                    onClick={() => navigate('/admin')}
+                                    className="mt-4 w-full py-2.5 bg-[#4f46e5] hover:bg-[#4338ca] text-white text-[10px] font-bold capitalize tracking-widest rounded-xl transition-all shadow-md active:scale-[0.98]"
+                                >
+                                    View All Employees
+                                </button>
                             </div>
-                        )}
-                    </div>
-                </div>
+                        </div>
 
-                {/* ── RIGHT COLUMN: Risk Monitor + Org Health + Exports ── */}
-                <div className="flex flex-col gap-4">
-                    {/* Top Performer Highlights - MATCHING IMAGE */}
-                    <div className="grid grid-cols-1 gap-4">
-                         {/* Top Performer Employee (matches image) */}
-                        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-8 hover:shadow-md transition-all group overflow-hidden relative">
-                            {/* Title from image */}
-                            <h3 className="text-[15px] font-black text-slate-800 mb-8 tracking-tight">
-                                Department Top Performer
-                            </h3>
+                        {/* ── ROW 3: Dept Performance + Org Health/Export ── */}
+                        <div className="flex flex-col lg:grid lg:grid-cols-[1fr_320px] gap-4">
+                            {/* Department Performance Table Component (Now on Bottom Left) */}
+                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col h-auto">
+                                <div className="px-6 py-5 border-b border-slate-50 flex items-center justify-between">
+                                    <h3 className="text-[15px] font-bold text-slate-800 flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                        Department Performance
+                                    </h3>
+                                </div>
+                                <div className="flex-1 overflow-x-auto custom-scrollbar">
+                                    <table className="w-full text-left font-sans text-[16px]">
+                                        <thead className="sticky top-0 bg-white z-10 border-b border-slate-100">
+                                            <tr className="text-[14px] font-extrabold text-slate-500 capitalize tracking-widest">
+                                                <th className="py-3 px-6">Department</th>
+                                                <th className="py-3 px-3 text-center">Total Tasks</th>
+                                                <th className="py-3 px-3 text-center">Overdue</th>
+                                                <th className="py-3 px-3 text-center">In Progress</th>
+                                                <th className="py-3 px-3 text-center">Completed</th>
+                                                <th className="py-3 px-3">Completion Rate</th>
+                                                <th className="py-3 px-6 text-right">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {deptPerformance.map((dept, idx) => {
+                                                const statusStyles = {
+                                                    ON_TRACK: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+                                                    AT_RISK: 'bg-amber-100 text-amber-600 border-amber-200',
+                                                    OFF_TRACK: 'bg-rose-50 text-rose-600 border-rose-100',
+                                                    NO_DATA: 'bg-slate-50 text-slate-400 border-slate-100',
+                                                };
+                                                return (
+                                                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors group cursor-pointer" onClick={() => handleDeptSelect(dept.department_id || dept.id || dept.name)}>
+                                                        <td className="py-4 px-6 font-medium text-slate-900 tracking-tight text-[17px]">{dept.department_name || dept.name}</td>
+                                                        <td className="py-4 px-3 text-center font-semibold text-slate-700 tabular-nums text-[17px]">{dept.total_tasks || 0}</td>
+                                                        <td className="py-4 px-3 text-center font-semibold text-rose-600 tabular-nums text-[17px]">{dept.overdue_tasks || 0}</td>
+                                                        <td className="py-4 px-3 text-center font-semibold text-indigo-700 tabular-nums text-[17px]">{dept.in_progress_tasks || 0}</td>
+                                                        <td className="py-4 px-3 text-center font-semibold text-emerald-600 tabular-nums text-[17px]">{dept.approved_tasks || 0}</td>
+                                                        <td className="py-4 px-3">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div className={`h-full rounded-full ${dept.completion_pct > 50 ? 'bg-indigo-500' : dept.completion_pct > 25 ? 'bg-amber-400' : 'bg-rose-400'}`} style={{ width: `${dept.completion_pct || 0}%` }} />
+                                                                </div>
+                                                                <span className="text-[17px] font-semibold text-slate-900 tabular-nums min-w-[45px]">{Math.round(dept.completion_pct || 0)}%</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4 px-6 text-right">
+                                                            <span className={`text-[12px] font-semibold px-2 py-1 rounded capitalize tracking-tighter border ${statusStyles[dept.status || 'NO_DATA']}`}>
+                                                                {(dept.status || 'No Data').toLowerCase().replace('_', ' ')}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
 
                             <div className="flex flex-col gap-4">
-                                {/* Avatar + Trend Icon */}
-                                <div className="relative w-28 h-28">
-                                    <div className="w-full h-full rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-4xl font-black text-slate-700 shadow-sm">
-                                        {(globalStats.topEmployee?.name || 'A').charAt(0).toUpperCase()}
+                                <OrganizationHealth metrics={kpis} />
+                                
+                                {/* Top Department Sidebar Card */}
+                                <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm p-5 hover:shadow-md transition-all flex items-center gap-4 group">
+                                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-xl shadow-inner border border-emerald-100 shrink-0">🏆</div>
+                                    <div className="grid flex-1">
+                                        <span className="text-[15px] font-semibold text-emerald-600 capitalize tracking-widest leading-none mb-1">Top Department</span>
+                                        <h4 className="text-[14px] font-medium text-slate-900 leading-tight truncate">
+                                            {topDept?.department_name || topDept?.name || '—'}
+                                        </h4>
+                                        <span className="text-[15px] font-semibold text-emerald-500 mt-1">{Math.round(topDept?.completion_pct || 0)}% Completion</span>
                                     </div>
-                                    {/* Yellow Trend Icon from image */}
-                                    <div className="absolute bottom-1 right-1 w-10 h-10 rounded-full bg-amber-400 border-4 border-white flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform">
-                                        <TrendingUp size={20} strokeWidth={3} />
-                                    </div>
+                                    <TrendingUp size={14} className="text-emerald-400" />
                                 </div>
 
-                                {/* Name and Department from image */}
-                                <div className="space-y-1">
-                                    <h4 className="text-[32px] font-black text-slate-900 leading-none tracking-tighter">
-                                        {globalStats.topEmployee?.name || 'AP Exec 1'}
-                                    </h4>
-                                    <p className="text-[14px] font-bold text-sky-400 capitalize tracking-tight">
-                                        {globalStats.topEmployee?.department || 'Accounts Payables'}
-                                    </p>
+                                {/* Bottom Department Sidebar Card */}
+                                <div className="bg-white rounded-2xl border border-rose-100 shadow-sm p-5 hover:shadow-md transition-all flex items-center gap-4 group">
+                                    <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-xl shadow-inner border border-rose-100 shrink-0">⚠️</div>
+                                    <div className="grid flex-1">
+                                        <span className="text-[15px] font-medium text-rose-600 capitalize tracking-widest leading-none mb-1">Bottom Department</span>
+                                        <h4 className="text-[14px] font-medium text-slate-900 leading-tight truncate">
+                                            {bottomDept?.department_name || bottomDept?.name || '—'}
+                                        </h4>
+                                        <span className="text-[10px] font-bold text-rose-500 mt-1">{Math.round(bottomDept?.completion_pct || 0)}% Completion</span>
+                                    </div>
+                                    <AlertTriangle size={14} className="text-rose-400" />
                                 </div>
 
-                                {/* "TASKS" blue label at bottom as in image */}
-                                <div className="mt-4">
-                                    <span className="text-[12px] font-black text-indigo-500 capitalize tracking-[0.2em]">TASKS</span>
-                                </div>
-                            </div>
-
-                            {/* Decorative background circle */}
-                            <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-indigo-50/30 rounded-full blur-3xl -z-10" />
-                        </div>
-
-                        {/* Department Highlights */}
-                        <div className="space-y-4">
-                            {/* Top Department */}
-                            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 hover:shadow-md transition-all group border-l-8 border-l-emerald-500 relative overflow-hidden">
-                                <div className="flex items-center justify-between mb-4 relative z-10">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-xl shadow-sm border border-emerald-100">🏆</div>
-                                        <span className="text-[11px] font-black text-slate-400 capitalize tracking-[0.2em]">Top Performer</span>
-                                    </div>
-                                    <TrendingUp size={18} className="text-emerald-400 opacity-50" />
-                                </div>
-                                <h4 className="text-[20px] font-black text-slate-900 leading-tight capitalize tracking-tighter relative z-10">
-                                    {topDept?.department_name || topDept?.name || '—'}
-                                </h4>
-                                <div className="flex items-center gap-3 mt-3 relative z-10">
-                                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.4)]" style={{ width: `${topDept?.completion_pct || 0}%` }} />
-                                    </div>
-                                    <span className="text-[17px] font-black text-emerald-500 tabular-nums">
-                                        {Math.round(topDept?.completion_pct || 0)}%
-                                    </span>
-                                </div>
-                                <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-emerald-50/30 rounded-full blur-2xl -z-0" />
-                            </div>
-
-                            {/* Bottom Department */}
-                            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 hover:shadow-md transition-all group border-l-8 border-l-rose-500 relative overflow-hidden">
-                                <div className="flex items-center justify-between mb-4 relative z-10">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-xl shadow-sm border border-rose-100">⚠️</div>
-                                        <span className="text-[11px] font-black text-slate-400 ca[italize] tracking-[0.2em]">Needs Attention</span>
-                                    </div>
-                                    <AlertTriangle size={18} className="text-rose-400 opacity-50" />
-                                </div>
-                                <h4 className="text-[20px] font-black text-slate-900 leading-tight capitalize tracking-tighter relative z-10">
-                                    {bottomDept?.department_name || bottomDept?.name || '—'}
-                                </h4>
-                                <div className="flex items-center gap-3 mt-3 relative z-10">
-                                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-rose-500 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.4)]" style={{ width: `${bottomDept?.completion_pct || 0}%` }} />
-                                    </div>
-                                    <span className="text-[17px] font-black text-rose-500 tabular-nums">
-                                        {Math.round(bottomDept?.completion_pct || 0)}%
-                                    </span>
-                                </div>
-                                <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-rose-50/30 rounded-full blur-2xl -z-0" />
+                                <ExportReportsPanel fromDate={fromDate} toDate={toDate} />
                             </div>
                         </div>
-                    </div>
 
-                    {/* Organization Health Stats in Sidebar */}
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-4">
-                        <div className="flex items-center gap-2 pb-2 border-b border-slate-50">
-                            <Shield size={14} className="text-violet-600" />
-                            <h4 className="text-[11px] font-black text-slate-500 capitalize tracking-widest">Org Health</h4>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="p-3 bg-violet-50 rounded-xl">
-                                <p className="text-[9px] font-bold text-violet-400 capitalize tracking-tighter">On-Time</p>
-                                <p className="text-lg font-black text-violet-700">{kpis.avgOnTime}%</p>
-                            </div>
-                            <div className="p-3 bg-emerald-50 rounded-xl">
-                                <p className="text-[9px] font-bold text-emerald-400 capitalize tracking-tighter">Rework</p>
-                                <p className="text-lg font-black text-emerald-700">{kpis.avgRework}</p>
-                            </div>
-                        </div>
-                    </div>
+                        <EmployeeIssueModal
+                            isOpen={isIssueModalOpen}
+                            onClose={() => setIsIssueModalOpen(false)}
+                            onSave={handleSaveIssue}
+                            employeeName={selectedEmployeeForIssue}
+                        />
 
-                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col min-h-[400px]">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-[15px] font-semibold text-slate-700 flex items-center gap-2">
-                                <AlertTriangle size={16} className="text-rose-500" />
-                                Risk Monitor
-                            </h3>
-                            <button onClick={() => navigate('/admin')} className="text-[10px] font-black text-indigo-500 capitalize tracking-widest hover:underline">View All</button>
-                        </div>
-                        
-                        <div className="flex items-center text-[10px] font-bold text-slate-400 capitalize pb-2 border-b border-slate-100 mb-3 px-1">
-                            <span className="w-[45%]">Employee</span>
-                            <span className="w-[15%] text-center">Active</span>
-                            <span className="w-[15%] text-center">Score</span>
-                            <span className="w-[25%] text-right pr-2">Status</span>
-                        </div>
-                        {(() => {
-                            // Build per-employee risk stats from all tasks to be more comprehensive
-                            const byEmployee = {};
-
-                            // Use all tasks if todayOrgTasks is too limited
-                            const taskPool = todayOrgTasks.length > 5 ? todayOrgTasks : todayOrgTasks;
-                            // Actually, let's use all tasks available in the component scope if possible, 
-                            // but todayOrgTasks seems to be the main state for tasks.
-
-                            todayOrgTasks.forEach(t => {
-                                const name = t.assigneeName || t.assigned_to_name || 'Unknown';
-                                if (!byEmployee[name]) {
-                                    byEmployee[name] = {
-                                        name,
-                                        overdue: 0,
-                                        rework: 0,
-                                        completed: 0,
-                                        total: 0,
-                                    };
-                                }
-                                const emp = byEmployee[name];
-                                emp.total += 1;
-                                if (t.status === 'APPROVED' || t.status === 'COMPLETED') emp.completed += 1;
-                                if (t.status === 'REWORK') emp.rework += 1;
-                                if (t.is_overdue || t.overdue) emp.overdue += 1;
-                            });
-
-                            const employees = Object.values(byEmployee).map(emp => {
-                                // Calculate a Health Score (0-100)
-                                // Penalty-based: Start at 100, subtract for issues.
-                                // Overdue: -15, Rework: -10, Pending: -2 (if total > 0)
-                                let penalty = (emp.overdue * 15) + (emp.rework * 10);
-                                const healthScore = Math.max(0, 100 - penalty);
-
-                                return { ...emp, healthScore };
-                            });
-
-                            const items = employees
-                                .sort((a, b) => a.healthScore - b.healthScore) // Show lowest health first
-                                .slice(0, 8);
-
-                            if (items.length === 0) return (
-                                <div className="py-8 text-center text-slate-400">
-                                    <Activity size={24} className="mx-auto mb-2 opacity-20" />
-                                    <p className="text-[13px] font-semibold capitalize tracking-widest">No employee data</p>
-                                </div>
-                            );
-
-                            return items.map((emp, i) => {
-                                const statusLabel =
-                                    emp.healthScore >= 90
-                                        ? 'On Track'
-                                        : emp.healthScore >= 70
-                                            ? 'Watch'
-                                            : 'At Risk';
-                                const statusColor =
-                                    emp.healthScore >= 90
-                                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                        : emp.healthScore >= 70
-                                            ? 'bg-amber-50 text-amber-600 border border-amber-100'
-                                            : 'bg-rose-50 text-rose-600 border border-rose-100';
-                                return (
-                                    <div key={i} className="flex items-center gap-1 py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 rounded-xl transition-all px-1">
-                                        <div className="flex items-center gap-2.5 w-[45%] min-w-0 pr-1">
-                                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[11px] font-bold text-slate-600 shrink-0 overflow-hidden border border-slate-100">
-                                                <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(emp.name)}&background=f1f5f9&color=64748b&bold=true`} alt="" className="w-full h-full object-cover" />
-                                            </div>
-                                            <div className="min-w-0 grid">
-                                                <p className="text-[12px] font-bold text-slate-800 truncate leading-tight" title={emp.name}>{emp.name}</p>
-                                                <p className="text-[9px] text-slate-400 font-bold capitalize tracking-tight">Employee</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col items-center justify-center w-[15%] shrink-0">
-                                            <span className="text-[12px] font-bold text-slate-700 tabular-nums">{emp.total - emp.completed}</span>
-                                        </div>
-                                        <div className="flex flex-col items-center justify-center w-[15%] shrink-0">
-                                            <span className="text-[12px] font-bold text-slate-800 tabular-nums">{emp.healthScore}</span>
-                                        </div>
-                                        <div className="flex justify-end w-[25%] shrink-0">
-                                            <button
-                                                onClick={() => handleIssueClick(emp.name)}
-                                                className={`text-[9px] font-bold px-2 py-1 rounded-lg ${statusColor} hover:opacity-80 transition-opacity whitespace-nowrap w-full text-center tracking-wide`}
-                                            >
-                                                {statusLabel}
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            });
-                        })()}
-                        <button
-                            onClick={() => navigate('/admin')}
-                            className="mt-4 w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black capitalize tracking-[0.2em] rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-indigo-100"
-                        >
-                            View Active Intelligence
-                        </button>
-                    </div>
-                    <ExportReportsPanel fromDate={fromDate} toDate={toDate} />
-                </div>
-            </div>
-
-            <EmployeeIssueModal
-                isOpen={isIssueModalOpen}
-                onClose={() => setIsIssueModalOpen(false)}
-                onSave={handleSaveIssue}
-                employeeName={selectedEmployeeForIssue}
-            />
-
-                    <DeptReviewModal
-                        isOpen={isDeptReviewModalOpen}
-                        onClose={() => setIsDeptReviewModalOpen(false)}
-                        onSave={handleSaveDeptReview}
-                        departments={deptPerformance}
-                    />
+                        <DeptReviewModal
+                            isOpen={isDeptReviewModalOpen}
+                            onClose={() => setIsDeptReviewModalOpen(false)}
+                            onSave={handleSaveDeptReview}
+                            departments={deptPerformance}
+                        />
                     </div>
                 </>
             )}

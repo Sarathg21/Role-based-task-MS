@@ -52,7 +52,7 @@ const StatusCell = ({ task }) => {
         {isOverdue && (
           <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 shadow-sm animate-pulse-gentle">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
-            <span className="text-[9px] font-black text-rose-600 capitalize tracking-tighter">Overdue</span>
+            <span className="text-[9px] font-semibold text-rose-600 capitalize tracking-tighter">Overdue</span>
           </span>
         )}
       </div>
@@ -78,8 +78,8 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
       <table className="w-full text-left border-collapse text-xs">
         <thead className="bg-slate-50/30 text-slate-400 text-[12px] capitalize font-medium border-b border-slate-100">
           <tr>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Task ID</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task ID</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Task Id</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task Id</th>
             <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task</th>
             <th className="py-3 px-4">Employee</th>
             <th className="py-3 px-4">Role</th>
@@ -261,8 +261,8 @@ const ActionTaskTable = ({
       <table className="w-full text-left border-collapse">
         <thead className="bg-slate-50/30 text-slate-400 text-[12px] capitalize font-medium border-b border-slate-100">
           <tr>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Task ID</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task ID</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Task Id</th>
+            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task Id</th>
             <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task</th>
             <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Task</th>
             <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Assignee</th>
@@ -606,7 +606,7 @@ const TaskPage = () => {
           assigned_by: t.assigned_by_emp_id || t.assigned_by,
           assigneeName: t.assigned_to_name || t.assignee_name || t.employee_name,
           assignerName: t.assigned_by_name || t.assigner_name || t.manager_name,
-          severity: (t.priority || t.severity || '').toUpperCase(),
+          severity: (t.priority || t.severity || '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()),
           department_id: t.department_id,
           department: t.department_name || t.department || '',
           assignee_role: t.assignee_role || t.role,

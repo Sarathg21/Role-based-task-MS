@@ -12,9 +12,11 @@ import {
     Target,
     Layers,
     RefreshCw,
+    TrendingUp,
+    X,
 } from 'lucide-react';
 
-const Sidebar = ({ isCollapsed, toggleSidebar }) => {
+const Sidebar = ({ isCollapsed, toggleSidebar, isMobileOpen, closeMobileSidebar }) => {
     const { user, logout } = useAuth();
     const location = useLocation();
 
@@ -22,69 +24,101 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
 
     const NavItem = ({ to, icon: Icon, label }) => {
         const active = location.pathname === to || (to.includes('?') && location.pathname + location.search === to);
-
         return (
             <Link
                 to={to}
                 title={isCollapsed ? label : ''}
+                onClick={closeMobileSidebar}
                 className={`
-                    cfo-nav-item relative flex items-center gap-3 px-4 py-3 mx-3 rounded-xl
-                    text-[13px] font-medium transition-all duration-200 group
-                    ${isCollapsed ? 'justify-center px-0 mx-2' : ''}
-                    ${active ? 'active text-white shadow-lg shadow-violet-900/25' : 'text-violet-100/70 hover:text-white'}
+                    cfo-nav-item relative flex items-center
+                    transition-all duration-200 group
+                    ${isCollapsed ? 'justify-center px-0 mx-2 py-3' : 'gap-3 px-3.5 py-2.5 mx-2.5'}
+                    ${active
+                        ? 'active text-white'
+                        : 'text-indigo-200/60 hover:text-white hover:bg-white/[0.06]'
+                    }
                 `}
             >
-                {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-white rounded-r-full opacity-80" />}
-                <span className={`flex-shrink-0 transition-all duration-200 ${active ? 'text-white' : 'text-violet-100/70 group-hover:text-white'} ${isCollapsed && active ? 'bg-white/20 p-1.5 rounded-lg' : ''}`}>
-                    <Icon size={20} strokeWidth={active ? 2.2 : 1.8} />
+                {/* Active indicator line */}
+                {active && !isCollapsed && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-indigo-300 rounded-r-full" />
+                )}
+
+                <span className={`flex-shrink-0 transition-all ${active ? 'text-white' : 'text-indigo-200/60 group-hover:text-white'}`}>
+                    <Icon size={18} strokeWidth={active ? 2.3 : 1.9} />
                 </span>
-                {!isCollapsed && <span className="flex-1 tracking-wide">{label}</span>}
+
+                {!isCollapsed && (
+                    <span className="flex-1 text-[13px] font-[580] tracking-[0.005em]">
+                        {label}
+                    </span>
+                )}
             </Link>
         );
     };
 
     const SectionLabel = ({ label }) => (
         !isCollapsed ? (
-            <div className="px-7 pt-6 pb-2 text-[10px] font-bold text-violet-100/50 tracking-wider">{label}</div>
-        ) : <div className="h-6" />
+            <div className="px-5 pt-5 pb-1.5 text-[9.5px] font-[650] capitalize tracking-[0.14em] text-indigo-200/35 select-none">
+                {label}
+            </div>
+        ) : <div className="h-4" />
     );
 
     const userRole = (user.role || '').toUpperCase();
 
     return (
-        <aside className={`sidebar cfo-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-            <div className={`sidebar-header flex items-center ${isCollapsed ? 'justify-center px-0 flex-col gap-4' : 'justify-between'}`}>
-                <div className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'gap-3 ml-2'}`}>
-                    <div className="flex-shrink-0 w-9 h-9 flex items-center justify-center overflow-hidden rounded-xl">
-                        <img src="/images/fj.png.png" alt="FJ Group" className="w-full h-full object-contain" />
-                    </div>
-                    {!isCollapsed && (
-                        <div className="overflow-hidden">
-                            <h1 className="text-[16px] font-extrabold tracking-tight text-white whitespace-nowrap">FJ Group</h1>
-                            <p className="text-[9px] text-violet-100/60 font-semibold uppercase tracking-widest whitespace-nowrap mt-0.5">Platform for Smarter Work</p>
+        <aside className={`sidebar cfo-sidebar flex flex-col ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open' : ''}`}>
+
+            {/* ── Header ── */}
+            <div className={`flex items-center px-3 py-4 flex-shrink-0 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
+                {!isCollapsed && (
+                    <div className="flex items-center justify-center w-full px-2 py-6 overflow-hidden">
+                        <div className="w-24 h-24 shrink-0 rounded-[2.25rem] overflow-hidden flex items-center justify-center bg-white shadow-[0_20px_45px_rgba(79,70,229,0.35)] border-2 border-white/40 p-1.5 transition-transform hover:scale-105 duration-300">
+                            <img src="/images/fj.png.png" alt="FJ" className="w-full h-full object-contain drop-shadow-sm" />
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
+
+                {isCollapsed && (
+                    <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center bg-white/10 border border-white/15">
+                        <img src="/images/fj.png.png" alt="FJ" className="w-full h-full object-contain" />
+                    </div>
+                )}
+
+                {/* Desktop toggle button */}
                 <button
                     onClick={toggleSidebar}
-                    className={`p-2 rounded-lg hover:bg-white/10 text-violet-100/60 hover:text-white transition-all duration-200 hover:scale-110 active:scale-95 ${isCollapsed ? 'mt-2' : 'mr-1'}`}
-                    title={isCollapsed ? 'Expand' : 'Collapse'}
+                    className={`p-1.5 rounded-lg hover:bg-white/10 text-indigo-200/50 hover:text-white transition-all active:scale-95 hidden md:flex ${isCollapsed ? 'mt-2' : 'mr-0.5'}`}
+                    title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 >
-                    {isCollapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
+                    {isCollapsed ? <Menu size={17} /> : <ChevronLeft size={17} />}
+                </button>
+
+                {/* Mobile close button */}
+                <button
+                    onClick={closeMobileSidebar}
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-indigo-200/50 hover:text-white transition-all active:scale-95 flex md:hidden mr-0.5"
+                    title="Close menu"
+                >
+                    <X size={17} />
                 </button>
             </div>
 
-            <div className={`${isCollapsed ? 'mx-3' : 'mx-6'} h-px bg-gradient-to-r from-transparent via-violet-100/20 to-transparent mb-2`} />
+            {/* ── Divider ── */}
+            <div className="mx-3.5 h-px bg-gradient-to-r from-transparent via-indigo-200/15 to-transparent mb-1 flex-shrink-0" />
 
-            <nav className="flex-1 overflow-y-auto overflow-x-hidden space-y-1 py-1">
+            {/* ── Nav ── */}
+            <nav className="flex-1 overflow-y-auto overflow-x-hidden py-1 space-y-0.5">
+
                 {userRole === 'ADMIN' && (
                     <>
                         <SectionLabel label="Administration" />
-                        <NavItem to="/admin" icon={Users} label="Employee Directory" />
-                        <NavItem to="/org-tree" icon={Network} label="Org Hierarchy" />
+                        <NavItem to="/admin"      icon={Users}      label="Employee Directory" />
+                        <NavItem to="/org-tree"   icon={Network}    label="Org Hierarchy" />
                         <SectionLabel label="Strategy" />
-                        <NavItem to="/okr-dashboard" icon={Target} label="OKR Dashboard" />
-                        <NavItem to="/okr-subtask" icon={Layers} label="Sub-task Tracking" />
+                        <NavItem to="/okr-dashboard"  icon={Target}     label="OKR Dashboard" />
+                        <NavItem to="/okr-subtask"    icon={Layers}     label="Sub-task Tracking" />
                         <NavItem to="/recurring-tasks" icon={RefreshCw} label="Recurring Tasks" />
                     </>
                 )}
@@ -92,29 +126,30 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
                 {userRole === 'CFO' && (
                     <>
                         <SectionLabel label="General" />
-                        <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-                        <NavItem to="/tasks/team" icon={Users} label="Team Tasks" />
-                        <NavItem to="/health-matrix" icon={Network} label="Health Matrix" />
-                        <NavItem to="/reports" icon={BarChart3} label="Reports" />
+                        <NavItem to="/dashboard"    icon={LayoutDashboard} label="Dashboard" />
+                        <NavItem to="/performance-dashboard" icon={TrendingUp} label="Performance" />
+                        <NavItem to="/tasks/team"   icon={Users}           label="Team Tasks" />
+                        <NavItem to="/health-matrix" icon={Network}        label="Health Matrix" />
+                        <NavItem to="/reports"      icon={BarChart3}       label="Reports" />
                         <SectionLabel label="Strategic OKRs" />
-                        <NavItem to="/okr-dashboard" icon={Target} label="OKR Dashboard" />
-                        <NavItem to="/okr-subtask" icon={Layers} label="Sub-task Tracking" />
-                        <NavItem to="/recurring-tasks" icon={RefreshCw} label="Automated Tasks" />
+                        <NavItem to="/okr-dashboard"   icon={Target}     label="OKR Dashboard" />
+                        <NavItem to="/okr-subtask"     icon={Layers}     label="Sub-task Tracking" />
+                        <NavItem to="/recurring-tasks"  icon={RefreshCw} label="Automated Tasks" />
                     </>
                 )}
 
                 {(userRole === 'MANAGER' || userRole === 'EMPLOYEE') && (
                     <>
                         <SectionLabel label="Workspace" />
-                        <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-                        <NavItem to="/tasks?mode=personal" icon={CheckSquare} label="My Tasks" />
+                        <NavItem to="/dashboard"          icon={LayoutDashboard} label="Dashboard" />
+                        <NavItem to="/tasks?mode=personal" icon={CheckSquare}    label="My Tasks" />
 
                         {userRole === 'MANAGER' && (
                             <>
                                 <SectionLabel label="Team Management" />
-                                <NavItem to="/tasks/team" icon={Users} label="Team Tasks" />
+                                <NavItem to="/tasks/team" icon={Users}    label="Team Tasks" />
                                 <SectionLabel label="Analytics" />
-                                <NavItem to="/reports" icon={BarChart3} label="Reports & Insights" />
+                                <NavItem to="/reports"    icon={BarChart3} label="Reports & Insights" />
                             </>
                         )}
 
@@ -128,31 +163,44 @@ const Sidebar = ({ isCollapsed, toggleSidebar }) => {
                 )}
             </nav>
 
-            <div className={`m-3 rounded-2xl border border-white/15 bg-white/5 backdrop-blur-sm ${isCollapsed ? 'p-2 flex flex-col items-center gap-3' : 'p-4'}`}>
-                <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 mb-3'}`}>
-                    <div className="flex-shrink-0 rounded-full font-bold text-sm text-white flex items-center justify-center shadow-inner border border-white/10 bg-gradient-to-br from-violet-500 to-indigo-700 w-9 h-9" title={user.name}>
-                        {(user.name || 'U').charAt(0).toUpperCase()}
-                    </div>
-
-                    {!isCollapsed && (
-                        <div className="overflow-hidden flex-1">
-                            <p className="text-sm font-semibold truncate text-white leading-tight">{user.name}</p>
-                            <div className="flex items-center gap-1 mt-0.5">
-                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                <p className="text-[10px] text-violet-100/70 truncate">{user.role} | {user.department || 'All Depts'}</p>
+            {/* ── User Panel ── */}
+            <div className={`flex-shrink-0 m-2.5 rounded-2xl border border-white/10 bg-white/[0.05] backdrop-blur-sm ${isCollapsed ? 'p-2' : 'p-3.5'}`}>
+                {!isCollapsed ? (
+                    <>
+                        <div className="flex items-center gap-2.5 mb-3">
+                            <div className="w-8 h-8 rounded-full shrink-0 bg-gradient-to-br from-indigo-400 to-violet-600 border border-white/20 flex items-center justify-center text-white text-xs font-[800]">
+                                {(user.name || 'U').charAt(0).toUpperCase()}
+                            </div>
+                            <div className="overflow-hidden flex-1">
+                                <p className="text-[12.5px] font-[700] text-white truncate leading-tight">{user.name}</p>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-teal-400 flex-shrink-0" />
+                                    <p className="text-[10px] text-indigo-200/60 truncate">{user.role} · {user.department || 'All Depts'}</p>
+                                </div>
                             </div>
                         </div>
-                    )}
-                </div>
-
-                <button
-                    onClick={logout}
-                    title="Sign Out"
-                    className="flex items-center justify-center gap-2.5 w-full rounded-xl text-xs font-semibold py-3 px-3 text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all duration-300 active:scale-95 mt-4"
-                >
-                    <LogOut size={16} />
-                    {!isCollapsed && <span>Log Out</span>}
-                </button>
+                        <button
+                            onClick={logout}
+                            className="flex items-center justify-center gap-2 w-full rounded-xl text-[11.5px] font-[650] py-2 px-3 text-indigo-200/80 hover:text-white bg-transparent hover:bg-white/10 border border-white/10 transition-all duration-200 active:scale-95"
+                        >
+                            <LogOut size={14} />
+                            <span>Log Out</span>
+                        </button>
+                    </>
+                ) : (
+                    <div className="flex flex-col items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-violet-600 border border-white/20 flex items-center justify-center text-white text-xs font-[800]" title={user.name}>
+                            {(user.name || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <button
+                            onClick={logout}
+                            title="Sign Out"
+                            className="p-1.5 rounded-lg text-indigo-200/60 hover:text-white hover:bg-white/10 transition-all active:scale-95"
+                        >
+                            <LogOut size={15} />
+                        </button>
+                    </div>
+                )}
             </div>
         </aside>
     );

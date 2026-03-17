@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { calculateManagerScore } from '../../utils/performanceEngine';
 import Badge from '../UI/Badge';
+import CustomSelect from '../UI/CustomSelect';
 import ReworkCommentModal from '../Modals/ReworkCommentModal';
 import {
     BarChart2, CheckSquare, AlertTriangle, Clock, ArrowRight,
@@ -112,18 +113,43 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
 
+    // Determine current user state
+    const isActuallyCFO = user?.role?.toUpperCase() === 'CFO';
+    const [cfoSelectedDeptId, setCfoSelectedDeptId] = useState(overriddenDept?.id || null);
+    const [departments, setDepartments] = useState([]);
+
     // Determine current department for context
-    const currentDeptName = overriddenDept?.name || user?.department_name || user?.department || 'Department';
-    const currentDeptId = overriddenDept?.id || user?.department_id || user?.dept_id;
+    const currentDeptId = overriddenDept?.id || cfoSelectedDeptId || user?.department_id || user?.dept_id;
+    const currentDeptName = overriddenDept?.name || departments.find(d => (d.department_id || d.id) === currentDeptId)?.name || user?.department_name || user?.department || 'Department';
+
+    const getFirstDayOfMonth = () => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    };
+
+    const getToday = () => {
+        return new Date().toISOString().slice(0, 10);
+    };
 
     /* ── Date range filter state ─── */
-    const [fromDate, setFromDate] = useState(localStorage.getItem('dashboard_from_date') || '');
-    const [toDate, setToDate] = useState(localStorage.getItem('dashboard_to_date') || '');
+    const [fromDate, setFromDate] = useState(getFirstDayOfMonth());
+    const [toDate, setToDate] = useState(getToday());
+
+    useEffect(() => {
+        const handleFilterChange = () => {
+            setFromDate(localStorage.getItem('dashboard_from_date') || getFirstDayOfMonth());
+            setToDate(localStorage.getItem('dashboard_to_date') || getToday());
+        };
+        window.addEventListener('dashboard-filter-change', handleFilterChange);
+        return () => window.removeEventListener('dashboard-filter-change', handleFilterChange);
+    }, []);
 
     const [dashboardData, setDashboardData] = useState(null);
     const [todayTeamTasks, setTodayTeamTasks] = useState([]);
     const [activities, setActivities] = useState([]);
     const [reportTeam, setReportTeam] = useState([]);
+    const [trends, setTrends] = useState([]);
+    const [employeeRisk, setEmployeeRisk] = useState([]);
     const [loading, setLoading] = useState(true);
     const [taskFilter, setTaskFilter] = useState("Today's Tasks");
     const [currentPage, setCurrentPage] = useState(1);
@@ -158,137 +184,93 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
         // Apply department override if provided
         if (currentDeptId && currentDeptId !== 'all') {
             params.department_id = currentDeptId;
-            params.departmentId = currentDeptId;
         }
 
-        // CFO can view manager dashboard for any department.
-        // If overriddenDept is provided, we are in CFO-drill-down mode.
-        const isCFO = (user?.role?.toUpperCase() === 'CFO') || !!overriddenDept;
-
         try {
-            // If it's a CFO viewing, skip the manager-specific dashboard endpoints 
-            // to avoid 403 Access Denied redirects from the global API interceptor.
-            // The fallback logic below will handle fetching via the more permissive /tasks endpoint.
             let fetchedTasks = [];
             let dashPayload = {};
-            if (!isCFO) {
-                console.log("ManagerDashboard - Fetching manager stats...");
-                const dataRes = await api.get('/dashboard/manager', { params }).catch(e => { console.warn("Manager stats fail:", e); return { data: {} }; });
-                const todayRes = await api.get('/dashboard/manager/today', { params }).catch(e => { console.warn("Team today fail:", e); return { data: [] }; });
 
-                dashPayload = dataRes?.data?.data || dataRes?.data || {};
-                setDashboardData(dashPayload || {});
-                const todayPayload = todayRes?.data?.data || todayRes?.data || [];
-                const todayTasks = Array.isArray(todayPayload) ? todayPayload : [];
+            console.log("ManagerDashboard - Fetching stats for dept:", currentDeptId);
+            
+            // Fetch all metrics using standard endpoints
+            const results = await Promise.allSettled([
+                api.get('/dashboard/manager', { params }),
+                api.get('/dashboard/manager/today', { params }),
+                api.get('/manager/reports', { params }),
+                api.get('/dashboard/manager/trends', { params }),
+                api.get('/dashboard/manager/employee-risk', { params }),
+                api.get('/dashboard/manager/team-performance', { params }),
+                api.get('/dashboard/manager/department-metrics', { params }),
+                api.get('/notifications')
+            ]);
 
-                // Pass 1: Build lookup map for ID -> Title
-                const taskMap = {};
-                todayTasks.forEach(t => {
-                    const id = t.task_id || t.id;
-                    const title = t.task_title || t.title || t.task_name || t.name || t.directive_title || t.directive_name;
-                    if (id && title) taskMap[id] = title;
-                });
+            const [
+                managerDash, 
+                todayTasksRes, 
+                reportsRes, 
+                trendsRes, 
+                riskRes, 
+                teamPerfRes,
+                metricsRes,
+                notifyRes
+            ] = results;
 
-                // Pass 1.5: Fetch each child task's detail to get parent_task_title.
-                // The backend now returns parent_task_title on GET /tasks/{task_id}.
-                const tasksNeedingParentFetch1 = [];
-                const seenParentIds1 = new Set();
-                todayTasks.forEach(t => {
-                    const childId = t.task_id || t.id;
-                    const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
-                    const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name ||
-                                  (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '');
-                    if (pid && !ptitle && !taskMap[pid] && childId && !seenParentIds1.has(pid)) {
-                        seenParentIds1.add(pid);
-                        tasksNeedingParentFetch1.push({ childId, pid });
-                    }
-                });
+            if (managerDash.status === 'fulfilled') {
+                dashPayload = managerDash.value.data?.data || managerDash.value.data || {};
+                setDashboardData(dashPayload);
+            }
 
-                if (tasksNeedingParentFetch1.length > 0) {
-                    console.log(`ManagerDashboard (Primary) - Fetching ${tasksNeedingParentFetch1.length} task details for parent titles...`);
-                    await Promise.allSettled(
-                        tasksNeedingParentFetch1.map(async ({ childId, pid }) => {
-                            try {
-                                const res = await api.get(`/tasks/${childId}`);
-                                const detail = res.data?.data || res.data;
-                                if (detail && !Array.isArray(detail)) {
-                                    const parentTitle = detail.parent_task_title || detail.parentTaskTitle;
-                                    if (parentTitle) taskMap[pid] = parentTitle;
-                                }
-                            } catch (err) {
-                                console.warn(`Failed to fetch task detail ${childId}:`, err);
-                            }
-                        })
-                    );
-                }
-
-                // Pass 2: Normalize
-                fetchedTasks = todayTasks.map(t => {
-                    const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
-                    const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name || 
-                                  (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '') ||
-                                  taskMap[pid] || '';
-                    return {
-                        ...t,
-                        id: t.task_id || t.id,
-                        employee_id: t.assigned_to_emp_id,
-                        assigned_by: t.assigned_by_emp_id,
-                        assigneeName: t.assigned_to_name,
-                        assignerName: t.assigned_by_name,
-                        severity: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
-                        department: t.department_name || t.department_id,
-                        parent_task_id: pid,
-                        parent_task_title: ptitle,
-                    };
-                });
+            if (todayTasksRes.status === 'fulfilled') {
+                const todayPayload = todayTasksRes.value.data?.data || todayTasksRes.value.data || [];
+                const tasks = Array.isArray(todayPayload) ? todayPayload : [];
+                
+                // Normalization logic
+                fetchedTasks = tasks.map(t => ({
+                    ...t,
+                    id: t.task_id || t.id,
+                    employee_id: t.assigned_to_emp_id,
+                    assigneeName: t.assigned_to_name,
+                    severity: (t.priority || t.severity || 'MEDIUM').toUpperCase(),
+                    department: t.department_name || t.department_id,
+                }));
                 setTodayTeamTasks(fetchedTasks);
-                console.log("ManagerDashboard - Manager stats fetched.");
-            } else {
-                console.log("ManagerDashboard - CFO override detected, skipping manager endpoints.");
             }
 
-            try {
-                if (!isCFO) {
-                    console.log("ManagerDashboard - Fetching manager reports...");
-                    const reportRes = await api.get('/manager/reports', { params });
-                    const reportPayload = reportRes?.data?.data || reportRes?.data || {};
-                    const stats = reportPayload?.manager_stats || (Array.isArray(reportPayload) ? reportPayload : []);
-                    setReportTeam(Array.isArray(stats) ? stats : []);
-                }
-            } catch (reportErr) {
-                console.warn("Manager reports not available:", reportErr);
-                setReportTeam([]);
+            if (reportsRes.status === 'fulfilled') {
+                const reportPayload = reportsRes.value.data?.data || reportsRes.value.data || {};
+                const stats = reportPayload?.manager_stats || (Array.isArray(reportPayload) ? reportPayload : []);
+                setReportTeam(Array.isArray(stats) ? stats : []);
             }
 
-            try {
-                if (!isCFO) {
-                    // Fetch real organizational/departmental activities (use standard /notifications)
-                    const notifyRes = await api.get('/notifications');
-                    const notifyRaw = notifyRes.data;
-                    let notifyData = [];
-                    if (Array.isArray(notifyRaw)) {
-                        notifyData = notifyRaw;
-                    } else if (notifyRaw && typeof notifyRaw === 'object') {
-                        notifyData = notifyRaw.notifications ?? notifyRaw.data ?? notifyRaw.items ?? notifyRaw.results ?? notifyRaw.records ?? [];
-                        if (!Array.isArray(notifyData)) notifyData = [];
-                    }
-                    setActivities(notifyData);
-                } else {
-                    // For CFO, derive activities from tasks later in the fallback if needed,
-                    // or just leave empty for now as it will be populated by the fallback tasks.
-                    setActivities([]);
-                }
-            } catch (notifyErr) {
-                console.warn("Notifications fetch fail:", notifyErr);
+            if (trendsRes.status === 'fulfilled') {
+                setTrends(trendsRes.value.data?.data || trendsRes.value.data || []);
+            }
+
+            if (riskRes.status === 'fulfilled') {
+                setEmployeeRisk(riskRes.value.data?.data || riskRes.value.data || []);
+            }
+
+            if (teamPerfRes.status === 'fulfilled') {
+                const perfData = teamPerfRes.value.data?.data || teamPerfRes.value.data || [];
+                if (perfData.length > 0) setReportTeam(perfData);
+            }
+
+            if (metricsRes.status === 'fulfilled') {
+                const mData = metricsRes.value.data?.data || metricsRes.value.data || {};
+                setDashboardData(prev => ({ ...prev, ...mData }));
+            }
+
+            if (notifyRes.status === 'fulfilled') {
+                const notifyRaw = notifyRes.value.data;
+                const items = Array.isArray(notifyRaw) ? notifyRaw : (notifyRaw.notifications || notifyRaw.data || []);
+                setActivities(Array.isArray(items) ? items : []);
             }
 
             const totalFromDashboard = dashPayload?.total_tasks ?? dashPayload?.total ?? 0;
             const hasDashboardStats = totalFromDashboard > 0;
             const hasToday = fetchedTasks.length > 0;
 
-            console.log("ManagerDashboard - Stats check:", { hasDashboardStats, hasToday, isCFO });
-
-            if ((!hasDashboardStats && !hasToday) || isCFO) {
+            if (!hasDashboardStats && !hasToday) {
                 console.log("ManagerDashboard - Falling back to task aggregation...");
                 const rawTasks = await fetchManagerTasksFallback(params);
                 if (rawTasks.length > 0) {
@@ -461,13 +443,17 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
     }, [user?.id, fromDate, toDate, currentDeptId]);
 
     useEffect(() => {
-        const handleFilterChange = () => {
-            setFromDate(localStorage.getItem('dashboard_from_date') || '');
-            setToDate(localStorage.getItem('dashboard_to_date') || '');
-        };
-        window.addEventListener('dashboard-filter-change', handleFilterChange);
-        return () => window.removeEventListener('dashboard-filter-change', handleFilterChange);
-    }, []);
+        if (isActuallyCFO && !overriddenDept) {
+            api.get('/departments').then(res => {
+                const depts = res.data?.data || res.data || [];
+                setDepartments(depts);
+                if (depts.length > 0 && !cfoSelectedDeptId) {
+                    setCfoSelectedDeptId(depts[0].department_id || depts[0].id);
+                }
+            }).catch(e => console.warn("Failed to fetch departments:", e));
+        }
+    }, [isActuallyCFO, overriddenDept]);
+
 
     const filteredTasks = useMemo(() => {
         let list = todayTeamTasks;
@@ -535,12 +521,25 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
     }));
 
     return (
-        <div className="space-y-6 animate-fade-in pb-8 mt-4">
+        <div className="space-y-4 pb-8">
+            {/* CFO Department Switcher */}
+            {isActuallyCFO && !overriddenDept && departments.length > 0 && (
+                <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm animate-fade-in mb-2">
+                    <span className="text-[10px] font-semibold text-slate-400 capitalize tracking-widest pl-2">Select Department:</span>
+                    <CustomSelect
+                        options={departments.map(d => ({ label: d.name, value: d.department_id || d.id }))}
+                        value={currentDeptId}
+                        onChange={(val) => setCfoSelectedDeptId(val)}
+                        className="w-64"
+                    />
+                </div>
+            )}
+
             {/* Top Metrics Row */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
                     <div>
-                        <span className="text-5xl font-bold tracking-tight">{stats.totalActive || 0}</span>
+                        <span className="text-5xl font-semibold tracking-tight">{stats.totalActive || 0}</span>
                         <p className="text-[15px] font-medium mt-1 text-white/90">{currentDeptName} Directives</p>
                     </div>
                     <div className="absolute right-4 bottom-4 opacity-20">
@@ -551,7 +550,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                 <div className="bg-[#9B51E0] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28 border border-[#a259e8]">
                     <div className="flex items-start justify-between">
                         <div>
-                            <span className="text-5xl font-bold tracking-tight">{stats.pendingSubmission || 0}</span>
+                            <span className="text-5xl font-semibold tracking-tight">{stats.pendingSubmission || 0}</span>
                             <p className="text-[15px] font-medium mt-1 text-white/90">Pending Actions</p>
                         </div>
                         <div className="opacity-40 mt-2">
@@ -566,7 +565,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                 <div className="bg-[#34D399] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
                     <div className="flex items-start justify-between">
                         <div>
-                            <span className="text-5xl font-bold tracking-tight">{stats.completionRate || 0}%</span>
+                            <span className="text-5xl font-semibold tracking-tight">{stats.completionRate || 0}%</span>
                             <p className="text-[15px] font-medium mt-1 text-white/90">Resolution Rate</p>
                         </div>
                         <div className="opacity-40 mt-2">
@@ -576,13 +575,48 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                 </div>
             </div>
 
+            {/* Row 2: Trends Chart */}
+            {trends.length > 0 && (
+                <div className="bg-white rounded-[1.5rem] border border-slate-100 shadow-sm p-6 h-[380px] flex flex-col">
+                    <h3 className="text-[16px] font-bold text-slate-800 mb-6 flex items-center gap-2">
+                        <BarChart2 size={18} className="text-indigo-500" />
+                        Execution Trends
+                    </h3>
+                    <div className="flex-1 min-h-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={trends}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis 
+                                    dataKey="name" 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fontSize: 11, fill: '#94a3b8' }} 
+                                />
+                                <YAxis 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{ fontSize: 11, fill: '#94a3b8' }} 
+                                />
+                                <Tooltip 
+                                    contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} 
+                                    cursor={{ fill: '#f8fafc' }}
+                                />
+                                <Bar dataKey="completed" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} name="Completed" />
+                                <Bar dataKey="assigned" fill="#4285F4" radius={[4, 4, 0, 0]} barSize={20} name="Assigned" />
+                                <Bar dataKey="overdue" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={20} name="Overdue" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
             {/* Main Content Split */}
             <div className="flex flex-col xl:flex-row gap-6 items-start">
                 {/* Left Side - Task Table (grows to fill) */}
                 <div className="flex-1 min-w-0 bg-white rounded-[1.5rem] p-0 shadow-sm border border-slate-100 flex flex-col min-h-[500px]">
-                    <div className="flex items-center gap-6 pt-6 px-6 border-b border-slate-100 pb-0">
-                        <h2 className="text-[17px] font-bold text-slate-800 pb-4">Team Task Overview</h2>
-                        <div className="flex gap-5 ml-2">
+                    <div className="flex items-center gap-0 pt-4 px-4 sm:px-6 border-b border-slate-100 pb-0 overflow-x-auto">
+                        <h2 className="text-[15px] sm:text-[17px] font-bold text-slate-800 pb-4 shrink-0 mr-4">Team Task Overview</h2>
+                        <div className="flex gap-3 sm:gap-5 ml-0 overflow-x-auto pb-0 shrink-0">
                             {["All", "Today's Tasks", "In Progress", "Submitted"].map(tab => (
                                 <button
                                     key={tab}
@@ -602,8 +636,8 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                                     <th className="py-3 px-6 font-medium whitespace-nowrap">Directives</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap">Parent Task ID</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap">Parent Task</th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Assignee <ChevronDown size={14} className="inline ml-1" /></th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Priority <ChevronDown size={14} className="inline ml-1" /></th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Assignee</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Priority</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap text-center">Status</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap text-right">Actions</th>
                                 </tr>
@@ -727,7 +761,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                     </div>
 
                     {/* Recent Activity */}
-                    <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100">
+                    <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100 flex-1">
                         <div className="flex justify-between items-center mb-5">
                             <h3 className="text-[15px] font-bold text-slate-800 tracking-tight">Recent Activity</h3>
                             <button className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -735,7 +769,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                             </button>
                         </div>
 
-                        <div className="space-y-3 max-h-[480px] overflow-y-auto custom-scrollbar pr-1">
+                        <div className="space-y-3 max-h-[380px] overflow-y-auto custom-scrollbar pr-1">
                             {activities.length === 0 ? (
                                 <div className="py-12 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-100">
                                     <Activity className="w-8 h-8 text-slate-200 mx-auto mb-2 opacity-50" />
@@ -756,17 +790,17 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
 
                                     return (
                                         <div key={n.id || idx} className="flex gap-3 items-start border border-slate-100 p-3.5 rounded-2xl bg-white shadow-sm hover:shadow-md transition-all group cursor-pointer">
-                                            <div className={`w-9 h-9 border shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-black text-xs ${getStyle()}`}>
+                                            <div className={`w-9 h-9 border shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-semibold text-xs ${getStyle()}`}>
                                                 {actorName.charAt(0).toUpperCase()}
                                             </div>
                                             <div className="flex-1 pt-0.5 min-w-0">
                                                 <div className="flex items-center justify-between mb-0.5">
-                                                    <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight">{actorName}</span>
-                                                    <span className="text-[9px] font-bold text-slate-400">{formatTimeAgo(n.created_at)}</span>
+                                                    <span className="text-[11px] font-semibold text-slate-800 uppercase tracking-tight">{actorName}</span>
+                                                    <span className="text-[9px] font-medium text-slate-400">{formatTimeAgo(n.created_at)}</span>
                                                 </div>
                                                 <p className="text-[13px] text-slate-500 leading-tight">
                                                     {(() => {
-                                                        const title = <span className="font-bold text-violet-600">"{taskTitle}"</span>;
+                                                        const title = <span className="font-semibold text-violet-600">"{taskTitle}"</span>;
                                                         switch (type) {
                                                             case 'TASK_SUBMITTED': return <>submitted {title} for review</>;
                                                             case 'TASK_APPROVED': return <>finalized and approved {title}</>;
@@ -785,6 +819,33 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                             )}
                         </div>
                     </div>
+
+                    {/* Employee Risk Monitor */}
+                    {employeeRisk.length > 0 && (
+                        <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100">
+                            <h3 className="text-[15px] font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <AlertTriangle size={16} className="text-rose-500" />
+                                Performance Risk Tracker
+                            </h3>
+                            <div className="space-y-2">
+                                {employeeRisk.slice(0, 4).map((risk, i) => (
+                                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-rose-50/30 border border-rose-100/50 hover:bg-rose-50 transition-all">
+                                        <div className="min-w-0">
+                                            <p className="text-[13px] font-bold text-slate-800 truncate">{risk.name || risk.employee_name}</p>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                                                <span className="text-[10px] text-rose-500 font-bold uppercase tracking-widest">{risk.risk_level || 'At Risk'}</span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <p className="text-[14px] font-semibold text-rose-600 leading-none">{risk.overdue_count || risk.overdue || 0}</p>
+                                            <p className="text-[9px] text-slate-400 font-medium uppercase mt-1">Overdue</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

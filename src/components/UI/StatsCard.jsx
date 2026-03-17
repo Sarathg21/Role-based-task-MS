@@ -106,7 +106,7 @@ const StatsCard = ({
         {/* Content */}
         <div className="min-w-0 flex-1 flex flex-col pt-1">
           <p
-            className={`font-bold text-slate-400 truncate mb-1 ${
+            className={`font-medium text-slate-400 truncate mb-1 ${
               isSmall ? "text-[8px]" : "text-[9px]"
             }`}
           >
@@ -115,7 +115,7 @@ const StatsCard = ({
 
           <div className="flex items-baseline gap-2">
             <h3
-              className={`font-black text-slate-800 tabular-nums tracking-tight leading-none transition-colors ${c.textHover} ${
+              className={`font-semibold text-slate-800 tabular-nums tracking-tight leading-none transition-colors ${c.textHover} ${
                 isSmall ? "text-2xl" : "text-3xl"
               }`}
             >
@@ -124,7 +124,7 @@ const StatsCard = ({
 
             {(trendValue !== undefined || trend !== undefined) && (
               <span
-                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black border ${getTrendColor()}`}
+                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border ${getTrendColor()}`}
               >
                 {trend === "up" ||
                 (typeof trend === "number" && trend > 0) ? (

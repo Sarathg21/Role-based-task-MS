@@ -563,8 +563,8 @@ const EmployeeDashboard = () => {
                                     <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Directives</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Parent Task ID</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Parent Task</th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Assigned Date <ChevronDown size={14} className="inline ml-1" /></th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Priority <ChevronDown size={14} className="inline ml-1" /></th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Assigned Date</th>
+                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Priority</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap text-center text-slate-400">Status</th>
                                     <th className="py-3 px-6 font-medium whitespace-nowrap text-right text-slate-400">Actions</th>
                                 </tr>

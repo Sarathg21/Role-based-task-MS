@@ -37,29 +37,29 @@ const SubtaskRow = ({ task, renderStatusBadge, renderSeverityTag, isLast, taskTi
                 <div className="absolute left-14 top-0 bottom-0 w-[2px] bg-slate-100"></div>
                 <div className={`absolute left-14 ${isLast ? 'h-5' : 'h-full'} w-[10px] border-l-2 border-b-2 border-slate-100 rounded-bl-lg`}></div>
                 <div className="flex items-center gap-2 ml-6 relative z-10">
-                    <span className="text-[14px] font-bold text-slate-400">↳</span>
-                    <span className="text-[9px] font-bold text-slate-400 capitalize tracking-tighter">#Sub-{taskId}</span>
+                    <span className="text-[14px] font-medium text-slate-400">↳</span>
+                    <span className="text-[9px] font-medium text-slate-400 capitalize tracking-tighter">#Sub-{taskId}</span>
                 </div>
             </td>
             <td className="p-3 text-left">
                 <div className="flex flex-col">
-                    <span className="text-[13px] font-bold text-slate-600 tracking-tight">{title}</span>
+                    <span className="text-[13px] font-semibold text-slate-600 tracking-tight">{title}</span>
                     {parentTitle && (
                         <span className="text-[9px] text-slate-400 truncate max-w-[200px]">Parent: {parentTitle}</span>
                     )}
                 </div>
             </td>
             <td className="p-3 text-left">
-                <span className="text-slate-400 text-[10px] font-bold capitalize px-2 py-0.5 bg-slate-50 rounded border border-slate-100">{String(task?.department_name || 'N/A').toLowerCase()}</span>
+                <span className="text-slate-400 text-[10px] font-medium capitalize px-2 py-0.5 bg-slate-50 rounded border border-slate-100">{String(task?.department_name || 'N/A').toLowerCase()}</span>
             </td>
             <td className="p-3 text-left">
-                <span className="text-slate-400 text-[10px] font-bold italic">-</span>
+                <span className="text-slate-400 text-[10px] font-medium italic">-</span>
             </td>
             <td className="p-3 text-left">
-                <span className="text-[11px] font-bold text-slate-500">{assignedTo}</span>
+                <span className="text-[11px] font-semibold text-slate-500">{assignedTo}</span>
             </td>
             <td className="p-3 text-left">
-                <span className="text-[10px] font-black text-slate-400 capitalize tracking-widest">{dueDate}</span>
+                <span className="text-[10px] font-semibold text-slate-400 capitalize tracking-widest">{dueDate}</span>
             </td>
             <td className="p-3 text-center">
                 {renderStatusBadge?.(status)}
@@ -129,13 +129,13 @@ const TaskRow = ({
                         ) : (
                             <div className="w-5 h-5" />
                         )}
-                        <span className="text-[10px] font-black text-violet-600 tracking-tighter">#{taskId}</span>
+                        <span className="text-[10px] font-semibold text-violet-600 tracking-tighter">#{taskId}</span>
                     </div>
                 </td>
                 <td className="p-5 text-left">
                     <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2 text-left">
-                            <h4 className="font-bold text-slate-800 text-[13px] tracking-tight truncate max-w-[220px]">
+                            <h4 className="font-semibold text-slate-800 text-[13px] tracking-tight truncate max-w-[220px]">
                                 {title}
                             </h4>
                             {task?.has_attachments && <Paperclip size={12} className="text-slate-300" />}
@@ -148,14 +148,14 @@ const TaskRow = ({
                     </div>
                 </td>
                 <td className="p-5 text-left">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase px-2 py-0.5 bg-slate-50 rounded border border-slate-100">{dept}</span>
+                    <span className="text-[10px] font-medium text-slate-400 capitalize px-2 py-0.5 bg-slate-50 rounded border border-slate-100">{dept}</span>
                 </td>
                 <td className="p-5 text-left">
                     <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-violet-50 border border-violet-100 flex items-center justify-center text-[10px] font-black text-violet-600 shrink-0">
+                        <div className="w-6 h-6 rounded-full bg-violet-50 border border-violet-100 flex items-center justify-center text-[10px] font-semibold text-violet-600 shrink-0">
                             {assignedBy?.charAt(0) || 'S'}
                         </div>
-                        <span className="text-[11px] font-bold text-slate-500 truncate max-w-[100px]">{assignedBy}</span>
+                        <span className="text-[11px] font-semibold text-slate-500 truncate max-w-[100px]">{assignedBy}</span>
                     </div>
                 </td>
                 <td className="p-5 text-left">
@@ -418,18 +418,18 @@ const TeamTasksPage = () => {
         <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700 text-left">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-violet-600 tracking-tighter mb-1">
+                    <div className="flex items-center gap-2 text-[10px] font-medium text-violet-600 tracking-tighter mb-1">
                         <span>Tascade</span><ChevronRight size={10} className="text-slate-300" strokeWidth={3} />
                         <span className="text-slate-400">CFO</span><ChevronRight size={10} className="text-slate-300" strokeWidth={3} />
-                        <span className="text-slate-400 font-bold">Team Tasks</span>
+                        <span className="text-slate-400 font-semibold">Team Tasks</span>
                     </div>
                     <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
                         Team Performance Tracker
                         <div className="flex items-center gap-1.5 px-3 py-1 bg-violet-50 rounded-full border border-violet-100">
-                            <Users size={14} className="text-violet-600" /><span className="text-[11px] font-bold text-violet-600">{pagination.total} Tasks</span>
+                            <Users size={14} className="text-violet-600" /><span className="text-[11px] font-semibold text-violet-600">{pagination.total} Tasks</span>
                         </div>
                     </h1>
-                    <p className="text-[10px] font-bold text-slate-400 leading-none">Monitor work execution & business performance</p>
+                    <p className="text-[10px] font-medium text-slate-400 leading-none capitalize">Monitor work execution & business performance</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button onClick={() => navigate('/tasks/assign')} className="flex items-center gap-2 px-6 py-3 bg-violet-600 text-white rounded-2xl font-bold text-[12px] hover:bg-violet-700 shadow-lg shadow-violet-200"><Plus size={16} strokeWidth={3} />Assign Task</button>
@@ -447,10 +447,10 @@ const TeamTasksPage = () => {
             <div className="bg-white p-4 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
                     <div className="lg:col-span-3 relative group">
-                        <label className="text-[10px] font-bold text-slate-400 ml-1 mb-1.5 block">Search</label>
+                        <label className="text-[10px] font-medium text-slate-400 ml-1 mb-1.5 block">Search</label>
                         <div className="relative">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-violet-500" size={16} />
-                            <input type="text" placeholder="Search tasks..." className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-[12px] font-bold focus:ring-2 focus:ring-violet-500/10 placeholder:text-slate-400" value={filters.search} onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))} />
+                            <input type="text" placeholder="Search tasks..." className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-[12px] font-bold focus:ring-2 focus:ring-violet-500/10 placeholder:text-slate-400 capitalize" value={filters.search} onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))} />
                         </div>
                     </div>
                     <div className="lg:col-span-5 grid grid-cols-3 gap-3">
@@ -477,7 +477,7 @@ const TeamTasksPage = () => {
 
             <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden min-h-[400px]">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                    <table className="w-full text-left capitalize">
                         <thead>
                             <tr className="text-[10px] font-bold text-slate-400 capitalize tracking-tight border-b border-slate-100 bg-slate-50/50">
                                 <th className="p-5 pl-8">Task ID</th><th className="p-5">Task</th><th className="p-5">Department</th><th className="p-5">Assigned By</th><th className="p-5">Assigned To</th><th className="p-5">Due Date</th><th className="p-5 text-center">Status</th><th className="p-5">Severity</th><th className="p-5 text-right pr-8">Actions</th>

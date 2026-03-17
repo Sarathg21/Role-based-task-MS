@@ -54,13 +54,13 @@ const LoginPage = () => {
     ];
 
     return (
-        <div className="min-h-screen h-screen flex relative overflow-hidden font-['Aptos','Inter',sans-serif] bg-gradient-to-br from-[#4c00d4] via-[#6d28d9] to-[#a855f7] select-none">
+        <div className="min-h-screen flex relative overflow-auto bg-gradient-to-br from-[#4c00d4] via-[#6d28d9] to-[#a855f7] select-none">
             {/* Background Effects */}
             <div className="absolute inset-0 z-[1] pointer-events-none bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15)_0%,transparent_60%)]" />
             <div className="absolute inset-0 z-0 opacity-10 pointer-events-none bg-[repeating-linear-gradient(135deg,transparent,transparent_100px,#ffffff_100px,#ffffff_102px)]" />
 
-            {/* ─── LEFT SIDE ─── */}
-            <div className="flex-[0_0_50%] w-1/2 flex flex-col justify-between p-14 relative overflow-hidden z-[2]">
+            {/* ─── LEFT SIDE (hidden on mobile) ─── */}
+            <div className="flex-[0_0_50%] w-1/2 flex-col justify-between p-14 relative overflow-hidden z-[2] hidden lg:flex">
                 <div className="relative z-[1] flex-1 flex flex-col justify-center items-center text-center">
                     <div className="w-[120px] h-[120px] rounded-[28px] backdrop-blur-2xl flex items-center justify-center mb-8 self-center bg-white/5">
                         <img
@@ -82,20 +82,25 @@ const LoginPage = () => {
                 </p>
             </div>
 
-            {/* ─── RIGHT SIDE ─── */}
-            <div className="flex-[0_0_50%] w-1/2 flex items-center justify-center z-[2]">
-                <div className="w-full max-w-[540px] bg-white rounded-[24px] p-12 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] flex flex-col">
+            {/* ─── RIGHT SIDE (full width on mobile) ─── */}
+            <div className="flex-1 flex items-center justify-center z-[2] px-4 py-8 sm:py-12 min-h-screen">
+                <div className="w-full max-w-[480px] bg-white rounded-[20px] sm:rounded-[24px] p-6 sm:p-10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] flex flex-col">
                     {/* Card Header Logo */}
-                    <div className="flex items-center gap-3 mb-10 self-center">
+                    <div className="flex items-center gap-3 mb-5 sm:mb-8 self-center">
                         <img
                             src="/images/fj.png.png"
                             alt="FJ Group"
-                            className="h-[120px] w-auto block"
+                            className="h-[70px] sm:h-[100px] w-auto block"
                             onError={e => { e.currentTarget.style.display = 'none'; }}
                         />
                     </div>
 
-                    <h1 className="text-3xl font-bold text-[#1e1b4b] mb-8 text-center uppercase tracking-tight">Welcome</h1>
+                    {/* Mobile brand tagline */}
+                    <div className="flex flex-col items-center mb-3 lg:hidden">
+                        <p className="text-[11px] font-semibold text-slate-400 tracking-widest capitalize">Tascade® — Track. Measure. Succeed.</p>
+                    </div>
+
+                    <h1 className="text-2xl sm:text-3xl font-bold text-[#1e1b4b] mb-6 text-center capitalize tracking-tight">Welcome</h1>
 
                     {error && (
                         <p className="text-[#ef4444] text-[0.85rem] text-center mb-4 font-bold bg-rose-50 p-2 rounded-lg border border-rose-100">
@@ -103,16 +108,16 @@ const LoginPage = () => {
                         </p>
                     )}
 
-                    <form onSubmit={handleLoginSubmit} className="space-y-5">
+                    <form onSubmit={handleLoginSubmit} className="space-y-4">
                         <div className="flex flex-col gap-1.5">
-                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Employee ID</label>
+                            <label className="block text-[10px] font-black text-slate-500 capitalize tracking-widest pl-1">Employee ID</label>
                             <div className="relative">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><User size={18} /></div>
                                 <input
                                     type="text"
                                     name="id"
                                     placeholder="CFO001"
-                                    className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[0.95rem] text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-bold"
+                                    className="w-full pl-11 pr-4 py-3 sm:py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[0.9rem] sm:text-[0.95rem] text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-bold"
                                     value={formData.id}
                                     onChange={handleChange}
                                     required
@@ -121,14 +126,14 @@ const LoginPage = () => {
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest pl-1">Password</label>
+                            <label className="block text-[10px] font-black text-slate-500 capitalize tracking-widest pl-1">Password</label>
                             <div className="relative">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Lock size={18} /></div>
                                 <input
                                     type={showPassword ? 'text' : 'password'}
                                     name="password"
                                     placeholder="••••••••••••"
-                                    className="w-full pl-11 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[0.95rem] text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-bold"
+                                    className="w-full pl-11 pr-12 py-3 sm:py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-[0.9rem] sm:text-[0.95rem] text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-bold"
                                     value={formData.password}
                                     onChange={handleChange}
                                     required
@@ -146,7 +151,7 @@ const LoginPage = () => {
                         <div className="text-right">
                             <button
                                 type="button"
-                                className="text-indigo-600 text-xs font-black uppercase tracking-wider hover:text-indigo-800"
+                                className="text-indigo-600 text-xs font-semibold capitalize tracking-wider hover:text-indigo-800"
                                 onClick={() => {
                                     alert(`If you forgot your password, please contact the Admin.\nYour password can be reset by Admin, and you will be asked to change it after login.\nContact: admin@company.com`);
                                 }}
@@ -157,7 +162,7 @@ const LoginPage = () => {
 
                         <button
                             type="submit"
-                            className="w-full py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 bg-[length:200%_auto] hover:bg-right text-white rounded-xl text-[0.9rem] font-black uppercase tracking-widest cursor-pointer shadow-lg shadow-indigo-500/25 transition-all active:scale-[0.98] disabled:opacity-50"
+                            className="w-full py-3.5 sm:py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 bg-[length:200%_auto] hover:bg-right text-white rounded-xl text-[0.85rem] sm:text-[0.9rem] font-semibold capitalize tracking-widest cursor-pointer shadow-lg shadow-indigo-500/25 transition-all active:scale-[0.98] disabled:opacity-50"
                             disabled={isLoading}
                         >
                             {isLoading ? 'Signing In...' : 'Sign In'}
@@ -165,8 +170,8 @@ const LoginPage = () => {
                     </form>
 
                     {/* Demo Credentials Box */}
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 mt-8">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <div className="bg-slate-50 p-3 sm:p-4 rounded-2xl border border-slate-200 mt-5 sm:mt-8">
+                        <div className="text-[10px] font-semibold text-slate-400 capitalize tracking-widest mb-3 flex items-center gap-2">
                             <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
                             Demo IDs (Pass: Perfmetric@123)
                         </div>
@@ -177,16 +182,20 @@ const LoginPage = () => {
                                     onClick={() => setFormData({ ...formData, id: role.id })}
                                     className="cursor-pointer p-2 bg-white border border-slate-100 rounded-xl hover:border-indigo-500 hover:shadow-sm transition-all text-center group"
                                 >
-                                    <div className={`text-[10px] font-black uppercase tracking-tighter ${role.color}`}>{role.role}</div>
+                                    <div className={`text-[10px] font-black capitalize tracking-tighter ${role.color}`}>{role.role}</div>
                                     <div className="text-xs font-bold text-slate-700 group-hover:text-indigo-600">{role.id}</div>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    <div className="mt-auto pt-8 text-center text-[11px] font-bold text-slate-400">
+                    <div className="mt-6 text-center text-[11px] font-bold text-slate-400">
                         Helpline; support@fjgroup.com | <button className="text-indigo-500 hover:underline">Contact</button>
                     </div>
+
+                    <p className="mt-3 text-center text-[10px] text-white/50 lg:hidden">
+                        © 2026 Zenith Data Intelligence, LLC.
+                    </p>
                 </div>
             </div>
         </div>
