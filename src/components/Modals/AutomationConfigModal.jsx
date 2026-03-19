@@ -71,13 +71,16 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
     const handleAddSubtask = async () => {
         const rid = template.id || template.recurring_id;
         try {
+            const defaultDept = template.department_id || (departments[0]?.id ? String(departments[0].id) : '');
+            const defaultEmp = template.assigned_to_emp_id || template.assigned_to || (employees[0]?.emp_id ? String(employees[0].emp_id) : '');
+            
             const newSt = {
                 title: 'New Subtask',
-                description: '',
-                department_id: departments[0]?.id || '',
-                assigned_to_emp_id: '',
-                start_date: '',
-                end_date: '',
+                description: 'Description...',
+                department_id: defaultDept,
+                assigned_to_emp_id: defaultEmp,
+                start_date: null,
+                end_date: null,
                 priority: 'MEDIUM',
                 sequence_no: subtasks.length + 1
             };
@@ -85,14 +88,24 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
             setSubtasks([...subtasks, res.data?.data || res.data]);
             toast.success('Subtask template added');
         } catch (err) {
-            toast.error('Failed to add subtask');
+            console.error(err.response?.data);
+            const detail = err.response?.data?.detail;
+            if (Array.isArray(detail)) {
+                toast.error('Validation Error: ' + detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(', '));
+            } else {
+                toast.error('Failed to add subtask: ' + (detail || err.message));
+            }
         }
     };
 
     const handleUpdateSubtask = async (sid, updates) => {
         const rid = template.id || template.recurring_id;
         try {
-            await api.patch(`/recurring-tasks/${rid}/subtasks/${sid}`, updates);
+            const sanitizedUpdates = { ...updates };
+            if (sanitizedUpdates.start_date === '') sanitizedUpdates.start_date = null;
+            if (sanitizedUpdates.end_date === '') sanitizedUpdates.end_date = null;
+            
+            await api.patch(`/recurring-tasks/${rid}/subtasks/${sid}`, sanitizedUpdates);
             setSubtasks(subtasks.map(st => st.id === sid ? { ...st, ...updates } : st));
         } catch (err) {
             toast.error('Failed to update subtask');
@@ -114,10 +127,25 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setSubmitting(true);
         const rid = template.id || template.recurring_id;
+        if (!rid) {
+            toast.error('Task ID missing');
+            return;
+        }
+        setSubmitting(true);
         try {
-            const res = await api.patch(`/recurring-tasks/${rid}`, formData);
+            // Apply exact clean payload format identical to the successful POST creation logic
+            const payload = {
+                title: formData.title,
+                description: formData.description,
+                frequency: formData.frequency,
+                status: formData.status,
+                weekly_day: formData.frequency === 'WEEKLY' ? formData.weekly_day : null,
+                monthly_day: formData.frequency === 'MONTHLY' ? (parseInt(formData.monthly_day, 10) || null) : null,
+                yearly_month: formData.frequency === 'YEARLY' ? (parseInt(formData.yearly_month, 10) || null) : null,
+                yearly_day: formData.frequency === 'YEARLY' ? (parseInt(formData.yearly_day, 10) || null) : null
+            };
+            const res = await api.patch(`/recurring-tasks/${parseInt(rid, 10)}`, payload);
             toast.success('Task configuration updated');
             onSave(res.data?.data || res.data);
             onClose();

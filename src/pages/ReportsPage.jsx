@@ -102,7 +102,7 @@ const TaskDistributionCard = ({ data, title = "Task Distribution" }) => {
                 {/* Modern Circle Diagram */}
                 <div className="relative w-56 h-56 shrink-0 flex items-center justify-center">
                     <div className="absolute inset-0 bg-indigo-50/20 rounded-full blur-2xl group-hover:bg-indigo-100/30 transition-colors duration-700" />
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                         <PieChart>
                             <Pie
                                 data={displayDataForPie.length > 0 ? displayDataForPie : [{ name: 'Empty', value: 1, color: '#f1f5f9' }]}
@@ -1460,8 +1460,8 @@ const ReportsPage = () => {
                                         dataKey="name" 
                                         tick={{ fontSize: 11, fontWeight: 700, fill: '#64748b' }} 
                                         interval={0} 
-                                        angle={-40} 
-                                        textAnchor="end"
+                                        angle={0} 
+                                        textAnchor="middle"
                                         height={60}
                                         axisLine={false}
                                         tickLine={false}

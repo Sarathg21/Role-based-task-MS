@@ -19,6 +19,8 @@ import ManagerDashboard from './ManagerDashboard';
 import CustomSelect from '../UI/CustomSelect';
 
 
+const TERMINAL_STATUSES = new Set(['APPROVED', 'CANCELLED']);
+
 const toDateKey = (value) => {
     if (!value) return '';
     const raw = String(value).trim();
@@ -328,7 +330,7 @@ const TaskTrendsChart = ({ data }) => {
             </div>
 
             <div className="flex-1 w-full min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                     <ComposedChart data={trends} margin={{ top: 10, right: 30, bottom: 30, left: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis
@@ -651,7 +653,8 @@ const CFODashboard = () => {
 
             // Helper: derive status label from completion_pct
             const deriveStatus = (dept) => {
-                if (dept.status && dept.status !== 'NO_DATA' && dept.status !== 'null' && dept.status !== 'undefined') return dept.status;
+                const s = String(dept.status || '').toUpperCase().replace(' ', '_');
+                if (s && s !== 'NO_DATA' && s !== 'NULL' && s !== 'UNDEFINED') return s;
                 if (!dept.total_tasks && !dept.total) return 'NO_DATA';
                 const pct = dept.completion_pct || 0;
                 if (pct >= 70) return 'ON_TRACK';
@@ -1003,11 +1006,16 @@ const CFODashboard = () => {
     // Calculate Employees At Risk Count for the KPI card
     const employeesAtRiskCount = (() => {
         const byEmployee = {};
+        const todayStr = new Date().toLocaleDateString('en-CA');
         todayOrgTasks.forEach(t => {
             const name = t.assigneeName || t.assigned_to_name || 'Unknown';
             if (!byEmployee[name]) byEmployee[name] = { overdue: 0, rework: 0 };
-            if (t.is_overdue || t.overdue) byEmployee[name].overdue++;
-            if (t.status === 'REWORK') byEmployee[name].rework++;
+            
+            const due = toDateKey(t.due_date);
+            const isTaskOverdue = (t.is_overdue || t.overdue || (due && due < todayStr)) && !['APPROVED', 'CANCELLED'].includes(t.status);
+            
+            if (isTaskOverdue) byEmployee[name].overdue++;
+            if (t.status === 'REWORK' || t.status === 'CHANGES_REQUESTED') byEmployee[name].rework++;
         });
         return Object.values(byEmployee).filter(emp => {
             const healthScore = Math.max(0, 100 - (emp.overdue * 15) - (emp.rework * 10));
@@ -1083,7 +1091,7 @@ const CFODashboard = () => {
                                 },
                                 { 
                                     label: 'Departments On Track', 
-                                    value: deptPerformance.filter(d => d.status === 'ON_TRACK').length, 
+                                    value: deptPerformance.filter(d => String(d.status || '').toUpperCase().replace(' ', '_') === 'ON_TRACK' || (d.completion_pct || 0) >= 70).length, 
                                     icon: Target, 
                                     color: 'text-teal-600', 
                                     bg: 'bg-teal-50', 
@@ -1173,6 +1181,7 @@ const CFODashboard = () => {
                                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
                                     {(() => {
                                         const byEmployee = {};
+                                        const todayStr = new Date().toLocaleDateString('en-CA');
                                         todayOrgTasks.forEach(t => {
                                             const name = t.assigneeName || t.assigned_to_name || 'Unknown';
                                             if (!byEmployee[name]) {
@@ -1180,9 +1189,12 @@ const CFODashboard = () => {
                                             }
                                             const emp = byEmployee[name];
                                             emp.total += 1;
-                                            if (t.status === 'APPROVED' || t.status === 'COMPLETED') emp.completed += 1;
-                                            if (t.status === 'REWORK') emp.rework += 1;
-                                            if (t.is_overdue || t.overdue) emp.overdue += 1;
+                                            if (['APPROVED', 'COMPLETED'].includes(t.status)) emp.completed += 1;
+                                            if (t.status === 'REWORK' || t.status === 'CHANGES_REQUESTED') emp.rework += 1;
+                                            
+                                            const due = toDateKey(t.due_date);
+                                            const isTaskOverdue = (t.is_overdue || t.overdue || (due && due < todayStr)) && !['APPROVED', 'CANCELLED'].includes(t.status);
+                                            if (isTaskOverdue) emp.overdue += 1;
                                         });
 
                                         const employees = Object.values(byEmployee).map(emp => {

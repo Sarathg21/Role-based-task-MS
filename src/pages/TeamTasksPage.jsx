@@ -291,6 +291,7 @@ const TeamTasksPage = () => {
                 limit: rawData.limit || pagination.limit,
                 total: rawData.total || items.length
             });
+            fetchMetrics();
         } catch (err) {
             console.error("Fetch tasks error:", err);
             toast.error("Failed to load tasks");
@@ -312,48 +313,56 @@ const TeamTasksPage = () => {
             const res = await api.get(endpoint, { params });
             const d = res.data?.data || res.data || {};
 
-            if (role === 'CFO' || role === 'ADMIN') {
-                const deptSummary = Array.isArray(d.department_summary) ? d.department_summary : [];
-                const pending = deptSummary.reduce((sum, dept) => sum + (dept.pending_count || 0), 0);
-                const overdue = deptSummary.reduce((sum, dept) => sum + (dept.overdue_count || 0), 0);
-                setMetrics({ activeTasks: pending, inProgress: 0, pendingSubmission: pending, overdue });
-                return;
-            }
+            // Helper to get value from multiple possible keys
+            const getVal = (obj, keys) => {
+                for (const k of keys) {
+                    if (obj[k] !== undefined && obj[k] !== null) return Number(obj[k]);
+                }
+                return 0;
+            };
 
-            if (role === 'EMPLOYEE') {
+            // Enhanced mapping for CFO/Manager dashboards
+            const inProgress = getVal(d, ['in_progress_tasks', 'in_progress', 'inProgress', 'in_progress_count']);
+            const overdue = getVal(d, ['overdue_tasks', 'overdue', 'overdue_count', 'overdueTasks']);
+            const totalTasks = getVal(d, ['team_tasks', 'total_tasks', 'total_active', 'total', 'pending_tasks', 'tasks_assigned']);
+            const submitted = getVal(d, ['submitted_tasks', 'submitted', 'pending_approval', 'pending_review']);
+            const pendingSubmission = getVal(d, ['new_tasks', 'new', 'pending_submission', 'rework_tasks', 'rework']) || (totalTasks - inProgress - submitted);
+
+            // If we have pagination.total, use that for 'Active Tasks' as it's the most accurate reflection of the current filter
+            const activeTasksCount = pagination.total > 0 ? pagination.total : (totalTasks || tasks.length);
+
+            // Final fallback if everything is zero but we see items
+            if (activeTasksCount === 0 && tasks.length > 0) {
+                const localInProgress = tasks.filter(t => (t.status || '').toUpperCase() === 'IN_PROGRESS').length;
+                const localPending = tasks.filter(t => ['NEW', 'REWORK'].includes((t.status || '').toUpperCase())).length;
+                const localOverdue = tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && !['APPROVED', 'CANCELLED'].includes((t.status || '').toUpperCase())).length;
+                setMetrics({ activeTasks: tasks.length, inProgress: localInProgress, pendingSubmission: localPending, overdue: localOverdue });
+            } else {
                 setMetrics({
-                    activeTasks: d.total_tasks || 0,
-                    inProgress: (d.total_tasks - d.completed_tasks) || 0,
-                    pendingSubmission: (d.total_tasks - d.completed_tasks) || 0,
-                    overdue: d.overdue_count || 0
+                    activeTasks: activeTasksCount,
+                    inProgress: inProgress || tasks.filter(t => (t.status || '').toUpperCase() === 'IN_PROGRESS').length,
+                    pendingSubmission: pendingSubmission || tasks.filter(t => ['NEW', 'REWORK'].includes((t.status || '').toUpperCase())).length,
+                    overdue: overdue || tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && !['APPROVED', 'CANCELLED'].includes((t.status || '').toUpperCase())).length
                 });
-                return;
             }
-
-            setMetrics({
-                activeTasks: d.total_tasks || d.total_active || 0,
-                inProgress: d.in_progress_tasks || d.in_progress || 0,
-                pendingSubmission: d.pending_submission || d.pending_tasks || ((d.new_tasks || 0) + (d.rework_tasks || 0)),
-                overdue: d.overdue_tasks || d.overdue || 0
-            });
         } catch (err) {
             console.error("Fetch metrics error:", err);
-            const active = tasks.length;
-            const inProgress = tasks.filter(t => (t.status || '').toUpperCase() === 'IN_PROGRESS').length;
-            const pending = tasks.filter(t => ['NEW', 'REWORK'].includes((t.status || '').toUpperCase())).length;
-            const overdue = tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && !['APPROVED', 'CANCELLED'].includes((t.status || '').toUpperCase())).length;
-            setMetrics({ activeTasks: active, inProgress, pendingSubmission: pending, overdue });
+            setMetrics({
+                activeTasks: pagination.total || tasks.length,
+                inProgress: tasks.filter(t => (t.status || '').toUpperCase() === 'IN_PROGRESS').length,
+                pendingSubmission: tasks.filter(t => ['NEW', 'REWORK', 'CREATED'].includes((t.status || '').toUpperCase())).length,
+                overdue: tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && !['APPROVED', 'CANCELLED'].includes((t.status || '').toUpperCase())).length
+            });
         }
     };
 
     useEffect(() => {
         api.get('/departments').then(res => setDepartments(res.data?.data || res.data || []));
         api.get('/employees').then(res => setAllEmployees(res.data?.data || res.data || []));
-        fetchMetrics();
     }, []);
 
     useEffect(() => {
-        const timer = setTimeout(() => { fetchTasks(1); fetchMetrics(); }, 500);
+        const timer = setTimeout(() => { fetchTasks(1); }, 500);
         return () => clearTimeout(timer);
     }, [filters]);
 
@@ -440,7 +449,7 @@ const TeamTasksPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatsCard title="Active Tasks" value={metrics.activeTasks} icon={ClipboardCheck} color="violet" />
                 <StatsCard title="In Progress" value={metrics.inProgress} icon={Play} color="amber" />
-                <StatsCard title="Pending Submission" value={metrics.pendingSubmission} icon={Upload} color="warning" />
+                <StatsCard title="Pending Submission" value={metrics.pendingSubmission} icon={Upload} color="emerald" />
                 <StatsCard title="Overdue" value={metrics.overdue} icon={AlertTriangle} color="rose" />
             </div>
 

@@ -36,12 +36,16 @@ const OKRDashboard = () => {
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/reports/cfo/okr/overview', {
-                params: {
-                    from_date: filters.from_date,
-                    to_date: filters.to_date
-                }
-            });
+            const [res, trendsRes, todayRes] = await Promise.all([
+                api.get('/reports/cfo/okr/overview', {
+                    params: {
+                        from_date: filters.from_date,
+                        to_date: filters.to_date
+                    }
+                }).catch(() => ({ data: {} })),
+                api.get('/dashboard/cfo/trends').catch(() => ({ data: {} })),
+                api.get('/dashboard/cfo/today').catch(() => ({ data: {} }))
+            ]);
             const data = res.data?.data || res.data || {};
 
             setMetrics([
@@ -97,12 +101,38 @@ const OKRDashboard = () => {
                 };
             }));
 
-            setTrendData((data.completion_trend || []).map(t => ({
+            let okrTrends = data.completion_trend || [];
+            if (!okrTrends.length || okrTrends.every(t => !Number(t.completed_tasks))) {
+                const trData = trendsRes.data?.data || trendsRes.data || [];
+                if (Array.isArray(trData) && trData.length > 0) {
+                    okrTrends = trData.map(t => ({
+                        month: t.month || t.date || t.name,
+                        completed_tasks: t.completed_tasks || t.Completed || t.completed || 0
+                    }));
+                }
+            }
+            setTrendData(okrTrends.map(t => ({
                 name: t.month,
                 value: t.completed_tasks
             })));
 
-            setOverdueTasks(data.overdue_tasks || []);
+            let okrOverdue = data.overdue_tasks || [];
+            if (!okrOverdue.length) {
+                const todayItems = todayRes.data?.data?.items || todayRes.data?.data || todayRes.data?.tasks || todayRes.data || [];
+                if (Array.isArray(todayItems)) {
+                    const todayStr = new Date().toISOString().slice(0, 10);
+                    okrOverdue = todayItems.filter(t => {
+                        return t.due_date && t.due_date < todayStr && !['APPROVED', 'CANCELLED'].includes((t.status||'').toUpperCase().replace('_',' '));
+                    }).map(t => {
+                        const daysLate = Math.floor((new Date() - new Date(t.due_date))/(1000*60*60*24));
+                        return { title: t.title || t.objective_title || t.subtask_title || 'Critical Task', days_late: daysLate > 0 ? daysLate : 1 };
+                    });
+                }
+            }
+            
+            // Sort overdue by most days late
+            okrOverdue.sort((a,b) => b.days_late - a.days_late);
+            setOverdueTasks(okrOverdue);
 
         } catch (error) {
             console.error('Error fetching OKR data:', error);
@@ -119,7 +149,7 @@ const OKRDashboard = () => {
         return (
             <div className="flex flex-col items-center justify-center min-h-[600px] bg-[#f8fafc] gap-4">
                 <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
-                <p className="text-slate-500 font-bold capitalize tracking-widest text-xs">Syncing OKR Execution Data...</p>
+                <p className="text-slate-500 font-medium capitalize tracking-widest text-xs">Syncing OKR Execution Data...</p>
             </div>
         );
     }
@@ -132,9 +162,9 @@ const OKRDashboard = () => {
                     <div className="bg-white/10 p-2 rounded-lg backdrop-blur-md">
                         <ShieldCheck className="text-blue-200" size={24} />
                     </div>
-                    <h1 className="text-xl font-bold tracking-tight uppercase">FJ GROUP — OKR EXECUTION DASHBOARD</h1>
+                    <h1 className="text-xl font-medium tracking-tight capitalize">FJ Group — OKR Execution Dashboard</h1>
                  </div>
-                 <div className="hidden lg:flex items-center gap-3 text-xs font-bold text-blue-100/60 uppercase tracking-widest">
+                 <div className="hidden lg:flex items-center gap-3 text-xs font-medium text-blue-100/60 capitalize tracking-widest">
                     <Calendar size={14} />
                     <span>Real-time Strategic Insights</span>
                  </div>
@@ -144,8 +174,8 @@ const OKRDashboard = () => {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 {metrics.map((m, i) => (
                     <div key={i} className={`bg-white p-4 rounded-xl border-b-4 ${m.border} shadow-sm flex flex-col items-center justify-center gap-1 transition-all hover:shadow-md group`}>
-                        <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-500 uppercase tracking-widest text-center">{m.label}</span>
-                        <span className={`text-2xl font-black ${m.valueColor || 'text-slate-900'} tabular-nums`}>{m.value}</span>
+                        <span className="text-[11px] font-medium text-slate-400 group-hover:text-slate-500 capitalize tracking-widest text-center">{m.label}</span>
+                        <span className={`text-2xl font-medium ${m.valueColor || 'text-slate-900'} tabular-nums`}>{m.value}</span>
                     </div>
                 ))}
             </div>
@@ -155,7 +185,7 @@ const OKRDashboard = () => {
                 {/* Objective Progress */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col h-[400px]">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                        <h3 className="text-sm font-medium text-slate-700 capitalize tracking-widest flex items-center gap-2">
                             <Target size={16} className="text-blue-600" />
                             Objective Achievement
                         </h3>
@@ -187,7 +217,7 @@ const OKRDashboard = () => {
                 {/* Departmental Load */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col h-[400px]">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                        <h3 className="text-sm font-medium text-slate-700 capitalize tracking-widest flex items-center gap-2">
                             <Users size={16} className="text-teal-600" />
                             Departmental Load
                         </h3>
@@ -214,7 +244,7 @@ const OKRDashboard = () => {
                                 <Legend 
                                     verticalAlign="bottom" 
                                     height={50}
-                                    formatter={(val) => <span className="text-[10px] font-black uppercase text-slate-500">{val}</span>}
+                                    formatter={(val) => <span className="text-[10px] font-medium capitalize text-slate-500">{val}</span>}
                                 />
                             </PieChart>
                         </ResponsiveContainer>
@@ -223,17 +253,17 @@ const OKRDashboard = () => {
 
                 {/* Risk Overview */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col h-[400px]">
-                    <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest flex items-center gap-2 mb-6">
+                    <h3 className="text-sm font-medium text-slate-700 capitalize tracking-widest flex items-center gap-2 mb-6">
                         <AlertTriangle size={16} className="text-rose-500" />
                         Risk Overview
                     </h3>
                     <div className="space-y-3 overflow-y-auto pr-1 flex-1 custom-scrollbar">
                         {riskOverview.map((r, i) => (
                             <div key={i} className="flex justify-between items-center p-3 border border-slate-100 rounded-xl bg-slate-50/50 hover:bg-white transition-all group border-l-4 border-l-transparent hover:border-l-blue-500">
-                                <span className="text-[11px] font-bold text-slate-700 truncate flex-1 uppercase tracking-tight" title={r.label}>{r.label}</span>
+                                <span className="text-[11px] font-medium text-slate-700 truncate flex-1 capitalize tracking-tight" title={r.label}>{r.label}</span>
                                 <div className="flex items-center gap-4">
-                                    <span className="text-blue-700 font-black text-xs">{r.score}</span>
-                                    <span className={`px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-widest shadow-sm ${r.color}`}>
+                                    <span className="text-blue-700 font-medium text-xs">{r.score}</span>
+                                    <span className={`px-2.5 py-1 rounded text-[9px] font-medium capitalize tracking-widest shadow-sm ${r.color}`}>
                                         {r.status}
                                     </span>
                                 </div>
@@ -246,7 +276,7 @@ const OKRDashboard = () => {
             {/* ── TABLE VIEW ── */}
             <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
                 <div className="bg-[#1e1b4b] text-white px-6 py-4 flex justify-between items-center">
-                    <h3 className="text-sm font-black uppercase tracking-[0.15em] flex items-center gap-3">
+                    <h3 className="text-sm font-medium capitalize tracking-[0.15em] flex items-center gap-3">
                         <Target size={18} className="text-indigo-400" />
                         Objective Progress Matrix
                     </h3>
@@ -271,9 +301,9 @@ const OKRDashboard = () => {
 
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
-                        <thead className="bg-[#f8fafc] text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                        <thead className="bg-[#f8fafc] text-[10px] font-medium text-slate-400 capitalize tracking-widest border-b border-slate-100">
                             <tr>
-                                <th className="py-4 px-6">OBJ ID</th>
+                                <th className="py-4 px-6">Obj Id</th>
                                 <th className="py-4 px-4 w-[30%]">Objective</th>
                                 <th className="py-4 px-2 text-center">Depts</th>
                                 <th className="py-4 px-2 text-center">Done</th>
@@ -290,11 +320,11 @@ const OKRDashboard = () => {
                                     className="group hover:bg-blue-50/30 transition-colors cursor-pointer"
                                     onClick={() => navigate(`/okr-subtask/${row.id}`)}
                                 >
-                                    <td className="py-4 px-6 font-bold text-slate-400">OBJ-{row.id || (101 + i)}</td>
-                                    <td className="py-4 px-4 font-black text-slate-800 tracking-tight">{row.objective}</td>
-                                    <td className="py-4 px-2 text-center text-blue-700 font-black">{row.depts}</td>
-                                    <td className="py-4 px-2 text-center text-slate-500 font-bold">{row.subComp}</td>
-                                    <td className="py-4 px-2 text-center text-slate-800 font-black tabular-nums">{row.subTotal}</td>
+                                    <td className="py-4 px-6 font-medium text-slate-400">OBJ-{row.id || (101 + i)}</td>
+                                    <td className="py-4 px-4 font-medium text-slate-800 tracking-tight">{row.objective}</td>
+                                    <td className="py-4 px-2 text-center text-blue-700 font-medium">{row.depts}</td>
+                                    <td className="py-4 px-2 text-center text-slate-500 font-medium">{row.subComp}</td>
+                                    <td className="py-4 px-2 text-center text-slate-800 font-medium tabular-nums">{row.subTotal}</td>
                                     <td className="py-4 px-4">
                                         <div className="flex items-center gap-3">
                                             <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
@@ -303,12 +333,12 @@ const OKRDashboard = () => {
                                                     style={{ width: `${row.progress}%` }}
                                                 />
                                             </div>
-                                            <span className="w-10 text-[11px] font-black text-blue-900">{row.progress}%</span>
+                                            <span className="w-10 text-[11px] font-medium text-blue-900">{row.progress}%</span>
                                         </div>
                                     </td>
-                                    <td className="py-4 px-2 text-center font-black text-emerald-600 tabular-nums">{row.score}</td>
+                                    <td className="py-4 px-2 text-center font-medium text-emerald-600 tabular-nums">{row.score}</td>
                                     <td className="py-4 px-6 text-right">
-                                        <span className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${row.ratingColor}`}>
+                                        <span className={`px-3 py-1 rounded-md text-[10px] font-medium capitalize tracking-widest ${row.ratingColor}`}>
                                             {row.rating}
                                         </span>
                                     </td>
@@ -323,7 +353,7 @@ const OKRDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Heatmap/Overdue Summary */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col h-[280px]">
-                     <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest flex items-center gap-2 mb-6">
+                     <h3 className="text-sm font-medium text-slate-700 capitalize tracking-widest flex items-center gap-2 mb-6">
                         <Clock size={16} className="text-rose-500" />
                         Executive Criticals
                     </h3>
@@ -331,10 +361,10 @@ const OKRDashboard = () => {
                         {overdueTasks.slice(0, 3).map((t, i) => (
                              <div key={i} className="flex items-center justify-between border-b border-slate-50 pb-3">
                                 <div className="flex flex-col">
-                                    <span className="text-[11px] font-black text-slate-800 truncate max-w-[180px] uppercase tracking-tight">{t.title}</span>
-                                    <span className="text-[9px] font-bold text-slate-400 capitalize">Critical Timeline</span>
+                                    <span className="text-[11px] font-medium text-slate-800 truncate max-w-[180px] capitalize tracking-tight">{t.title}</span>
+                                    <span className="text-[9px] font-medium text-slate-400 capitalize">Critical Timeline</span>
                                 </div>
-                                <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-1 rounded">{t.days_late}D Late</span>
+                                <span className="text-[10px] font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded">{t.days_late}D Late</span>
                             </div>
                         ))}
                     </div>
@@ -342,7 +372,7 @@ const OKRDashboard = () => {
 
                 {/* Completion Trend */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col h-[280px] col-span-1 md:col-span-2">
-                    <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest flex items-center gap-2 mb-4">
+                    <h3 className="text-sm font-medium text-slate-700 capitalize tracking-widest flex items-center gap-2 mb-4">
                         <TrendingUp size={16} className="text-blue-600" />
                         Enterprise Completion Trend
                     </h3>

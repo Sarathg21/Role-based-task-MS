@@ -50,8 +50,8 @@ const CustomSelect = ({
             </button>
 
             {isOpen && (
-                <div className="absolute z-[100] mt-2 w-full min-w-[160px] bg-white border border-slate-100 rounded-xl shadow-xl py-1 overflow-hidden animate-in fade-in zoom-in duration-100 origin-top">
-                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                <div className="absolute z-[100] mt-2 w-full min-w-[180px] bg-white/95 backdrop-blur-xl border border-slate-100/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] py-1.5 overflow-hidden animate-in fade-in zoom-in duration-100 origin-top">
+                    <div className="max-h-60 overflow-y-auto custom-scrollbar p-1">
                         {options.map((option, idx) => (
                             <button
                                 key={`${option.value}-${idx}`}

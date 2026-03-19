@@ -19,20 +19,27 @@ const getRiskLabel = (rating) => {
 };
 
 const StatusBadge = ({ status }) => {
-    const s = (status || '').toUpperCase();
+    // Trimming extra spaces to make sure mapping doesn't fail
+    const s = (status || '').trim().toUpperCase().replace(/\s+/g, '_');
     const mapping = {
-        'APPROVED': 'bg-[#10b981] text-white',
-        'IN PROGRESS': 'bg-[#1e40af] text-white',
-        'STARTED': 'bg-[#1e40af] text-white',
-        'PENDING': 'bg-[#1e40af] text-white',
-        'REVIEW': 'bg-[#f59e0b] text-white',
-        'COMPLETED': 'bg-[#16a34a] text-white',
-        'OVERDUE': 'bg-[#ef4444] text-white',
-        'REWORK': 'bg-[#ef4444] text-white'
+        'APPROVED': 'bg-emerald-500 text-white',
+        'IN_PROGRESS': 'bg-blue-700 text-white',
+        'STARTED': 'bg-blue-700 text-white',
+        'PENDING': 'bg-blue-700 text-white',
+        'REVIEW': 'bg-amber-300 text-amber-900',
+        'COMPLETED': 'bg-emerald-500 text-white',
+        'OVERDUE': 'bg-red-600 text-white',
+        'REWORK': 'bg-red-600 text-white',
+        'SUBMITTED': 'bg-amber-300 text-amber-900',
+        'NEW': 'bg-blue-700 text-white'
     };
+    
+    // Format "IN_PROGRESS" to "In Progress"
+    const displayStatus = (status || '').trim().replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+    
     return (
-        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider shadow-sm min-w-[90px] text-center inline-block ${mapping[s] || 'bg-slate-100 text-slate-600'}`}>
-            {s}
+        <span className={`px-4 py-1.5 rounded-full text-[11px] font-medium tracking-tight shadow-sm min-w-[100px] text-center inline-block ${mapping[s] || 'bg-slate-100 text-slate-600'}`}>
+            {displayStatus}
         </span>
     );
 };
@@ -83,15 +90,50 @@ const OKRSubTaskPage = () => {
                 to_date: filters.to_date
             };
 
-            const [summaryRes, subtasksRes, deptsRes] = await Promise.all([
-                api.get(`/reports/cfo/okr/objectives/${targetId}/summary`, { params }),
-                api.get(`/reports/cfo/okr/objectives/${targetId}/subtasks`, { params }),
-                api.get(`/reports/cfo/okr/objectives/${targetId}/departments`, { params })
+            const [summaryRes, subtasksRes, deptsRes, rawTasksRes] = await Promise.all([
+                api.get(`/reports/cfo/okr/objectives/${targetId}/summary`, { params }).catch(()=>({data:{}})),
+                api.get(`/reports/cfo/okr/objectives/${targetId}/subtasks`, { params }).catch(()=>({data:[]})),
+                api.get(`/reports/cfo/okr/objectives/${targetId}/departments`, { params }).catch(()=>({data:[]})),
+                // Database raw fetch to ensure no subtasks/departments are lost to reporting filters. Limit maxes at 200 per backend constraints.
+                api.get('/tasks', { params: { parent_task_id: targetId, limit: 200 } }).catch(()=>({data:[]}))
             ]);
 
-            setSelectedOKR(summaryRes.data?.data || summaryRes.data);
-            setSubtasks(subtasksRes.data?.data || subtasksRes.data || []);
-            setDeptStats(deptsRes.data?.data || deptsRes.data || []);
+            const summary = summaryRes.data?.data || summaryRes.data || {};
+            let subtasks = subtasksRes.data?.data || subtasksRes.data || [];
+            let depts = deptsRes.data?.data || deptsRes.data || [];
+
+            // TRUE DATABASE FETCH OVERRIDE: If the reporting API missed tasks in other departments
+            // due to date filters or backend aggregation bugs, we inject the raw physical tasks from the database!
+            const rawTasks = rawTasksRes.data?.data?.items || rawTasksRes.data?.data || rawTasksRes.data?.tasks || rawTasksRes.data || [];
+            if (Array.isArray(rawTasks) && rawTasks.length > subtasks.length) {
+                 subtasks = rawTasks; // Use the most complete dataset from the real database
+                 
+                 // Rebuild department groupings structurally so other departments appear
+                 const dMap = {};
+                 subtasks.forEach(t => {
+                     const dName = t.department_name || t.department || 'Unknown';
+                     if (!dMap[dName]) dMap[dName] = { department_name: dName, total_subtasks: 0 };
+                     dMap[dName].total_subtasks++;
+                 });
+                 depts = Object.values(dMap);
+                 
+                 // Sync summary metrics
+                 summary.total_subtasks = subtasks.length;
+                 summary.completed_subtasks = subtasks.filter(s => ['COMPLETED','APPROVED'].includes((s.status||'').toUpperCase())).length;
+            } else if (subtasks.length > 0 && depts.length === 0) {
+                 // Safe fallback if depts res failed completely
+                 const dMap = {};
+                 subtasks.forEach(t => {
+                     const dName = t.department_name || t.department || 'Unknown';
+                     if (!dMap[dName]) dMap[dName] = { department_name: dName, total_subtasks: 0 };
+                     dMap[dName].total_subtasks++;
+                 });
+                 depts = Object.values(dMap);
+            }
+
+            setSelectedOKR(summary);
+            setSubtasks(subtasks);
+            setDeptStats(depts);
 
         } catch (error) {
             console.error('Error fetching Drilldown details:', error);
@@ -265,7 +307,7 @@ const OKRSubTaskPage = () => {
                                                 st.days_left_text?.toLowerCase().includes('late') ? 'text-rose-600' : 
                                                 st.days_left_text === 'Done' ? 'text-emerald-600' : 'text-amber-600'
                                             }`}>
-                                                {st.days_left_text}
+                                                {st.days_left_text?.replace(/ left/i, '')}
                                             </td>
                                         </tr>
                                     ))}
@@ -293,12 +335,38 @@ const OKRSubTaskPage = () => {
                              <span className="text-3xl font-black text-blue-800">{selectedOKR?.progress_pct || 0}%</span>
                         </div>
                         
-                        <div className="w-full h-4 bg-slate-200 rounded-full overflow-hidden mb-8 shadow-inner border border-slate-300">
+                        <div className="w-full h-4 bg-slate-200 rounded-full overflow-hidden mb-6 shadow-inner border border-slate-300">
                              <div 
                                 className="h-full bg-[#1e40af] shadow-[0_0_15px_rgba(30,64,175,0.4)] transition-all duration-1000"
                                 style={{ width: `${selectedOKR?.progress_pct || 0}%` }}
                              />
                         </div>
+
+                        {/* Submitted Subtasks Bar */}
+                        {(() => {
+                            const submittedCount = selectedOKR?.submitted_subtasks ?? subtasks.filter(s => s.status?.toUpperCase() === 'SUBMITTED').length;
+                            const total = selectedOKR?.total_subtasks || 0;
+                            const submittedPct = total > 0 ? Math.round((submittedCount / total) * 100) : 0;
+                            return (
+                                <>
+                                    <div className="flex justify-between items-end mb-4">
+                                        <div className="flex flex-col">
+                                            <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Subtasks Submitted</span>
+                                            <span className="text-xl font-black text-slate-900 leading-none">
+                                                {submittedCount} / {total}
+                                            </span>
+                                        </div>
+                                        <span className="text-3xl font-black text-amber-500">{submittedPct}%</span>
+                                    </div>
+                                    <div className="w-full h-4 bg-slate-200 rounded-full overflow-hidden mb-8 shadow-inner border border-slate-300">
+                                        <div 
+                                            className="h-full bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)] transition-all duration-1000"
+                                            style={{ width: `${submittedPct}%` }}
+                                        />
+                                    </div>
+                                </>
+                            );
+                        })()}
 
                         <div className="flex-1 w-full min-h-[250px] relative mt-2">
                             <ResponsiveContainer width="100%" height="100%">
@@ -307,12 +375,25 @@ const OKRSubTaskPage = () => {
                                         data={deptDistribution}
                                         cx="50%"
                                         cy="50%"
-                                        innerRadius={60}
                                         outerRadius={100}
-                                        paddingAngle={5}
                                         dataKey="value"
                                         stroke="#fff"
                                         strokeWidth={2}
+                                        label={({ cx, cy, midAngle, outerRadius, index }) => {
+                                            const RADIAN = Math.PI / 180;
+                                            const radius = outerRadius * 0.65;
+                                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                                            const words = (deptDistribution[index]?.name || '').split(' ');
+                                            return (
+                                                <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={9} fontWeight="black" className="pointer-events-none uppercase tracking-widest">
+                                                    {words.map((word, i) => (
+                                                        <tspan x={x} dy={i === 0 ? 0 : 10} key={i}>{word}</tspan>
+                                                    ))}
+                                                </text>
+                                            );
+                                        }}
+                                        labelLine={false}
                                     >
                                         {deptDistribution.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -326,11 +407,6 @@ const OKRSubTaskPage = () => {
                                     />
                                 </PieChart>
                             </ResponsiveContainer>
-                            {/* Center Summary */}
-                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none pb-8 text-blue-900">
-                                <span className="block text-2xl font-black">{deptDistribution.length}</span>
-                                <span className="block text-[8px] font-bold uppercase tracking-widest text-slate-400 mt-[-4px]">Depts</span>
-                             </div>
                         </div>
 
                         <div className="mt-8 grid grid-cols-2 gap-4">
@@ -360,43 +436,19 @@ const OKRSubTaskPage = () => {
                      <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">Departmental Load Breakdown</h3>
                  </div>
                  
-                 <div className="flex flex-col lg:grid lg:grid-cols-[360px_1fr] gap-0">
-                    {/* Left: Pie Chart */}
-                    <div className="p-8 border-r border-slate-100 flex items-center justify-center bg-slate-50/30">
-                        <div className="w-full h-[260px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={deptDistribution}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={65}
-                                        outerRadius={95}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                        stroke="#fff"
-                                        strokeWidth={4}
-                                    >
-                                        {deptDistribution.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip 
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
-                    {/* Right: Detailed Table (3-COLUMN FORMAT) */}
+                 <div className="flex flex-col gap-0">
+                    {/* Detailed Table (EXTENDED FORMAT) */}
                     <div className="relative flex flex-col">
                         <div className="flex-1 overflow-x-auto">
                             <table className="w-full text-left text-xs border-collapse">
                                 <thead className="bg-[#f1f5f9] text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-200">
                                     <tr>
                                         <th className="py-4 px-6">Department</th>
-                                        <th className="py-4 px-6 text-center">Total Subtasks</th>
+                                        <th className="py-4 px-4 text-center">Total Subtasks</th>
+                                        <th className="py-4 px-4 text-center">Completed</th>
+                                        <th className="py-4 px-4 text-center">In Progress</th>
+                                        <th className="py-4 px-4 text-center">Approved</th>
+                                        <th className="py-4 px-4 text-center">Pending</th>
                                         <th className="py-4 px-6 text-right">Contribution (%)</th>
                                     </tr>
                                 </thead>
@@ -404,14 +456,36 @@ const OKRSubTaskPage = () => {
                                     {deptStats.map((d, i) => {
                                         const total = selectedOKR?.total_subtasks || 1; 
                                         const pct = ((d.total_subtasks / total) * 100).toFixed(1);
+                                        
+                                        const dName = d.department_name || 'Unknown';
+                                        const related = subtasks.filter(st => (st.department_name || st.department) === dName);
+                                        const countStatus = (statuses) => related.filter(st => statuses.includes((st.status || '').toUpperCase().replace('_', ' '))).length;
+                                        
+                                        const completed = d.completed_subtasks ?? countStatus(['COMPLETED']);
+                                        const inProgress = d.in_progress_subtasks ?? countStatus(['IN PROGRESS', 'STARTED']);
+                                        const approved = d.approved_subtasks ?? countStatus(['APPROVED']);
+                                        const pending = d.pending_subtasks ?? countStatus(['PENDING', 'NEW', 'SUBMITTED', 'REVIEW', 'CHANGES REQUESTED', 'REWORK']);
+
                                         return (
                                             <tr key={i} className="hover:bg-slate-50 font-bold text-slate-700 group transition-colors">
                                                 <td className="py-4 px-6 flex items-center gap-3">
                                                     <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: deptDistribution[i]?.fill }} />
                                                     <span className="text-[13px] font-black text-slate-800 uppercase tracking-tight">{d.department_name}</span>
                                                 </td>
-                                                <td className="py-4 px-6 text-center tabular-nums text-[14px] text-blue-900 font-black">
+                                                <td className="py-4 px-4 text-center tabular-nums text-[14px] text-blue-900 font-black">
                                                     {d.total_subtasks}
+                                                </td>
+                                                <td className="py-4 px-4 text-center tabular-nums text-[13px] text-slate-600">
+                                                    {completed}
+                                                </td>
+                                                <td className="py-4 px-4 text-center tabular-nums text-[13px] text-indigo-600">
+                                                    {inProgress}
+                                                </td>
+                                                <td className="py-4 px-4 text-center tabular-nums text-[13px] text-emerald-600">
+                                                    {approved}
+                                                </td>
+                                                <td className="py-4 px-4 text-center tabular-nums text-[13px] text-amber-600">
+                                                    {pending}
                                                 </td>
                                                 <td className="py-4 px-6 text-right">
                                                     <div className="flex items-center justify-end gap-3">
@@ -426,7 +500,7 @@ const OKRSubTaskPage = () => {
                                     })}
                                     {deptStats.length === 0 && (
                                          <tr>
-                                             <td colSpan="3" className="py-12 text-center text-slate-300 font-bold uppercase tracking-widest italic">
+                                             <td colSpan="7" className="py-12 text-center text-slate-300 font-bold uppercase tracking-widest italic">
                                                  No departmental breakdown available.
                                              </td>
                                          </tr>
@@ -447,7 +521,19 @@ const OKRSubTaskPage = () => {
                              <div className="flex items-center gap-4">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aggregate Progress</span>
                                 <div className="bg-blue-900 text-white px-6 py-1.5 rounded-lg border border-blue-800 font-black text-lg tabular-nums shadow-lg shadow-blue-900/20">
-                                    {selectedOKR?.progress_pct || 0}%
+                                    {(() => {
+                                        let pct = selectedOKR?.progress_pct;
+                                        if (pct === undefined || pct === null) {
+                                            const total = selectedOKR?.total_subtasks || subtasks.length;
+                                            if (total > 0) {
+                                                const done = subtasks.filter(s => ['COMPLETED', 'APPROVED'].includes((s.status || '').toUpperCase())).length;
+                                                pct = Math.round((done / total) * 100);
+                                            } else {
+                                                pct = 0;
+                                            }
+                                        }
+                                        return pct;
+                                    })()}%
                                 </div>
                              </div>
                         </div>

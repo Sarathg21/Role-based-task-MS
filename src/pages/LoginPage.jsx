@@ -86,19 +86,13 @@ const LoginPage = () => {
             <div className="flex-1 flex items-center justify-center z-[2] px-4 py-8 sm:py-12 min-h-screen">
                 <div className="w-full max-w-[480px] bg-white rounded-[20px] sm:rounded-[24px] p-6 sm:p-10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] flex flex-col">
                     {/* Card Header Logo */}
-                    <div className="flex items-center gap-4 mb-6 sm:mb-8 self-center">
-                        <div className="h-[90px] w-[90px] sm:h-[120px] sm:w-[120px] rounded-[26px] bg-white/80 border border-slate-100 flex items-center justify-center shadow-[0_18px_35px_rgba(79,70,229,0.25)]">
-                            <img
-                                src="/images/fj.png.png"
-                                alt="FJ Group logo"
-                                className="h-[80%] w-[80%] object-contain block"
-                                onError={e => { e.currentTarget.style.display = 'none'; }}
-                            />
-                        </div>
-                        <div className="leading-tight">
-                            <p className="text-[22px] sm:text-[28px] font-[800] text-[#1e1b4b] tracking-tight">FJ Group</p>
-                            <p className="text-[10px] sm:text-[11px] font-[700] tracking-[0.18em] text-slate-400 uppercase">Corporate Suite</p>
-                        </div>
+                    <div className="flex justify-center mb-6 sm:mb-8 self-center">
+                        <img
+                            src="/images/fj1.png.png"
+                            alt="FJ Group logo"
+                            className="h-[140px] w-[140px] sm:h-[180px] sm:w-[180px] object-contain block mix-blend-multiply"
+                            onError={e => { e.currentTarget.style.display = 'none'; }}
+                        />
                     </div>
 
                     {/* Mobile brand tagline */}

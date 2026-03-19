@@ -589,7 +589,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                         Execution Trends
                     </h3>
                     <div className="flex-1 min-h-0">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                             <BarChart data={trends}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis 

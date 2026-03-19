@@ -72,8 +72,13 @@ export const AuthProvider = ({ children }) => {
             // Clean up token if /auth/me failed after storing it
             localStorage.removeItem('pms_token');
             localStorage.removeItem('pms_user');
-            const message =
-                err.response?.data?.detail || 'Login failed. Check your credentials.';
+            
+            console.error(`[AuthContext] Login Error:`, err);
+            const status = err.response ? err.response.status : 'NO_RESPONSE';
+            const data = err.response ? err.response.data : 'NO_DATA';
+            console.error(`[AuthContext] Details: Status ${status}, Data:`, data);
+            
+            const message = err.response?.data?.detail || 'Login failed. Check your credentials.';
             return { success: false, message };
         }
     };

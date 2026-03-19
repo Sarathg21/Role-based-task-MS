@@ -155,16 +155,6 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
                         {isMobileSidebarOpen ? <X size={20} /> : <Menu size={20} />}
                     </button>
 
-                    <div className="flex items-center">
-                        <div className="w-20 h-20 rounded-2xl bg-white shadow-lg flex items-center justify-center p-0.5 transition-all overflow-hidden border border-slate-100">
-                             <img
-                                src="/images/fj.png.png"
-                                alt="FJ logo"
-                                className="w-[115%] h-[115%] object-contain filter drop-shadow-[0_4px_10px_rgba(30,27,75,0.15)]"
-                            />
-                        </div>
-                    </div>
-
                     <div className="flex flex-col min-w-0">
                         <h1
                             className="text-[14px] sm:text-[17px] font-[850] text-[#6366f1] leading-tight tracking-tight truncate pl-1"

@@ -74,26 +74,39 @@ const Sidebar = ({ isCollapsed, toggleSidebar, isMobileOpen, closeMobileSidebar 
     return (
         <aside className={`sidebar cfo-sidebar flex flex-col ${isCollapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open' : ''} border-r border-white/5`}>
 
-            {/* ── Header: Toggle Only ── */}
-            <div className={`flex items-center px-4 py-4 flex-shrink-0 ${isCollapsed ? 'justify-center' : 'justify-end'}`}>
+            {/* ── Header: Logo & Toggle ── */}
+            <div className={`flex items-center px-4 py-4 flex-shrink-0 ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
 
-                {/* Desktop toggle button */}
-                <button
-                    onClick={toggleSidebar}
-                    className={`p-1.5 rounded-lg hover:bg-white/10 text-indigo-200/50 hover:text-white transition-all active:scale-95 hidden md:flex ${isCollapsed ? 'mt-2' : 'mr-0.5'}`}
-                    title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                >
-                    {isCollapsed ? <Menu size={17} /> : <ChevronLeft size={17} />}
-                </button>
+                {/* Logo */}
+                {!isCollapsed && (
+                    <div className="flex items-center flex-1 overflow-hidden h-14 relative">
+                        <img
+                            src="/images/fj.png.png"
+                            alt="FJ logo"
+                            className="absolute -left-2 top-1/2 -translate-y-1/2 w-[160px] h-[160px] object-contain object-left filter drop-shadow-[0_4px_10px_rgba(30,27,75,0.15)] transform scale-[1.2]"
+                        />
+                    </div>
+                )}
 
-                {/* Mobile close button */}
-                <button
-                    onClick={closeMobileSidebar}
-                    className="p-1.5 rounded-lg hover:bg-white/10 text-indigo-200/50 hover:text-white transition-all active:scale-95 flex md:hidden mr-0.5"
-                    title="Close menu"
-                >
-                    <X size={17} />
-                </button>
+                <div className="flex gap-1 items-center">
+                    {/* Desktop toggle button */}
+                    <button
+                        onClick={toggleSidebar}
+                        className={`p-1.5 rounded-lg hover:bg-white/10 text-indigo-200/50 hover:text-white transition-all active:scale-95 hidden md:flex ${isCollapsed ? 'mt-2' : ''}`}
+                        title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                    >
+                        {isCollapsed ? <Menu size={17} /> : <ChevronLeft size={17} />}
+                    </button>
+
+                    {/* Mobile close button */}
+                    <button
+                        onClick={closeMobileSidebar}
+                        className="p-1.5 rounded-lg hover:bg-white/10 text-indigo-200/50 hover:text-white transition-all active:scale-95 flex md:hidden"
+                        title="Close menu"
+                    >
+                        <X size={17} />
+                    </button>
+                </div>
             </div>
 
             {/* ── Divider ── */}
