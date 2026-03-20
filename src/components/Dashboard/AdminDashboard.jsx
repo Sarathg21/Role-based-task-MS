@@ -1,328 +1,231 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
-import { TASKS, USERS, DEPARTMENTS } from '../../data/mockData';
-import { getEmployeeRankings, getManagerRankings } from '../../utils/rankingEngine';
-import StatsCard from '../UI/StatsCard';
-import ChartPanel from '../Charts/ChartPanel';
-import { Users, Briefcase, Activity, Award, Building2, Shield, Plus, Settings, MessageSquare, ChevronDown, CheckCircle, User, Edit2, CheckSquare, Loader2, AlertCircle } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import toast from 'react-hot-toast';
+import { 
+    Users, 
+    UserCheck, 
+    UserX, 
+    Building2, 
+    RefreshCw, 
+    Search, 
+    Plus, 
+    Key, 
+    MoreHorizontal,
+    CheckSquare,
+    Calendar,
+    Loader2
+} from 'lucide-react';
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
-    const [activities, setActivities] = useState([]);
-    const [loadingActivities, setLoadingActivities] = useState(false);
-    const [filters, setFilters] = useState({
-        department: 'All',
-        role: 'All',
-        dateFrom: '',
-        dateTo: '',
-        performanceMin: '',
-        performanceMax: ''
-    });
+    const [summary, setSummary] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState("");
 
-    const formatTimeAgo = (dateStr) => {
-        if (!dateStr) return 'Just now';
+    const fetchSummary = async () => {
+        setLoading(true);
         try {
-            const date = new Date(dateStr);
-            const now = new Date();
-            const diffInSeconds = Math.floor((now - date) / 1000);
-            if (diffInSeconds < 60) return `${Math.max(0, diffInSeconds)}s ago`;
-            const diffInMinutes = Math.floor(diffInSeconds / 60);
-            if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-            const diffInHours = Math.floor(diffInMinutes / 60);
-            if (diffInHours < 24) return `${diffInHours}h ago`;
-            const diffInDays = Math.floor(diffInHours / 24);
-            return `${diffInDays}d ago`;
-        } catch (e) { return 'Recent'; }
-    };
-
-    const fetchActivities = async () => {
-        setLoadingActivities(true);
-        try {
-            const res = await api.get('/notifications');
-            const raw = res.data;
-            let data = [];
-            if (Array.isArray(raw)) {
-                data = raw;
-            } else if (raw && typeof raw === 'object') {
-                data = raw.notifications ?? raw.data ?? raw.items ?? raw.results ?? raw.records ?? [];
-                if (!Array.isArray(data)) data = [];
-            }
-            setActivities(data);
+            const res = await api.get('/admin/summary');
+            setSummary(res.data);
         } catch (err) {
-            console.error("Failed to fetch admin activities:", err);
+            console.error("Failed to fetch admin summary:", err);
+            toast.error("Failed to sync dashboard data.");
         } finally {
-            setLoadingActivities(false);
+            setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchActivities();
+        fetchSummary();
     }, []);
 
-    const { stats, deptData, topEmployees, orgTableData, managerRankings, deptPerformanceChart, workloadData, trendData } = useMemo(() => {
-        const totalEmployees = USERS.filter(u => u.role === 'Employee').length;
-        const totalManagers = USERS.filter(u => u.role === 'Manager').length;
-        const activeTasks = TASKS.filter(t => t.status !== 'APPROVED').length;
-
-        const deptCounts = DEPARTMENTS.filter(d => USERS.some(u => u.department === d)).map(dept => ({
-            name: dept,
-            value: USERS.filter(u => u.department === dept).length
-        }));
-
-        const allEmployees = USERS.filter(u => u.role === 'Employee');
-        const allManagers = USERS.filter(u => u.role === 'Manager');
-        const rankedEmployees = getEmployeeRankings(allEmployees, TASKS);
-        const rankedManagers = getManagerRankings(allManagers, TASKS, allEmployees);
-
-        const orgData = DEPARTMENTS.filter(d => USERS.some(u => u.department === d)).map(dept => {
-            const mgr = allManagers.find(m => m.department === dept);
-            const emps = allEmployees.filter(e => e.department === dept);
-            const empWithScores = emps.map(e => {
-                const found = rankedEmployees.find(r => r.id === e.id);
-                return { ...e, score: found?.score ?? 0 };
-            });
-            const mgrScore = mgr ? (rankedManagers.find(r => r.id === mgr.id)?.score ?? 0) : 0;
-            return { department: dept, manager: mgr, managerScore: mgrScore, employees: empWithScores };
-        });
-
-        const deptPerf = DEPARTMENTS.filter(d => USERS.some(u => u.department === d)).map(dept => {
-            const deptUserIds = USERS.filter(u => u.department === dept).map(u => u.id);
-            const deptTasks = TASKS.filter(t => deptUserIds.includes(t.employeeId));
-            const completed = deptTasks.filter(t => t.status === 'APPROVED').length;
-            const total = deptTasks.length;
-            const score = total > 0 ? Math.round((completed / total) * 100) : 0;
-            return { name: dept, Performance: score, Tasks: total };
-        });
-
-        const mgrChartData = rankedManagers.map(m => ({ name: m.name.split(' ')[0], score: m.score, department: m.department }));
-
-        const workload = DEPARTMENTS.filter(d => USERS.some(u => u.department === d)).map(dept => {
-            const deptUserIds = USERS.filter(u => u.department === dept).map(u => u.id);
-            const total = TASKS.filter(t => deptUserIds.includes(t.employeeId)).length;
-            const pending = TASKS.filter(t => deptUserIds.includes(t.employeeId) && t.status !== 'APPROVED').length;
-            return { name: dept, Total: total, Pending: pending, Completed: total - pending };
-        });
-
-        const trend = [
-            { name: 'Jan', Engineering: 70, Sales: 65, HR: 80, Administration: 75 },
-            { name: 'Feb', Engineering: 75, Sales: 68, HR: 78, Administration: 72 },
-            { name: 'Mar', Engineering: 72, Sales: 75, HR: 82, Administration: 78 },
-            { name: 'Apr', Engineering: 85, Sales: 80, HR: 85, Administration: 80 },
-            { name: 'May', Engineering: 82, Sales: 85, HR: 88, Administration: 85 },
-            { name: 'Jun', Engineering: 88, Sales: 90, HR: 90, Administration: 88 },
-        ];
-
-        const totalDepts = DEPARTMENTS.filter(d => USERS.some(u => u.department === d)).length;
-        return {
-            stats: { employees: totalEmployees, managers: totalManagers, activeTasks, departments: totalDepts },
-            deptData: deptCounts,
-            topEmployees: rankedEmployees.slice(0, 5),
-            orgTableData: orgData,
-            managerRankings: rankedManagers,
-            deptPerformanceChart: deptPerf,
-            workloadData: workload,
-            trendData: trend
-        };
-    }, []);
-
-    const filteredOrgData = useMemo(() => {
-        let data = [...orgTableData];
-        if (filters.department !== 'All') {
-            data = data.filter(r => r.department === filters.department);
+    const handleResetPassword = async (emp) => {
+        try {
+            await api.post(`/employees/${emp.emp_id}/reset-password`, { new_password: "Password123" });
+            toast.success(`Password reset for ${emp.name}`);
+        } catch (err) {
+            toast.error("Reset failed.");
         }
-        if (filters.role === 'Manager') {
-            data = data.map(r => ({ ...r, employees: [] }));
-        } else if (filters.role === 'Employee') {
-            data = data.map(r => ({ ...r, manager: null }));
-        }
-        if (filters.performanceMin !== '') {
-            const min = parseFloat(filters.performanceMin);
-            data = data.map(r => ({
-                ...r,
-                manager: r.manager && r.managerScore >= min ? r.manager : null,
-                employees: r.employees.filter(e => e.score >= min)
-            }));
-        }
-        if (filters.performanceMax !== '') {
-            const max = parseFloat(filters.performanceMax);
-            data = data.map(r => ({
-                ...r,
-                manager: r.manager && r.managerScore <= max ? r.manager : null,
-                employees: r.employees.filter(e => e.score <= max)
-            }));
-        }
-        return data;
-    }, [orgTableData, filters]);
+    };
 
-    const COLORS = ['#8b5cf6', '#10b981', '#f59e0b', '#3b82f6'];
+    const StatCard = ({ icon: Icon, title, value, subValue, iconColor, iconBg }) => (
+        <div className="bg-white/80 backdrop-blur-xl p-6 rounded-[2rem] border border-white shadow-sm flex flex-col justify-between hover:shadow-md transition-all group flex-1 min-w-[200px]">
+            <div className="flex items-center gap-3 mb-6">
+                <div className={`w-9 h-9 rounded-full ${iconBg} ${iconColor} flex items-center justify-center`}>
+                    <Icon size={18} />
+                </div>
+                <span className="text-slate-500 font-bold text-[13px] tracking-tight">{title}</span>
+            </div>
+            <div className="flex items-baseline gap-3">
+                <span className="text-[36px] font-black text-slate-800 leading-none">{value}</span>
+                {subValue && (
+                    <span className="text-[13px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-lg">
+                        {subValue}
+                    </span>
+                )}
+            </div>
+        </div>
+    );
 
     return (
-        <div className="space-y-4 pb-8">
-            {/* Top Metrics Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
-                    <div>
-                        <span className="text-5xl font-bold tracking-tight">{stats.employees + stats.managers || 8}</span>
-                        <p className="text-[15px] font-medium mt-1 text-white/90">Total Users</p>
+        <div className="min-h-screen bg-[#f3edfd] p-8 md:p-12 animate-in fade-in duration-1000 selection:bg-indigo-100 selection:text-indigo-900 rounded-[3rem] mx-2 my-2 shadow-[inset_0_0_80px_rgba(139,92,246,0.05)]">
+            
+            {/* ── HEADER ── */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+                <h1 className="text-[32px] font-black text-[#1E1B4B] tracking-tight">Admin Dashboard</h1>
+                
+                <div className="flex items-center gap-4">
+                    <div className="relative group">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-violet-500 transition-all pointer-events-none" size={20} />
+                        <input 
+                            type="text" 
+                            placeholder="Search..."
+                            className="bg-white rounded-full pl-12 pr-6 py-3.5 w-64 md:w-80 text-[14px] font-medium border border-white shadow-sm focus:ring-8 focus:ring-violet-500/5 focus:outline-none transition-all placeholder:text-slate-300"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
                     </div>
-                    <div className="absolute right-4 bottom-4 opacity-20">
-                        <Users size={72} strokeWidth={1.5} />
-                    </div>
-                </div>
-
-                <div className="bg-[#9B51E0] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28 border border-[#a259e8]">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <span className="text-5xl font-bold tracking-tight">{stats.departments || 3}</span>
-                            <p className="text-[15px] font-medium mt-1 text-white/90">Teams</p>
-                        </div>
-                        <div className="opacity-40 mt-2">
-                            <Users size={32} />
-                        </div>
-                    </div>
-                    <div className="absolute right-[-10px] bottom-[-10px] opacity-10">
-                        <div className="w-32 h-32 rounded-full border-[12px] border-white"></div>
-                    </div>
-                </div>
-
-                <div className="bg-[#34D399] text-white rounded-[1.5rem] p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <span className="text-5xl font-bold tracking-tight">2</span>
-                            <p className="text-[15px] font-medium mt-1 text-white/90">Pending Users</p>
-                        </div>
-                        <div className="opacity-40 mt-2">
-                            <CheckCircle size={32} />
-                        </div>
-                    </div>
+                    <button 
+                        onClick={() => navigate('/admin')}
+                        className="w-12 h-12 bg-violet-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-violet-200 hover:bg-violet-700 hover:scale-110 active:scale-95 transition-all"
+                    >
+                        <Plus size={24} strokeWidth={3} />
+                    </button>
                 </div>
             </div>
 
-            {/* Main Content Split */}
-            <div className="flex flex-col xl:flex-row gap-6">
-                {/* Left Side - Team Members Table */}
-                <div className="flex-[7] bg-white rounded-2xl p-0 shadow-sm border border-slate-100 flex flex-col">
-                    <div className="flex items-center justify-between pt-6 px-6 border-b border-slate-100 pb-4">
-                        <h2 className="text-[17px] font-bold text-slate-800">Team Members</h2>
-                    </div>
+            {/* ── STATS ROW ── */}
+            <div className="flex flex-wrap gap-6 mb-12">
+                <StatCard 
+                    icon={Users} 
+                    title="Total Employees" 
+                    value={summary?.total_employees ?? '...'} 
+                    iconBg="bg-blue-50" iconColor="text-blue-500" 
+                />
+                <StatCard 
+                    icon={UserCheck} 
+                    title="Active" 
+                    value={summary?.active_employees ?? '...'} 
+                    subValue="(+12)"
+                    iconBg="bg-emerald-50" iconColor="text-emerald-500" 
+                />
+                <StatCard 
+                    icon={UserX} 
+                    title="Inactive" 
+                    value={(summary?.total_employees || 0) - (summary?.active_employees || 0)} 
+                    iconBg="bg-orange-50" iconColor="text-orange-500" 
+                />
+                <StatCard 
+                    icon={Building2} 
+                    title="Departments" 
+                    value={summary?.total_departments ?? '...'} 
+                    iconBg="bg-indigo-50" iconColor="text-indigo-500" 
+                />
+                <StatCard 
+                    icon={RefreshCw} 
+                    title="Recurring" 
+                    value={summary?.active_recurring_templates ?? '...'} 
+                    iconBg="bg-violet-50" iconColor="text-violet-500" 
+                />
+            </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="text-[12px] text-slate-400 border-b border-slate-100 bg-slate-50/30">
-                                <tr>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Name</th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Role <ChevronDown size={14} className="inline ml-1" /></th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap">Open Tasks <ChevronDown size={14} className="inline ml-1" /></th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-center">Status</th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {[
-                                    { id: 1, name: 'Linda Zhang', role: 'Developer', tasks: 4, status: 'Active', char: 'L' },
-                                    { id: 2, name: 'John Doe', role: 'Designer', tasks: 2, status: 'Active', char: 'J' },
-                                    { id: 3, name: 'Anna Brown', role: 'Manager', tasks: 5, status: 'Pending', char: 'A' },
-                                    { id: 4, name: 'Mark Wilson', role: 'Developer', tasks: 3, status: 'Active', char: 'M' },
-                                    { id: 5, name: 'John Doe', role: 'QA Tester', tasks: 1, status: 'Active', char: 'J' }
-                                ].map(member => (
-                                    <tr key={member.id} className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="py-2 px-6 flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-500 font-bold overflow-hidden flex items-center justify-center shrink-0 shadow-sm border border-white text-xs">
-                                                {member.char}
-                                            </div>
-                                            <span className="text-[13.5px] font-semibold text-slate-700 truncate">{member.name}</span>
-                                        </td>
-                                        <td className="py-2 px-6">
-                                            <span className="text-[13px] font-medium text-slate-600">{member.role}</span>
-                                        </td>
-                                        <td className="py-2 px-6">
-                                            <span className="text-[13px] font-medium text-slate-600 ml-4">{member.tasks}</span>
-                                        </td>
-                                        <td className="py-2 px-6 text-center">
-                                            <span className={`px-4 py-1.5 rounded-full text-[11px] font-bold shadow-sm inline-block min-w-[70px] ${member.status === 'Active' ? 'bg-[#EAF5F0] text-[#10B981]' : 'bg-[#FFF3E0] text-[#F59E0B]'}`}>
-                                                {member.status}
-                                            </span>
-                                        </td>
-                                        <td className="py-2 px-6 text-right">
-                                            <button className="px-5 py-1.5 bg-[#7B51ED] text-white text-[12px] font-bold rounded-lg hover:bg-violet-700 transition-[transform,colors] active:scale-95 shadow-sm inline-flex items-center gap-1.5">
-                                                <Edit2 size={12} /> Edit
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400 font-medium">
-                            <span>Showing 5 of 8</span>
-                            <div className="flex items-center gap-1">
-                                <span className="mr-2">Showing 5 of 8</span>
-                                <button className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition">&lt;</button>
-                                <button className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#7B51ED] text-white font-bold shadow-sm">1</button>
-                                <button className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition text-slate-600">2</button>
-                                <span className="px-1 text-slate-400">...</span>
-                                <button className="px-3 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition text-slate-600 font-semibold">Next</button>
-                            </div>
-                        </div>
-                    </div>
+            {/* ── RECENTLY ADDED SECTION ── */}
+            <div className="bg-white/70 backdrop-blur-3xl rounded-[3rem] shadow-2xl shadow-indigo-200/20 border border-white overflow-hidden flex flex-col min-h-[500px]">
+                <div className="px-10 py-8 border-b border-indigo-50/50 flex justify-between items-center">
+                    <h2 className="text-[20px] font-black text-[#1E1B4B]">Recently Added Employees</h2>
+                    <button 
+                        onClick={fetchSummary}
+                        className="p-2.5 rounded-xl hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-all"
+                    >
+                        <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+                    </button>
                 </div>
 
-                {/* Right Side - Actions & Activity */}
-                <div className="flex-[2.5] flex flex-col gap-6">
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-800 mb-4 ml-1">Quick Actions</h3>
-                        <div className="flex flex-col gap-3">
-                            <button className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
-                                <Plus size={18} strokeWidth={2.5} /> Create New Task
-                            </button>
-                            <button className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
-                                <User size={18} strokeWidth={2.5} /> Add User
-                            </button>
-                            <button onClick={() => navigate('/reports')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
-                                <Activity size={18} strokeWidth={2.5} /> View Reports
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="flex-1 min-h-[300px]">
-                        <div className="flex justify-between items-center mb-4 ml-1">
-                            <h3 className="text-lg font-bold text-slate-800">Recent Activity</h3>
-                            <button className="text-slate-400 hover:text-slate-600"><Settings size={16} /></button>
-                        </div>
-
-                        <div className="space-y-3">
-                            {loadingActivities ? (
-                                <div className="py-10 text-center">
-                                    <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mx-auto mb-2" />
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Syncing Activity...</p>
-                                </div>
-                            ) : activities.length === 0 ? (
-                                <div className="py-10 text-center">
-                                    <Activity className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">No recent activity</p>
-                                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-indigo-50/30 text-[11px] font-black text-indigo-300 uppercase tracking-widest border-b border-indigo-50/50">
+                            <tr>
+                                <th className="px-10 py-5">Name</th>
+                                <th className="px-8 py-5">Department</th>
+                                <th className="px-8 py-5">Email</th>
+                                <th className="px-8 py-5">Role</th>
+                                <th className="px-8 py-5">Status</th>
+                                <th className="px-10 py-5">Date Added</th>
+                                <th className="px-10 py-5 text-right"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-indigo-50/40">
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={7} className="py-40 text-center">
+                                        <Loader2 className="animate-spin text-violet-600 mx-auto" size={42} />
+                                    </td>
+                                </tr>
+                            ) : !summary?.recent_employees?.length ? (
+                                <tr>
+                                    <td colSpan={7} className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest italic">No recent activity detected.</td>
+                                </tr>
                             ) : (
-                                activities.slice(0, 5).map((n, idx) => (
-                                    <div key={n.id || idx} className="flex gap-3 items-start border border-slate-100 p-3.5 rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                                        <div className={`w-9 h-9 border-2 border-white shadow-sm rounded-full shrink-0 overflow-hidden flex items-center justify-center font-bold text-sm ${n.type === 'SUCCESS' ? 'bg-emerald-100 text-emerald-600' :
-                                            n.type === 'WARNING' ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'
-                                            }`}>
-                                            {(n.actor_name || n.title || 'N').charAt(0).toUpperCase()}
-                                        </div>
-                                        <div className="flex-1 pt-0.5 min-w-0">
-                                            <p className="text-[13px] text-slate-600 leading-tight">
-                                                <span className="font-bold text-slate-800">{n.title || 'Activity'}</span>
-                                                <span className="block text-slate-500 mt-1 text-[12px]">{n.message}</span>
-                                            </p>
-                                            <p className="text-[11px] font-medium text-slate-400 mt-1">{formatTimeAgo(n.created_at)}</p>
-                                        </div>
-                                        <MessageSquare size={14} className="text-slate-300 mt-1 shrink-0" />
-                                    </div>
+                                summary.recent_employees.map((emp) => (
+                                    <tr key={emp.emp_id} className="group hover:bg-white transition-all duration-300">
+                                        <td className="px-10 py-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-full border-2 border-white shadow-lg overflow-hidden bg-gradient-to-br from-indigo-100 to-violet-100 flex items-center justify-center text-indigo-500 font-black text-sm group-hover:scale-110 transition-transform">
+                                                    <span>{emp.name?.charAt(0).toUpperCase()}</span>
+                                                </div>
+                                                <span className="text-[14px] font-black text-slate-700 tracking-tight capitalize">{emp.name?.toLowerCase()}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-4">
+                                            <span className="text-[13px] font-bold text-slate-500 capitalize">{(emp.department_name || emp.department_id || '—').toLowerCase()}</span>
+                                        </td>
+                                        <td className="px-8 py-4 text-[13px] text-slate-400 font-medium lowercase italic">{emp.email || 'n/a'}</td>
+                                        <td className="px-8 py-4">
+                                            <span className="text-[12px] font-black text-slate-400 tracking-tighter capitalize">{emp.role?.toLowerCase()}</span>
+                                        </td>
+                                        <td className="px-8 py-4">
+                                            <span className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm bg-emerald-50 text-emerald-600 border-emerald-100`}>
+                                                <CheckSquare size={13} className="animate-pulse" />
+                                                Active
+                                            </span>
+                                        </td>
+                                        <td className="px-10 py-4 text-[13px] font-bold text-slate-400">
+                                            <div className="flex items-center gap-2">
+                                                <Calendar size={14} className="opacity-50" />
+                                                {emp.created_at ? new Date(emp.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Apr 15, 2024'}
+                                            </div>
+                                        </td>
+                                        <td className="px-10 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button 
+                                                    onClick={() => handleResetPassword(emp)}
+                                                    className="p-2 rounded-lg bg-orange-50 text-orange-500 hover:bg-orange-100 transition-all active:scale-90"
+                                                    title="Reset Password"
+                                                >
+                                                    <Key size={16} strokeWidth={2.5} />
+                                                </button>
+                                                <button className="p-2 rounded-lg bg-slate-50 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-all active:scale-90">
+                                                    <MoreHorizontal size={20} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
                                 ))
                             )}
-                        </div>
-                    </div>
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Footer link */}
+                <div className="mt-auto px-10 py-6 bg-indigo-50/10 border-t border-indigo-50/50 flex justify-between items-center">
+                    <p className="text-[11px] font-black text-indigo-300 uppercase tracking-widest">Global Personnel Access Registry</p>
+                    <button 
+                        onClick={() => navigate('/admin')}
+                        className="text-[12px] font-black text-violet-600 hover:text-violet-700 underline underline-offset-4 decoration-2 decoration-violet-200 hover:decoration-violet-500 transition-all uppercase"
+                    >
+                        View Directory &rarr;
+                    </button>
                 </div>
             </div>
         </div>

@@ -36,13 +36,16 @@ const AssignTaskPage = () => {
 
     useEffect(() => {
         const fetchMetadata = async () => {
+            const role = String(user?.role || '').toUpperCase();
+            const isAltRole = role === 'ADMIN' || role === 'CFO';
+            
             try {
                 const [empRes, deptRes] = await Promise.all([
-                    api.get('/employees/assignable'),
+                    api.get(isAltRole ? '/employees' : '/employees/assignable'),
                     api.get('/departments')
                 ]);
-                setEligibleAssignees(empRes.data);
-                setDepartments(deptRes.data);
+                setEligibleAssignees(Array.isArray(empRes.data) ? empRes.data : []);
+                setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
             } catch (err) {
                 console.error("Failed to fetch metadata", err);
                 toast.error('Failed to load metadata');
@@ -50,8 +53,11 @@ const AssignTaskPage = () => {
                 setLoading(false);
             }
         };
-        fetchMetadata();
-    }, []);
+
+        if (user) {
+            fetchMetadata();
+        }
+    }, [user]);
 
     const addSubtask = () => {
         setSubtasks([...subtasks, {

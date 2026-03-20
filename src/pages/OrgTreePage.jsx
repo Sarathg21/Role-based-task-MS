@@ -89,28 +89,16 @@ const AddNodeForm = ({ parentRole, departments, onAdd, onCancel }) => {
 
 // ─── Role Styles ─────────────────────────────────────────────────────────────
 const ROLE_CARD = {
-    CFO: "bg-violet-50  border-violet-300  shadow-violet-100",
-    ADMIN: "bg-violet-50  border-violet-300  shadow-violet-100",
-    MANAGER: "bg-blue-50    border-blue-300    shadow-blue-100",
-    EMPLOYEE: "bg-emerald-50 border-emerald-300 shadow-emerald-100",
-};
-const ROLE_ICON_BG = {
-    CFO: "bg-violet-100  text-violet-600",
-    ADMIN: "bg-violet-100  text-violet-600",
-    MANAGER: "bg-blue-100    text-blue-600",
-    EMPLOYEE: "bg-emerald-100 text-emerald-600",
+    CFO: "border-indigo-100",
+    ADMIN: "border-indigo-100",
+    MANAGER: "border-indigo-100",
+    EMPLOYEE: "border-indigo-100",
 };
 const ROLE_BADGE = {
-    CFO: "text-violet-700  bg-violet-100  border-violet-200",
-    ADMIN: "text-violet-700  bg-violet-100  border-violet-200",
-    MANAGER: "text-blue-700    bg-blue-100    border-blue-200",
-    EMPLOYEE: "text-emerald-700 bg-emerald-100 border-emerald-200",
-};
-const ROLE_ADD_BTN = {
-    CFO: "border-violet-300  text-violet-600  hover:bg-violet-100",
-    ADMIN: "border-violet-300  text-violet-600  hover:bg-violet-100",
-    MANAGER: "border-blue-300    text-blue-600    hover:bg-blue-100",
-    EMPLOYEE: null,
+    CFO: "text-indigo-600 bg-indigo-50",
+    ADMIN: "text-indigo-600 bg-indigo-50",
+    MANAGER: "text-blue-600 bg-blue-50",
+    EMPLOYEE: "text-emerald-600 bg-emerald-50",
 };
 
 // ─── Single Org Node ─────────────────────────────────────────────────────────
@@ -126,6 +114,7 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
     const name = u.name || 'Unknown User';
     const dept = u.department || u.department_id || (isRoot ? "Management" : "");
 
+    const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
     const canAddChild = role !== "EMPLOYEE";
     const hasChildren = children.length > 0;
 
@@ -135,62 +124,68 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
     };
 
     const cardStyle = ROLE_CARD[role] || ROLE_CARD.EMPLOYEE;
-    const iconCls = ROLE_ICON_BG[role] || ROLE_ICON_BG.EMPLOYEE;
     const badgeCls = ROLE_BADGE[role] || ROLE_BADGE.EMPLOYEE;
-    const addBtnCls = ROLE_ADD_BTN[role] || ROLE_ADD_BTN.EMPLOYEE || 'border-slate-300 text-slate-600 hover:bg-slate-100';
 
     return (
         <div className="flex flex-col items-center">
-            {/* ── Node Card ── */}
-            <div className={`relative flex flex-col items-center p-2 rounded-lg border-2 shadow-sm hover:shadow-lg transition-all w-32 z-10 ${cardStyle}`}>
-                {/* Collapse/Expand toggle */}
-                {hasChildren && (
-                    <button
-                        onClick={() => setCollapsed(c => !c)}
-                        title={collapsed ? "Expand" : "Collapse"}
-                        className="absolute top-2 right-2 p-0.5 rounded-full bg-white/70 hover:bg-white text-slate-500 hover:text-slate-800 transition-colors shadow-sm"
-                    >
-                        {collapsed
-                            ? <ChevronRight size={14} />
-                            : <ChevronDown size={14} />
-                        }
-                    </button>
-                )}
-
-                {/* Icon */}
-                <div className={`p-1.5 rounded-full mb-1 ${iconCls}`}>
-                    {(role === "ADMIN" || role === "CFO") && <Shield size={14} />}
-                    {role === "MANAGER" && <Briefcase size={14} />}
-                    {role === "EMPLOYEE" && <User size={14} />}
+            {/* ── Node Card (Horizontal Design) ── */}
+            <div className={`group relative flex items-center gap-4 p-4 rounded-3xl border bg-white/70 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 w-[280px] z-10 border-indigo-100/50`}>
+                
+                {/* Profile Avatar */}
+                <div className="relative shrink-0">
+                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-indigo-200 overflow-hidden">
+                       {/* Placeholder for real image if available, else initials */}
+                       <img 
+                          src={`https://i.pravatar.cc/150?u=${emp_id}`} 
+                          alt={name} 
+                          className="w-full h-full object-cover opacity-90 mix-blend-overlay" 
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                       />
+                       <span className="absolute inset-0 flex items-center justify-center pointer-events-none">{initials}</span>
+                   </div>
+                   {/* Online status indicator */}
+                   <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-sm" />
                 </div>
 
-                {/* Name */}
-                <h3 className="font-bold text-slate-800 text-[11px] text-center leading-tight mb-1 truncate w-full px-1" title={name}>{name}</h3>
-                <span className="text-[9px] text-slate-400 font-mono mb-1">{emp_id}</span>
+                {/* Content */}
+                <div className="flex-1 min-w-0 pr-6">
+                    <h3 className="font-bold text-[#1e1b4b] text-[15px] truncate leading-tight mb-0.5 group-hover:text-indigo-700 transition-colors" title={name}>{name}</h3>
+                    <p className="text-[12px] text-slate-500 font-medium truncate capitalize opacity-80" title={u.role}>
+                        {u.role === 'ADMIN' ? 'Administrator' : u.role === 'CFO' ? 'Chief Financial Officer' : (u.role || 'Member')}
+                    </p>
+                    {dept && (
+                         <div className="flex items-center gap-1.5 mt-2">
+                             <span className={`text-[9px] px-2 py-0.5 rounded-lg font-bold border-none uppercase tracking-widest ${badgeCls} opacity-90`}>
+                                {dept} 
+                             </span>
+                         </div>
+                    )}
+                </div>
 
-                {/* Role badge */}
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold border capitalize ${badgeCls}`}>
-                    {role}
-                </span>
-                {dept && (
-                    <span className="text-[8px] text-slate-500 mt-1 bg-white/70 px-1.5 py-0.5 rounded-md truncate max-w-full">
-                        {dept}
-                    </span>
-                )}
-
-                {/* Add child button */}
-                {canAddChild && (
-                    <button
-                        onClick={() => setShowAddForm(v => !v)}
-                        className={`mt-2 w-full flex items-center justify-center gap-1 text-[9px] font-semibold px-1 py-1 rounded-lg border transition-colors ${addBtnCls}`}
-                    >
-                        <PlusCircle size={10} />
-                        Add {role === "ADMIN" || role === "CFO" ? "Manager" : "Employee"}
-                    </button>
-                )}
+                {/* Actions Layer */}
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {hasChildren && (
+                        <button
+                            onClick={() => setCollapsed(c => !c)}
+                            title={collapsed ? "Expand" : "Collapse"}
+                            className="p-1.5 rounded-xl bg-slate-50 hover:bg-white text-slate-500 hover:text-indigo-600 transition-all shadow-sm border border-slate-100"
+                        >
+                            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                        </button>
+                    )}
+                    {canAddChild && (
+                        <button
+                            onClick={() => setShowAddForm(v => !v)}
+                            title={`Add ${role === "ADMIN" || role === "CFO" ? "Manager" : "Employee"}`}
+                            className="p-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white transition-all shadow-sm border border-indigo-100"
+                        >
+                            <PlusCircle size={14} />
+                        </button>
+                    )}
+                </div>
             </div>
 
-            {/* Inline add form — positioned below card */}
+            {/* Inline add form */}
             {showAddForm && (
                 <AddNodeForm
                     parentRole={user.role}
@@ -203,25 +198,26 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
             {/* ── Children ── */}
             {hasChildren && !collapsed && (
                 <div className="flex flex-col items-center">
-                    {/* Connector line down */}
-                    <div className="w-px h-6 bg-slate-300" />
+                    {/* Primary vertical connector */}
+                    <div className="w-px h-12 bg-indigo-200" />
 
                     <div className="relative flex justify-center">
-                        {/* Horizontal bar across children */}
+                        {/* Horizontal spine across multiple children */}
                         {children.length > 1 && (
-                            <div className="absolute top-0 h-px bg-slate-300"
+                            <div 
+                                className="absolute top-0 h-px bg-indigo-200"
                                 style={{
-                                    left: '4rem',
-                                    right: '4rem',
+                                    left: '140px',
+                                    right: '140px',
                                     width: 'auto'
                                 }}
                             />
                         )}
-                        <div className="flex gap-4 pt-0">
+                        <div className="flex gap-12 pt-0">
                             {children.map(child => (
                                 <div key={child.emp_id || child.user?.id || child.id || Math.random()} className="flex flex-col items-center relative">
-                                    {/* Stub line up to horizontal bar */}
-                                    <div className="w-px h-6 bg-slate-300 absolute -top-6" />
+                                    {/* Stub vertical line up to spine */}
+                                    <div className="w-px h-12 bg-indigo-200 absolute -top-12" />
                                     <OrgNode
                                         node={child}
                                         departments={departments}
@@ -250,22 +246,66 @@ const OrgTreePage = () => {
     const fetchTree = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/org/tree');
-            setTreeData(res.data);
+            const [treeRes, deptRes, empRes] = await Promise.all([
+                api.get('/org/tree'),
+                api.get('/admin/departments'),
+                api.get('/employees')
+            ]);
+            
+            const emps = Array.isArray(empRes.data) ? empRes.data : [];
+            const depts = Array.isArray(deptRes.data) ? deptRes.data : [];
+            setDepartments(depts);
+            setTotalEmployees(emps.length);
 
-            // Still need to fetch departments for the add form
-            const deptRes = await api.get('/departments');
-            setDepartments(deptRes.data);
-
-            // Fetch total count for footer
-            const empRes = await api.get('/employees');
-            setTotalEmployees(Array.isArray(empRes.data) ? empRes.data.length : 0);
+            const rawTreeData = treeRes.data;
+            if (rawTreeData && (rawTreeData.children || rawTreeData.root)) {
+                setTreeData(rawTreeData);
+            } else {
+                setTreeData(buildHierarchy(emps));
+            }
         } catch (err) {
             console.error("Failed to build org tree", err);
             toast.error("Failed to load organization hierarchy");
         } finally {
             setLoading(false);
         }
+    };
+
+    const buildHierarchy = (emps) => {
+        if (!emps || !emps.length) return null;
+        
+        const idMap = {};
+        // First pass: Create nodes
+        emps.forEach(emp => {
+          if (emp && emp.emp_id) {
+            idMap[emp.emp_id] = { ...emp, children: [] };
+          }
+        });
+
+        const roots = [];
+        // Second pass: Assign children
+        emps.forEach(emp => {
+            if (!emp || !emp.emp_id) return;
+            const node = idMap[emp.emp_id];
+            const managerId = emp.manager_emp_id;
+
+            if (managerId && idMap[managerId] && managerId !== emp.emp_id) {
+                idMap[managerId].children.push(node);
+            } else {
+                roots.push(node);
+            }
+        });
+
+        // Use the first root (typically CEO/Admin) or a virtual root if multiple
+        if (roots.length > 1) {
+            return {
+                name: "Organization",
+                role: "SYSTEM",
+                emp_id: "ORG-ROOT",
+                children: roots
+            };
+        }
+        return roots[0];
     };
 
     const handleAddNode = async (managerId, newEmpData) => {
@@ -331,35 +371,39 @@ const OrgTreePage = () => {
                     </button>
                     <div className="pr-4">
                         <h1 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                            <Network size={22} className="text-violet-600" />
-                            Organization Hierarchy
+                            Organization Tree
                         </h1>
-                        <p className="text-xs font-bold text-slate-400 mt-0.5 tracking-widest capitalize">
-                            Manage your team structure and branch relationships
-                        </p>
                     </div>
                 </div>
 
-                <div className="flex gap-4 items-center bg-white px-5 py-3 rounded-2xl border border-slate-100 shadow-sm">
-                    <div className="text-center">
-                        <p className="text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] mb-0.5">Managers</p>
-                        <p className="text-sm font-black text-slate-800 tabular-nums">{calculatedManagers}</p>
+                <div className="flex gap-3 items-center">
+                    <div className="flex gap-4 items-center bg-white px-5 py-3 rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="text-center">
+                            <p className="text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] mb-0.5">Managers</p>
+                            <p className="text-sm font-black text-slate-800 tabular-nums">{calculatedManagers}</p>
+                        </div>
+                        <div className="w-px h-8 bg-slate-100" />
+                        <div className="text-center">
+                            <p className="text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] mb-0.5">Employees</p>
+                            <p className="text-sm font-black text-slate-800 tabular-nums">{calculatedEmployees}</p>
+                        </div>
+                        <div className="w-px h-8 bg-slate-100" />
+                        <div className="text-center">
+                            <p className="text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] mb-0.5">Total Staff</p>
+                            <p className="text-sm font-black text-violet-600 tabular-nums">{totalEmployees}</p>
+                        </div>
                     </div>
-                    <div className="w-px h-8 bg-slate-100" />
-                    <div className="text-center">
-                        <p className="text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] mb-0.5">Employees</p>
-                        <p className="text-sm font-black text-slate-800 tabular-nums">{calculatedEmployees}</p>
-                    </div>
-                    <div className="w-px h-8 bg-slate-100" />
-                    <div className="text-center">
-                        <p className="text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] mb-0.5">Total Staff</p>
-                        <p className="text-sm font-black text-violet-600 tabular-nums">{totalEmployees}</p>
-                    </div>
+
+                    <button className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[13px] font-bold text-slate-600 shadow-sm hover:shadow-md transition-all">
+                        <Network size={16} className="text-violet-500" />
+                        Department
+                        <ChevronDown size={14} className="text-slate-400" />
+                    </button>
                 </div>
             </div>
 
             {/* Tree Canvas */}
-            <div className="flex-1 bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-auto p-4 bg-[radial-gradient(#cbd5e1_0.5px,transparent_0.5px)] [background-size:20px_20px] relative flex justify-center min-h-0">
+            <div className="flex-1 bg-[#F5F3FF] rounded-[2.5rem] shadow-sm border border-indigo-100 overflow-auto p-4 bg-[radial-gradient(#d1d5db_1px,transparent_1px)] [background-size:32px_32px] relative flex justify-center min-h-0">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center h-full">
                         <Loader2 size={32} className="text-violet-600 animate-spin mb-2" />

@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { 
     RefreshCw, Plus, Clock, Play, Pause, Trash2, 
-    Calendar, User, Building2, AlertCircle, Loader2, ArrowLeft, Settings 
+    Calendar, User, Building2, AlertCircle, Loader2, ArrowLeft, 
+    Settings, MoreHorizontal, CheckCircle2, XCircle, ChevronDown,
+    ListTodo, Info, Edit2, Check
 } from 'lucide-react';
 import AutomationConfigModal from '../components/Modals/AutomationConfigModal';
 
@@ -14,13 +16,35 @@ const RecurringTasksPage = () => {
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(null);
     const [configModal, setConfigModal] = useState({ isOpen: false, template: null });
+    const [selectedTemplateId, setSelectedTemplateId] = useState(null);
+    const [filterStatus, setFilterStatus] = useState('ALL');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterFrequency, setFilterFrequency] = useState('ALL');
+    const [isFreqOpen, setIsFreqOpen] = useState(false);
+    const [isTempOpen, setIsTempOpen] = useState(false);
+    const [rowMenuId, setRowMenuId] = useState(null);
+
+    // Filter templates based on status, search, and frequency
+    const filteredTemplates = useMemo(() => {
+        return templates.filter(t => {
+            const matchesStatus = filterStatus === 'ALL' || t.status === filterStatus;
+            const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase());
+            const freqVal = String(t.frequency || '').toUpperCase();
+            const matchesFreq = filterFrequency === 'ALL' || freqVal === filterFrequency;
+            return matchesStatus && matchesSearch && matchesFreq;
+        });
+    }, [templates, filterStatus, searchQuery, filterFrequency]);
 
     const fetchTemplates = async () => {
         setLoading(true);
         try {
             const res = await api.get('/recurring-tasks');
             const data = res.data?.data || res.data;
-            setTemplates(Array.isArray(data) ? data : []);
+            const templateList = Array.isArray(data) ? data : [];
+            setTemplates(templateList);
+            if (templateList.length > 0 && !selectedTemplateId) {
+                setSelectedTemplateId(templateList[0].id || templateList[0].recurring_id);
+            }
         } catch (err) {
             console.error("Failed to fetch recurring task templates", err);
             toast.error("Failed to load recurring tasks");
@@ -33,18 +57,21 @@ const RecurringTasksPage = () => {
         fetchTemplates();
     }, []);
 
+    const selectedTemplate = useMemo(() => {
+        return templates.find(t => (t.id || t.recurring_id) === selectedTemplateId) || templates[0];
+    }, [templates, selectedTemplateId]);
+
     const handleToggleStatus = async (template) => {
+        const id = template.id || template.recurring_id;
         const isActive = template.status === 'ACTIVE';
         const newStatus = isActive ? 'INACTIVE' : 'ACTIVE';
         const endpoint = isActive ? 'deactivate' : 'activate';
         
-        setActionLoading(template.id || template.recurring_id);
+        setActionLoading(id);
         try {
-            await api.post(`/recurring-tasks/${template.id || template.recurring_id}/${endpoint}`);
+            await api.post(`/recurring-tasks/${id}/${endpoint}`);
             setTemplates(prev => prev.map(t => 
-                (t.id || t.recurring_id) === (template.id || template.recurring_id) 
-                ? { ...t, status: newStatus } 
-                : t
+                (t.id || t.recurring_id) === id ? { ...t, status: newStatus } : t
             ));
             toast.success(`Task ${isActive ? 'paused' : 'activated'} successfully`);
         } catch (err) {
@@ -61,6 +88,7 @@ const RecurringTasksPage = () => {
         try {
             await api.delete(`/recurring-tasks/${id}`);
             setTemplates(prev => prev.filter(t => (t.id || t.recurring_id) !== id));
+            if (selectedTemplateId === id) setSelectedTemplateId(null);
             toast.success("Template deleted");
         } catch (err) {
             toast.error("Failed to delete template");
@@ -69,230 +97,345 @@ const RecurringTasksPage = () => {
         }
     };
 
-    const handleRunManual = async () => {
-        if (!window.confirm("Run task generation scheduler manually? This will create tasks for today.")) return;
-        setLoading(true);
-        try {
-            await api.post('/recurring-tasks/run', { run_date: new Date().toISOString().split('T')[0] });
-            toast.success("Scheduler triggered successfully!");
-            setTimeout(fetchTemplates, 2000);
-        } catch (err) {
-            toast.error("Manual run failed");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const getNextRunDate = (template) => {
-        // Logic to calculate next run based on frequency and day
-        // For demo: 5th of next month
-        const now = new Date();
-        const next = new Date(now.getFullYear(), now.getMonth() + 1, template.recurring_day || 1);
-        return next.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const formatFrequency = (template) => {
+        if (!template) return '—';
+        const freq = String(template.frequency || '').toUpperCase();
+        if (freq === 'WEEKLY') return `Every ${template.weekly_day || 'Monday'}`;
+        if (freq === 'MONTHLY') return 'Monthly';
+        if (freq === 'QUARTERLY') return 'Quarterly';
+        if (freq === 'YEARLY') return 'Yearly';
+        return freq || 'Daily';
     };
 
     return (
-        <div className="min-h-screen bg-[#f8fafc] p-6">
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-                <div className="flex items-center gap-5">
-                    <button 
-                        onClick={() => {
-    if (window.history.length > 1) {
-        navigate(-1); // go back safely
-    } else {
-        navigate('/cfo/dashboard'); // fallback (change if needed)
-    }
-}}
-                        className="p-3 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all text-slate-500 hover:text-slate-900 shadow-sm"
-                    >
-                        <ArrowLeft size={20} />
-                    </button>
-                    <div>
-                        <div className="flex items-center gap-3 mb-1">
-                            <div className="bg-indigo-600 p-2 rounded-xl text-white">
-                                <RefreshCw size={24} />
-                            </div>
-                            <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none pt-1">
-                                Recurring Tasks
-                            </h1>
-                        </div>
-                        <p className="text-slate-400 font-bold capitalize tracking-[0.3em] text-[10px] ml-11">Governance & Automated Tasks</p>
-                    </div>
+        <div className="min-h-screen bg-[#f3edfd] p-8 md:p-12 animate-in fade-in duration-1000 selection:bg-indigo-100 selection:text-indigo-900 rounded-[3rem] mx-2 my-2 shadow-[inset_0_0_80px_rgba(139,92,246,0.05)]">
+            
+            {/* ── HEADER ── */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+                <div>
+                    <h1 className="text-[32px] font-black text-[#1E1B4B] tracking-tight">Recurring Tasks</h1>
+                    <p className="text-slate-400 font-bold capitalize tracking-[0.3em] text-[10px] mt-1">Automation & Governance Lifecycle</p>
                 </div>
-
-                <div className="flex items-center gap-3">
+                
+                <div className="flex items-center gap-4">
                     <button 
-                        onClick={handleRunManual}
-                        className="bg-white hover:bg-slate-50 text-slate-700 px-6 py-4 rounded-2xl font-black text-[11px] capitalize tracking-widest border border-slate-200 shadow-sm transition-all active:scale-[0.98] flex items-center gap-2"
-                        title="Run Scheduler for Today"
+                        onClick={() => setConfigModal({ isOpen: true, template: null })}
+                        className="bg-indigo-600 text-white px-8 py-3.5 rounded-2xl font-black text-[13px] shadow-xl shadow-indigo-200 hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-3"
                     >
-                        <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Manual Run
-                    </button>
-                    <button 
-                        onClick={() => navigate('/tasks/assign')}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-black text-[11px] capitalize tracking-widest shadow-xl shadow-indigo-200 transition-all flex items-center gap-3 active:scale-[0.98]"
-                    >
-                        <Plus size={20} strokeWidth={3} /> Define New Recurring Task
+                        <Plus size={20} strokeWidth={3} /> Add Recurring Task
                     </button>
                 </div>
             </div>
 
-            {/* Content Area */}
-            <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden min-h-[600px] flex flex-col">
-                <div className="px-10 py-8 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-2 h-8 bg-violet-500 rounded-full" />
-                        <h2 className="text-sm font-black text-slate-800 capitalize tracking-tight italic">Recurring Governance Templates</h2>
-                    </div>
-                    <div className="flex items-center gap-6">
-                        <div className="text-center">
-                            <p className="text-[10px] font-black text-slate-400 capitalize tracking-widest mb-1">Total Templates</p>
-                            <span className="text-xl font-black text-slate-900 tabular-nums">{templates.length}</span>
-                        </div>
-                        <div className="w-px h-8 bg-slate-200" />
-                        <div className="text-center">
-                            <p className="text-[10px] font-black text-slate-400 capitalize tracking-widest mb-1">Enabled</p>
-                            <span className="text-xl font-black text-emerald-600 tabular-nums">{templates.filter(t => t.is_active !== false).length}</span>
-                        </div>
-                    </div>
-                </div>
+            {/* ── FILTERS ── */}
+            <div className="flex items-center gap-3 mb-8">
+                {/* Template Filter/Search */}
+                <div className="relative">
+                    <button 
+                        onClick={() => setIsTempOpen(!isTempOpen)}
+                        className={`flex items-center gap-3 px-6 py-2.5 bg-white/80 backdrop-blur-xl border border-white rounded-xl shadow-sm hover:shadow-md transition-all font-bold text-[13px] ${searchQuery ? 'text-indigo-600' : 'text-slate-600'}`}
+                    >
+                        {searchQuery ? `Template: ${searchQuery}` : 'Template'}
+                        <ChevronDown size={16} className={`text-slate-400 transition-transform ${isTempOpen ? 'rotate-180' : ''}`} />
+                    </button>
 
-                <div className="flex-1">
-                    {loading ? (
-                        <div className="h-[400px] flex flex-col items-center justify-center gap-4">
-                            <Loader2 size={40} className="text-indigo-500 animate-spin" />
-                            <p className="text-[10px] font-black text-slate-400 capitalize tracking-widest">Hydrating Task Registry</p>
-                        </div>
-                    ) : templates.length === 0 ? (
-                        <div className="h-[400px] flex flex-col items-center justify-center gap-6">
-                            <div className="bg-slate-50 p-8 rounded-[2rem] border-2 border-dashed border-slate-200">
-                                <Clock size={64} className="text-slate-200 mx-auto" strokeWidth={1} />
+                    {isTempOpen && (
+                        <>
+                            <div className="fixed inset-0 z-40" onClick={() => setIsTempOpen(false)} />
+                            <div className="absolute top-full left-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 z-50 animate-in zoom-in-95 duration-200">
+                                <div className="relative mb-3">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search by title..."
+                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-200 transition-all"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
+                                    <button 
+                                        onClick={() => { setSearchQuery(''); setIsTempOpen(false); }}
+                                        className="w-full text-left px-4 py-2 rounded-lg text-xs font-bold text-slate-400 hover:bg-slate-50 transition-colors uppercase tracking-widest"
+                                    >
+                                        Clear Filter
+                                    </button>
+                                    {templates.slice(0, 8).map(t => (
+                                        <button 
+                                            key={t.id || t.recurring_id}
+                                            onClick={() => { setSearchQuery(t.title); setIsTempOpen(false); }}
+                                            className="w-full text-left px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-all flex items-center justify-between"
+                                        >
+                                            <span className="truncate">{t.title}</span>
+                                            {searchQuery === t.title && <Check size={14} />}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                            <div className="text-center">
-                                <h3 className="text-lg font-black text-slate-800">No Recurring Tasks</h3>
-                                <p className="text-slate-400 text-sm font-medium mt-1">Initialize your first automated workflow to see it here.</p>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50/30">
-                                    <tr className="border-b border-slate-100">
-                                        <th className="px-10 py-5 text-[10px] font-black text-slate-400 capitalize tracking-[0.2em]">Task / Purpose</th>
-                                        <th className="px-6 py-5 text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] text-center">Recurrence</th>
-                                        <th className="px-6 py-5 text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] text-center">Owner</th>
-                                        <th className="px-6 py-5 text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] text-center">Next Run</th>
-                                        <th className="px-10 py-5 text-[10px] font-black text-slate-400 capitalize tracking-[0.2em] text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {templates.map((template) => {
-                                        const tid = template.id || template.recurring_id;
-                                        const isActive = template.status === 'ACTIVE';
-                                        return (
-                                            <tr key={tid} className="group hover:bg-slate-50/50 transition-all duration-300">
-                                                <td className="px-10 py-6">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm border border-white transition-transform group-hover:scale-110 ${isActive ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
-                                                            <RefreshCw size={20} />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-black text-slate-800 leading-tight mb-1 group-hover:text-indigo-600 transition-colors capitalize tracking-tight">{template.title}</p>
-                                                            <p className="text-[11px] text-slate-400 font-bold truncate max-w-[240px] italic">{template.description || 'No detailed task provided'}</p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-6 border-x border-slate-50/50">
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-[9px] font-black capitalize tracking-widest border border-blue-200">
-                                                            {template.frequency}
-                                                        </span>
-                                                        <span className="text-[9px] font-bold text-slate-400 capitalize tracking-widest italic">
-                                                            {template.frequency === 'WEEKLY' && `Every ${template.weekly_day}`}
-                                                            {template.frequency === 'MONTHLY' && `Day ${template.monthly_day}`}
-                                                            {template.frequency === 'YEARLY' && `${template.yearly_day} ${new Date(0, (template.yearly_month || 1) - 1).toLocaleString('en', { month: 'short' })}`}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-6 text-center">
-                                                    <div className="flex flex-col items-center">
-                                                        <div className="flex items-center gap-2 text-[11px] font-black text-slate-700">
-                                                            <User size={12} className="text-slate-400" />
-                                                            {template.assigned_to_name || template.assigned_to_emp_id}
-                                                        </div>
-                                                        <div className="flex items-center gap-1 text-[9px] font-bold text-slate-400 capitalize tracking-widest mt-1">
-                                                            <Building2 size={10} />
-                                                            {template.department_name || template.department_id}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-6 text-center">
-                                                    <div className="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl inline-flex shadow-inner">
-                                                        <Calendar size={14} className="text-indigo-500" />
-                                                        <span className="text-[11px] font-black text-slate-700 tabular-nums">{template.next_run_date || getNextRunDate(template)}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-10 py-6 text-right">
-                                                    <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity translate-x-2 group-hover:translate-x-0">
-                                                        <button 
-                                                            onClick={() => setConfigModal({ isOpen: true, template })}
-                                                            disabled={actionLoading === tid}
-                                                            className="p-2.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-100 transition-all"
-                                                            title="Edit Configuration"
-                                                        >
-                                                            <Settings size={18} />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleToggleStatus(template)}
-                                                            disabled={actionLoading === tid}
-                                                            className={`p-2.5 rounded-xl border transition-all ${isActive 
-                                                                ? 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100' 
-                                                                : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'}`}
-                                                            title={isActive ? 'Pause' : 'Activate'}
-                                                        >
-                                                            {actionLoading === tid ? <Loader2 size={18} className="animate-spin" /> : (isActive ? <Pause size={18} /> : <Play size={18} />)}
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleDelete(template)}
-                                                            disabled={actionLoading === tid}
-                                                            className="p-2.5 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl hover:bg-rose-100 transition-all"
-                                                            title="Delete"
-                                                        >
-                                                            {actionLoading === tid ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                        </>
                     )}
                 </div>
 
-                {/* Legend / Info */}
-                <div className="px-10 py-6 bg-slate-50/50 border-t border-slate-100 flex items-center gap-10">
-                    <div className="flex items-center gap-2">
-                        <div className="w-10 h-6 bg-violet-600 rounded-lg flex items-center justify-center">
-                            <RefreshCw size={12} className="text-white" />
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-500 capitalize tracking-widest">Automation Template</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-slate-400 italic">
-                        <AlertCircle size={14} />
-                        <span className="text-xs font-medium">Automatic assignment occurs at 00:00 UTC on the scheduled day.</span>
-                    </div>
+                {/* Frequency Filter */}
+                <div className="relative">
+                    <button 
+                        onClick={() => setIsFreqOpen(!isFreqOpen)}
+                        className={`flex items-center gap-3 px-6 py-2.5 bg-white/80 backdrop-blur-xl border border-white rounded-xl shadow-sm hover:shadow-md transition-all font-bold text-[13px] ${filterFrequency !== 'ALL' ? 'text-indigo-600' : 'text-slate-600'}`}
+                    >
+                        {filterFrequency === 'ALL' ? 'Frequency' : `Frequency: ${filterFrequency}`}
+                        <ChevronDown size={16} className={`text-slate-400 transition-transform ${isFreqOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isFreqOpen && (
+                        <>
+                            <div className="fixed inset-0 z-40" onClick={() => setIsFreqOpen(false)} />
+                            <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in zoom-in-95 duration-200">
+                                {['ALL', 'DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY'].map(f => (
+                                    <button 
+                                        key={f}
+                                        onClick={() => { setFilterFrequency(f); setIsFreqOpen(false); }}
+                                        className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all mb-0.5 last:mb-0 flex items-center justify-between ${
+                                            filterFrequency === f ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                                        }`}
+                                    >
+                                        {f}
+                                        {filterFrequency === f && <Check size={14} />}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
+
+            {/* ── MAIN TABLE CARD ── */}
+            <div className="bg-white/70 backdrop-blur-3xl rounded-[2.5rem] shadow-2xl shadow-indigo-200/20 border border-white overflow-hidden mb-8 min-h-[500px] flex flex-col">
+                <div className="overflow-x-auto flex-1">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-[#fbfcff]/50 text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-indigo-50/50">
+                            <tr>
+                                <th className="px-10 py-5">Template</th>
+                                <th className="px-8 py-5">Frequency</th>
+                                <th className="px-8 py-5">Status</th>
+                                <th className="px-10 py-5 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-indigo-50/40">
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={4} className="py-20 text-center">
+                                        <Loader2 className="animate-spin text-indigo-500 mx-auto" size={32} />
+                                    </td>
+                                </tr>
+                            ) : filteredTemplates.length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="py-12 text-center text-slate-400 italic font-medium uppercase tracking-[0.2em] text-[10px]">No matches found for active filters.</td>
+                                </tr>
+                            ) : (
+                                filteredTemplates.map((t) => {
+                                    const id = t.id || t.recurring_id;
+                                    const isActive = t.status === 'ACTIVE';
+                                    const isSelected = selectedTemplateId === id;
+                                    return (
+                                        <tr 
+                                            key={id} 
+                                            onClick={() => setSelectedTemplateId(id)}
+                                            className={`group cursor-pointer transition-all duration-300 ${isSelected ? 'bg-indigo-100/40' : 'hover:bg-white/60'}`}
+                                        >
+                                            <td className="px-10 py-5">
+                                                <span className={`text-[15px] font-bold ${isSelected ? 'text-indigo-700' : 'text-slate-700'} tracking-tight`}>
+                                                    {t.title}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <span className="text-[13px] font-bold text-slate-500">{formatFrequency(t)}</span>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-sm ${
+                                                    isActive 
+                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                                                        : 'bg-orange-50 text-orange-600 border-orange-100'
+                                                }`}>
+                                                    {isActive ? <Check size={12} strokeWidth={4} /> : <Pause size={12} strokeWidth={4} />}
+                                                    {isActive ? 'Active' : 'Inactive'}
+                                                </div>
+                                            </td>
+                                            <td className="px-10 py-5 text-right relative" onClick={(e) => e.stopPropagation()}>
+                                                <button 
+                                                    onClick={() => setRowMenuId(rowMenuId === id ? null : id)}
+                                                    className={`p-2.5 rounded-xl transition-all shadow-sm ${rowMenuId === id ? 'bg-indigo-600 text-white shadow-indigo-200' : 'text-slate-400 group-hover:text-indigo-600 hover:bg-indigo-50'}`}
+                                                >
+                                                    <MoreHorizontal size={20} strokeWidth={3} />
+                                                </button>
+                                                
+                                                {rowMenuId === id && (
+                                                    <>
+                                                        <div className="fixed inset-0 z-40" onClick={() => setRowMenuId(null)} />
+                                                        <div className="absolute top-full right-10 mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                                                            <button 
+                                                                onClick={() => { handleToggleStatus(t); setRowMenuId(null); }}
+                                                                className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all mb-0.5 flex items-center gap-3 ${
+                                                                    isActive ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'
+                                                                }`}
+                                                            >
+                                                                {actionLoading === id ? <Loader2 size={14} className="animate-spin" /> : (isActive ? <Pause size={14} /> : <Play size={14} />)}
+                                                                {isActive ? 'Pause Task' : 'Activate Task'}
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => { setConfigModal({ isOpen: true, template: t }); setRowMenuId(null); }}
+                                                                className="w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black text-slate-600 uppercase tracking-widest hover:bg-slate-50 transition-all mb-0.5 flex items-center gap-3"
+                                                            >
+                                                                <Settings size={14} />
+                                                                Configure
+                                                            </button>
+                                                            <div className="h-px bg-slate-50 my-1 mx-2" />
+                                                            <button 
+                                                                onClick={() => { handleDelete(t); setRowMenuId(null); }}
+                                                                className="w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black text-rose-600 uppercase tracking-widest hover:bg-rose-50 transition-all flex items-center gap-3"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                {/* Pagination placeholder */}
+                <div className="bg-indigo-50/10 px-10 py-4 border-t border-indigo-50/30 flex justify-center items-center gap-4">
+                    <button className="text-[12px] font-bold text-slate-400 hover:text-indigo-600">&lt; Prev</button>
+                    <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-xs shadow-sm shadow-indigo-100">1</span>
+                    <button className="text-[12px] font-bold text-slate-400 hover:text-indigo-600">Next &gt;</button>
+                </div>
+            </div>
+
+            {/* ── SELECTION DETAILS SECTION ── */}
+            {selectedTemplate && (
+                <div className="animate-in slide-in-from-bottom-6 duration-700">
+                    <h2 className="text-[14px] font-black text-slate-500 mb-6 flex items-center gap-2">
+                        Selected Template: <span className="text-indigo-600 uppercase tracking-tight ml-2">{selectedTemplate.title}</span>
+                    </h2>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Template Info Card */}
+                        <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] border border-white shadow-xl p-10 flex flex-col h-full">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-sm">
+                                    <Info size={20} />
+                                </div>
+                                <h3 className="text-[18px] font-black text-slate-800">Template Info</h3>
+                            </div>
+
+                            <div className="space-y-6 flex-1">
+                                <div className="grid grid-cols-1 gap-1">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Template</label>
+                                    <p className="text-[15px] font-bold text-slate-700">{selectedTemplate.title}</p>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 gap-1">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Frequency</label>
+                                    <p className="text-[15px] font-bold text-slate-700">{formatFrequency(selectedTemplate)}</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-3">
+                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Description</label>
+                                    {selectedTemplate.description ? (
+                                        <ul className="space-y-3">
+                                            {selectedTemplate.description.split('\n').filter(l => l.trim()).map((line, i) => (
+                                                <li key={i} className="flex gap-3 text-slate-600 text-[14px] leading-relaxed group">
+                                                    <CheckCircle2 size={16} className="text-indigo-400 shrink-0 mt-0.5 group-hover:text-indigo-600 transition-colors" />
+                                                    {line.trim()}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-[14px] text-slate-400 italic">No detailed description provided for this automation.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Recurring Subtasks Card */}
+                        <div className="bg-white/80 backdrop-blur-xl rounded-[2.5rem] border border-white shadow-xl p-10 flex flex-col h-full">
+                            <div className="flex items-center justify-between mb-8">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-sm">
+                                        <ListTodo size={20} />
+                                    </div>
+                                    <h3 className="text-[18px] font-black text-slate-800">Recurring Subtasks</h3>
+                                </div>
+                                <button 
+                                    onClick={() => setConfigModal({ isOpen: true, template: selectedTemplate })}
+                                    className="w-8 h-8 rounded-full border border-indigo-100 flex items-center justify-center text-indigo-600 hover:bg-indigo-50 transition-all shadow-sm"
+                                    title="Add Subtask"
+                                >
+                                    <Plus size={16} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-3 flex-1">
+                                {selectedTemplate.subtasks?.length > 0 ? (
+                                    selectedTemplate.subtasks.map((st, i) => (
+                                        <div key={i} className="group p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition-all hover:border-indigo-100">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-5 h-5 rounded border-2 border-indigo-200 bg-indigo-50 flex items-center justify-center shadow-inner">
+                                                    <Check size={14} className="text-indigo-600" strokeWidth={3} />
+                                                </div>
+                                                <span className="text-[14px] font-bold text-slate-700 tracking-tight group-hover:text-indigo-600 transition-colors">{st.title}</span>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{formatFrequency(selectedTemplate)}</span>
+                                                <div className="flex items-center gap-1">
+                                                    <button 
+                                                        onClick={() => setConfigModal({ isOpen: true, template: selectedTemplate })}
+                                                        className="p-1.5 rounded-lg text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                                                        title="Edit Subtask"
+                                                    >
+                                                        <Edit2 size={14} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setConfigModal({ isOpen: true, template: selectedTemplate })}
+                                                        className="p-1.5 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                                                        title="Delete Subtask"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-12 text-slate-400 opacity-60 italic text-center gap-3">
+                                        <ListTodo size={32} strokeWidth={1} />
+                                        <p className="text-sm">No subtask templates attached.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <AutomationConfigModal 
                 isOpen={configModal.isOpen}
                 onClose={() => setConfigModal({ isOpen: false, template: null })}
                 template={configModal.template}
                 onSave={(updated) => {
-                    setTemplates(prev => prev.map(t => t.id === updated.id ? updated : t));
+                    const uid = updated.id || updated.recurring_id;
+                    setTemplates(prev => {
+                        const exists = prev.find(t => (t.id || t.recurring_id) === uid);
+                        if (exists) {
+                            return prev.map(t => (t.id || t.recurring_id) === uid ? updated : t);
+                        }
+                        return [updated, ...prev];
+                    });
+                    if (uid) setSelectedTemplateId(uid);
                 }}
             />
         </div>

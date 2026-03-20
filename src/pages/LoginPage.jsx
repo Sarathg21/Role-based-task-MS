@@ -85,12 +85,11 @@ const LoginPage = () => {
             {/* ─── RIGHT SIDE (full width on mobile) ─── */}
             <div className="flex-1 flex items-center justify-center z-[2] px-4 py-8 sm:py-12 min-h-screen">
                 <div className="w-full max-w-[480px] bg-white rounded-[20px] sm:rounded-[24px] p-6 sm:p-10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] flex flex-col">
-                    {/* Card Header Logo */}
                     <div className="flex justify-center mb-6 sm:mb-8 self-center">
                         <img
                             src="/images/fj1.png.png"
                             alt="FJ Group logo"
-                            className="h-[140px] w-[140px] sm:h-[180px] sm:w-[180px] object-contain block mix-blend-multiply"
+                            className="h-[180px] w-[180px] sm:h-[240px] sm:w-[240px] object-contain block mix-blend-multiply"
                             onError={e => { e.currentTarget.style.display = 'none'; }}
                         />
                     </div>
@@ -110,7 +109,7 @@ const LoginPage = () => {
 
                     <form onSubmit={handleLoginSubmit} className="space-y-4">
                         <div className="flex flex-col gap-1.5">
-                            <label className="block text-[10px] font-black text-slate-500 capitalize tracking-widest pl-1">Employee ID</label>
+                            <label className="block text-[10px] font-medium text-slate-500 capitalize tracking-widest pl-1">Employee ID</label>
                             <div className="relative">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><User size={18} /></div>
                                 <input
@@ -126,7 +125,7 @@ const LoginPage = () => {
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                            <label className="block text-[10px] font-black text-slate-500 capitalize tracking-widest pl-1">Password</label>
+                            <label className="block text-[10px] font-medium text-slate-500 capitalize tracking-widest pl-1">Password</label>
                             <div className="relative">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Lock size={18} /></div>
                                 <input
@@ -171,7 +170,7 @@ const LoginPage = () => {
 
                     {/* Demo Credentials Box */}
                     <div className="bg-slate-50 p-3 sm:p-4 rounded-2xl border border-slate-200 mt-5 sm:mt-8">
-                        <div className="text-[10px] font-semibold text-slate-400 capitalize tracking-widest mb-3 flex items-center gap-2">
+                        <div className="text-[10px] font-medium text-slate-400 capitalize tracking-widest mb-3 flex items-center gap-2">
                             <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
                             Demo IDs (Pass: Perfmetric@123)
                         </div>
@@ -182,14 +181,14 @@ const LoginPage = () => {
                                     onClick={() => setFormData({ ...formData, id: role.id })}
                                     className="cursor-pointer p-2 bg-white border border-slate-100 rounded-xl hover:border-indigo-500 hover:shadow-sm transition-all text-center group"
                                 >
-                                    <div className={`text-[10px] font-black capitalize tracking-tighter ${role.color}`}>{role.role}</div>
+                                    <div className={`text-[10px] font-medium capitalize tracking-tighter ${role.color}`}>{role.role}</div>
                                     <div className="text-xs font-bold text-slate-700 group-hover:text-indigo-600">{role.id}</div>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    <div className="mt-6 text-center text-[11px] font-bold text-slate-400">
+                    <div className="mt-6 text-center text-[11px] font-medium text-slate-400">
                         Helpline; support@fjgroup.com | <button className="text-indigo-500 hover:underline">Contact</button>
                     </div>
 

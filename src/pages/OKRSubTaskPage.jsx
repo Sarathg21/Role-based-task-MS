@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { 
     Target, Users as UsersIcon, CheckCircle2, Clock, AlertCircle, 
     ArrowLeft, TrendingUp, Layers, User as UserIcon, Building2, Loader2,
@@ -46,6 +47,10 @@ const StatusBadge = ({ status }) => {
 
 const OKRSubTaskPage = () => {
     const { okrId } = useParams();
+    const { user } = useAuth();
+    const userRole = (user?.role || '').toUpperCase();
+    const isAdmin = userRole === 'ADMIN';
+    const isCFOorManager = ['CFO', 'MANAGER'].includes(userRole);
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [globalOverview, setGlobalOverview] = useState(null);
@@ -60,19 +65,22 @@ const OKRSubTaskPage = () => {
     });
 
     const fetchInitialData = async () => {
+        // Admin role has no access to task/OKR APIs — skip all calls
+        if (isAdmin) { setLoading(false); return; }
         try {
-            const [overviewRes, listRes] = await Promise.all([
-                api.get('/reports/cfo/okr/overview'),
-                api.get('/reports/cfo/okr/objectives')
-            ]);
-            setGlobalOverview(overviewRes.data?.data || overviewRes.data);
-            const list = listRes.data?.data || listRes.data || [];
-            setObjectivesList(list);
-            
-            // If we don't have an okrId in URL but have a list, default to first OBJ
-            if (!okrId && list.length > 0) {
-                const firstId = list[0].parent_task_id || list[0].id;
-                setFilters(prev => ({ ...prev, currentOkrId: firstId }));
+            if (isCFOorManager) {
+                const [overviewRes, listRes] = await Promise.all([
+                    api.get('/reports/cfo/okr/overview'),
+                    api.get('/reports/cfo/okr/objectives')
+                ]);
+                setGlobalOverview(overviewRes.data?.data || overviewRes.data);
+                const list = listRes.data?.data || listRes.data || [];
+                setObjectivesList(list);
+
+                if (!okrId && list.length > 0) {
+                    const firstId = list[0].parent_task_id || list[0].id;
+                    setFilters(prev => ({ ...prev, currentOkrId: firstId }));
+                }
             }
         } catch (error) {
             console.error('Error fetching initial OKR meta:', error);
@@ -95,7 +103,7 @@ const OKRSubTaskPage = () => {
                 api.get(`/reports/cfo/okr/objectives/${targetId}/subtasks`, { params }).catch(()=>({data:[]})),
                 api.get(`/reports/cfo/okr/objectives/${targetId}/departments`, { params }).catch(()=>({data:[]})),
                 // Database raw fetch to ensure no subtasks/departments are lost to reporting filters. Limit maxes at 200 per backend constraints.
-                api.get('/tasks', { params: { parent_task_id: targetId, limit: 200 } }).catch(()=>({data:[]}))
+                api.get('/tasks', { params: { parent_task_id: targetId, limit: 100 } }).catch(()=>({data:[]}))
             ]);
 
             const summary = summaryRes.data?.data || summaryRes.data || {};
@@ -162,6 +170,24 @@ const OKRSubTaskPage = () => {
             fill: colors[i % colors.length]
         }));
     }, [deptStats]);
+
+    // Admin role: no OKR access — show a friendly message
+    if (isAdmin) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[500px] gap-6 bg-[#f8fafc]">
+                <div className="w-20 h-20 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center">
+                    <ShieldCheck size={36} className="text-amber-400" />
+                </div>
+                <div className="text-center">
+                    <h2 className="text-lg font-bold text-slate-700 mb-1">OKR Dashboard — Admin Restricted</h2>
+                    <p className="text-slate-400 text-sm max-w-xs">The Admin role manages users and departments only. OKR data is available to CFO and Managers.</p>
+                </div>
+                <button onClick={() => navigate(-1)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1e3a8a] text-white text-sm font-medium hover:bg-[#1e40af] transition-colors">
+                    <ArrowLeft size={16} /> Go Back
+                </button>
+            </div>
+        );
+    }
 
     if (loading && !selectedOKR) {
         return (

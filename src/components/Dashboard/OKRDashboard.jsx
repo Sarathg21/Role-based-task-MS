@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
     PieChart, Pie, AreaChart, Area, Legend, LabelList
@@ -18,6 +19,79 @@ const getRiskLabel = (rating) => {
     return 'Low';
 };
 
+/* Small stat tile — CFO-style large gradient card */
+const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
+    const c = {
+        violet: { 
+            bg: 'bg-gradient-to-br from-[#7B51ED] via-[#8B64F1] to-[#6D43E0]', 
+            shadow: 'shadow-[0_8px_30px_rgb(123,81,237,0.3)]', 
+            icon: 'bg-white/20', 
+            accent: 'bg-violet-400/30' 
+        },
+        green: { 
+            bg: 'bg-gradient-to-br from-[#10B981] via-[#34D399] to-[#059669]', 
+            shadow: 'shadow-[0_8px_30_rgb(16,185,129,0.3)]', 
+            icon: 'bg-white/20', 
+            accent: 'bg-emerald-400/30' 
+        },
+        blue: { 
+            bg: 'bg-gradient-to-br from-[#4285F4] via-[#60A5FA] to-[#2563EB]', 
+            shadow: 'shadow-[0_8px_30px_rgb(66,133,244,0.3)]', 
+            icon: 'bg-white/20', 
+            accent: 'bg-blue-400/30' 
+        },
+        amber: { 
+            bg: 'bg-gradient-to-br from-[#F59E0B] via-[#FBBF24] to-[#D97706]', 
+            shadow: 'shadow-[0_8px_30px_rgb(245,158,11,0.3)]', 
+            icon: 'bg-white/20', 
+            accent: 'bg-amber-400/30' 
+        },
+        rose: { 
+            bg: 'bg-gradient-to-br from-[#F43F5E] via-[#FB7185] to-[#E11D48]', 
+            shadow: 'shadow-[0_8px_30px_rgb(244,63,94,0.3)]', 
+            icon: 'bg-white/20', 
+            accent: 'bg-rose-400/30' 
+        },
+        indigo: { 
+            bg: 'bg-gradient-to-br from-[#4F46E5] via-[#6366F1] to-[#4338CA]', 
+            shadow: 'shadow-[0_8px_30px_rgb(79,70,229,0.3)]', 
+            icon: 'bg-white/20', 
+            accent: 'bg-indigo-400/30' 
+        },
+    }[color] || { 
+        bg: 'bg-gradient-to-br from-violet-500 to-indigo-600', 
+        shadow: 'shadow-[0_8px_30px_rgb(124,58,237,0.3)]', 
+        icon: 'bg-white/20', 
+        accent: 'bg-violet-400/30' 
+    };
+
+    return (
+        <div className={`group animate-fade-in-up relative overflow-hidden rounded-[1.25rem] ${c.bg} ${c.shadow} p-4 transition-all duration-500 hover:scale-[1.03] hover:shadow-2xl border border-white/10 h-full`}>
+            {/* Background Ornaments */}
+            <div className={`absolute -top-4 -right-4 w-24 h-24 rounded-full ${c.accent} blur-2xl opacity-50 group-hover:scale-125 transition-transform duration-700`} />
+            
+            <div className="relative z-10 flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold text-white/70 uppercase tracking-[0.1em] drop-shadow-sm whitespace-nowrap">
+                            {label}
+                        </span>
+                    </div>
+                    <div className="text-2xl font-extrabold text-white tabular-nums tracking-tighter leading-none drop-shadow-md">
+                        {value ?? '0'}
+                    </div>
+                </div>
+                
+                {Icon && (
+                    <div className={`flex-shrink-0 w-10 h-10 rounded-xl ${c.icon} backdrop-blur-md flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 border border-white/25 shadow-lg`}>
+                        <Icon size={18} className="text-white drop-shadow-md" strokeWidth={2.5} />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const OKRDashboard = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
@@ -33,28 +107,33 @@ const OKRDashboard = () => {
         to_date: new Date().toISOString().slice(0, 10)
     });
 
+    const { user } = useAuth();
+    
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
+            const role = (user?.role || '').toUpperCase();
+            const isAdmin = role === 'ADMIN';
+
             const [res, trendsRes, todayRes] = await Promise.all([
-                api.get('/reports/cfo/okr/overview', {
+                isAdmin ? Promise.resolve({ data: {} }) : api.get('/reports/cfo/okr/overview', {
                     params: {
                         from_date: filters.from_date,
                         to_date: filters.to_date
                     }
                 }).catch(() => ({ data: {} })),
-                api.get('/dashboard/cfo/trends').catch(() => ({ data: {} })),
-                api.get('/dashboard/cfo/today').catch(() => ({ data: {} }))
+                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/trends').catch(() => ({ data: {} })),
+                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/today').catch(() => ({ data: {} }))
             ]);
             const data = res.data?.data || res.data || {};
 
             setMetrics([
-                { label: 'Total Objectives', value: data.total_objectives || 0, border: 'border-blue-400' },
-                { label: 'Total Subtasks', value: data.total_subtasks || 0, border: 'border-blue-700' },
-                { label: 'Completed Tasks', value: data.completed_tasks || 0, border: 'border-emerald-500' },
-                { label: 'Overall Progress', value: `${data.overall_progress || 0}%`, border: 'border-amber-400' },
-                { label: 'At Risk Objectives', value: data.at_risk || 0, border: 'border-rose-500', valueColor: 'text-rose-600' },
-                { label: 'Average Health Score', value: data.avg_health_score || 0, border: 'border-emerald-600', valueColor: 'text-emerald-700' },
+                { label: 'Total Objectives', value: data.total_objectives || 0, color: 'blue', icon: Target },
+                { label: 'Total Subtasks', value: data.total_subtasks || 0, color: 'indigo', icon: ShieldCheck },
+                { label: 'Completed Tasks', value: data.completed_tasks || 0, color: 'green', icon: CheckCircle2 },
+                { label: 'Overall Progress', value: `${data.overall_progress || 0}%`, color: 'amber', icon: TrendingUp },
+                { label: 'At Risk Objectives', value: data.at_risk || 0, color: 'rose', icon: AlertTriangle },
+                { label: 'Avg Health Score', value: data.avg_health_score || 0, color: 'green', icon: CheckCircle },
             ]);
 
             setObjCompletionData((data.objective_completion || []).map(obj => ({
@@ -171,12 +250,15 @@ const OKRDashboard = () => {
             </div>
 
             {/* ── TOP KPI CARDS ── */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
                 {metrics.map((m, i) => (
-                    <div key={i} className={`bg-white p-4 rounded-xl border-b-4 ${m.border} shadow-sm flex flex-col items-center justify-center gap-1 transition-all hover:shadow-md group`}>
-                        <span className="text-[11px] font-medium text-slate-400 group-hover:text-slate-500 capitalize tracking-widest text-center">{m.label}</span>
-                        <span className={`text-2xl font-medium ${m.valueColor || 'text-slate-900'} tabular-nums`}>{m.value}</span>
-                    </div>
+                    <Stat 
+                        key={i}
+                        label={m.label}
+                        value={m.value}
+                        color={m.color}
+                        icon={m.icon}
+                    />
                 ))}
             </div>
 

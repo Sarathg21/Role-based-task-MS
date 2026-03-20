@@ -2,14 +2,14 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import EmployeeDashboard from '../components/Dashboard/EmployeeDashboard';
-import ManagerDashboard from '../components/Dashboard/ManagerDashboard';
 import AdminDashboard from '../components/Dashboard/AdminDashboard';
 import CFODashboard from '../components/Dashboard/CFODashboard';
+import EmployeePerformanceDashboard from './EmployeePerformanceDashboard';
 
 const roleDashboardMap = {
   Employee: EmployeeDashboard,
-  Manager: ManagerDashboard,
-  Admin: null,
+  Manager: EmployeePerformanceDashboard,
+  Admin: AdminDashboard,
   CFO: CFODashboard,
 };
 
@@ -17,16 +17,14 @@ const ROLE_GREET = {
   CFO:      { emoji: '📊', greeting: 'Executive Overview' },
   Manager:  { emoji: '🖥️',  greeting: 'Team Overview' },
   Employee: { emoji: '✅', greeting: 'My Workspace' },
-  Admin:    { emoji: '⚙️', greeting: 'Admin Panel' },
+  Admin:    { emoji: '⚙️', greeting: 'Admin Control Center' },
 };
 
 const DashboardPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (user?.role === 'Admin') navigate('/admin');
-  }, [user, navigate]);
+  // Redirect is removed to allow Admin to see their dedicated dashboard
 
   const RoleComponent = roleDashboardMap[user?.role] || null;
   const info = ROLE_GREET[user?.role] || { emoji: '👋', greeting: 'Overview' };

@@ -4,13 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { getEmployeeRankings } from '../utils/rankingEngine';
 import ChartPanel from '../components/Charts/ChartPanel';
-import { Download, FileSpreadsheet, TrendingUp, TrendingDown, Calendar, ArrowRight, CheckSquare, BarChart2, Activity, Users, ClipboardCheck, Play, Upload, AlertTriangle, Trophy, AlertCircle, Building2, Landmark, HandCoins } from 'lucide-react';
+import { Download, FileSpreadsheet, TrendingUp, TrendingDown, Calendar, ArrowRight, CheckSquare, BarChart2, Activity, Users, User, ClipboardCheck, Play, Upload, AlertTriangle, Trophy, AlertCircle, Building2, Landmark, HandCoins, X } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
     LineChart, Line, ComposedChart, Area, Cell, PieChart, Pie
 } from 'recharts';
 
-const TERMINAL_STATUSES = new Set(['APPROVED', 'CANCELLED']);
+const TERMINAL_STATUSES = new Set(['APPROVED', 'CANCELLED', 'COMPLETED', 'DONE', 'FINISHED']);
 
 const toDateKey = (value) => {
     if (!value) return '';
@@ -64,22 +64,25 @@ const TaskDistributionCard = ({ data, title = "Task Distribution" }) => {
 
     const statusMap = [
         { key: 'new_tasks', name: 'New', color: COLORS['New'] },
+        { key: 'overdue_tasks', name: 'Overdue', color: COLORS['Overdue'] },
         { key: 'in_progress_tasks', name: 'In Progress', color: COLORS['In Progress'] },
         { key: 'submitted_tasks', name: 'Submitted', color: COLORS['Submitted'] },
         { key: 'approved_tasks', name: 'Approved', color: COLORS['Approved'] },
-        { key: 'rework_tasks', name: 'Rework', color: COLORS['Rework'] },
-        { key: 'overdue_tasks', name: 'Overdue', color: COLORS['Overdue'] }
+        { key: 'rework_tasks', name: 'Rework', color: COLORS['Rework'] }
     ];
 
     const allStatusData = statusMap.map(s => {
         let val = data[s.key] || 0;
-        if (s.name === 'Approved' && val === 0) val = data.completed_tasks || 0;
-        if (s.name === 'Rework' && val === 0) val = data.rework_count || 0;
+        if (s.name === 'Approved' && val === 0) val = data.completed_tasks || data.completed || data.approved || 0;
+        if (s.name === 'Rework' && val === 0) val = data.rework_count || data.rework || 0;
+        if (s.name === 'In Progress' && val === 0) val = data.in_progress || data.started_tasks || data.ongoing || 0;
+        if (s.name === 'Submitted' && val === 0) val = data.submitted || data.pending_approval || data.pending || 0;
+        if (s.name === 'New' && val === 0) val = data.new || data.created || data.open || 0;
         return { name: s.name, value: val, color: s.color };
     });
 
     const displayDataForPie = allStatusData.filter(d => d.value > 0);
-    const grandTotal = allStatusData.reduce((acc, d) => acc + d.value, 0) || 0;
+    const grandTotal = data.total_tasks || allStatusData.reduce((acc, d) => acc + d.value, 0) || 0;
 
     return (
         <div className="bg-white border border-slate-100 shadow-sm rounded-[2rem] p-8 transition-all hover:shadow-xl hover:shadow-indigo-500/5 group">
@@ -175,12 +178,16 @@ const TaskDistributionCard = ({ data, title = "Task Distribution" }) => {
         </div>
     );
 };
-const fetchTasksForReports = async (isCFO) => {
+const fetchTasksForReports = async (isCFO, isManager) => {
     const baseURL = api.defaults.baseURL || '';
     const token = localStorage.getItem('pms_token');
-    const candidates = isCFO
-        ? ['/tasks', '/tasks?scope=org', '/tasks?scope=all']
-        : ['/tasks', '/tasks?scope=department', '/tasks?scope=mine'];
+    
+    let candidates = ['/tasks?limit=100', '/tasks?scope=department&limit=100', '/tasks?scope=mine&limit=100'];
+    if (isCFO) {
+        candidates = ['/tasks?limit=100', '/tasks?scope=org&limit=100', '/tasks?scope=all&limit=100'];
+    } else if (isManager) {
+        candidates = ['/tasks/team?limit=100', '/tasks?limit=100', '/tasks?scope=department&limit=100'];
+    }
 
     for (const path of candidates) {
         try {
@@ -208,9 +215,11 @@ const ReportsPage = () => {
     const [availableEmployees, setAvailableEmployees] = useState([]);
 
     const role = (user?.role || '').toUpperCase();
-    const isCFO = role === 'CFO' || role === 'ADMIN';
-    const isManager = role === 'MANAGER';
-    const isEmployee = role === 'EMPLOYEE';
+    const isCFO = role.includes('CFO');
+    const isAdmin = role.includes('ADMIN') || role.includes('SUPER');
+    const isManager = role.includes('MANAGER');
+    const isEmployee = role.includes('EMPLOYEE') || role.length === 0;
+    const isExec = isCFO || isAdmin;
 
     const [reportData, setReportData] = useState(null);
     const [globalReportData, setGlobalReportData] = useState([]); // Unfiltered by Dept/Emp
@@ -225,11 +234,13 @@ const ReportsPage = () => {
 
     const fetchReportData = async () => {
         setLoading(true);
+        let primaryDataLoaded = false; // tracks whether dashboard API returned usable stats
         try {
 
             let endpoint = '/dashboard/employee';
             if (isCFO) endpoint = '/dashboard/cfo';
-            else if (isManager) endpoint = '/manager/reports';
+            else if (isAdmin) endpoint = '/tasks'; // Trigger fallback logic for Admins
+            else if (isManager) endpoint = '/dashboard/manager';
 
             const start_date = filters.fromDate;
             const end_date = filters.toDate;
@@ -245,14 +256,17 @@ const ReportsPage = () => {
             }
             if (filters.employeeId) params.employee_id = filters.employeeId;
             if (filters.departmentId) params.department_id = filters.departmentId;
+            params.limit = 100;
 
             // Fetch specialized Employee details if specific employee is filtered (any role)
-            if (filters.employeeId || isEmployee) {
+            // Fetch specialized reports for any role when filters or user context allow
+            if (true) { // Always attempt specialized fetch to populate topPerformer/summary
                 try {
                     const fetchParams = { 
                         from_date: start_date || undefined, 
                         to_date: end_date || undefined,
-                        employee_id: filters.employeeId || undefined
+                        employee_id: filters.employeeId || undefined,
+                        limit: 100
                     };
 
                     const [summaryRes, trendRes, topRes] = await Promise.all([
@@ -269,7 +283,7 @@ const ReportsPage = () => {
                     setMonthlyTrend(trend);
                     setTopPerformer(top);
 
-                    if (isEmployee || filters.employeeId) {
+                    if (isEmployee || filters.employeeId || isManager) {
                         // Map summary to the standard reportData format to keep table functioning
                         const currentEmp = availableEmployees.find(e => String(e.id || e.emp_id) === String(filters.employeeId)) || user;
                         const standardRow = [{
@@ -315,7 +329,8 @@ const ReportsPage = () => {
                             params: { 
                                 employee_id: t.emp_id || t.id,
                                 from_date: start_date || undefined,
-                                to_date: end_date || undefined
+                                to_date: end_date || undefined,
+                                limit: 100
                             } 
                         });
                         const sData = sRes.data?.data || sRes.data;
@@ -374,7 +389,7 @@ const ReportsPage = () => {
             if (Array.isArray(stats) && stats.length > 0) {
                 const BASE_DEPTS = ['Fixed Assets', 'Accounts Payables', 'Accounts Receivables', 'Treasury', 'MIS Report'];
                 
-                if (isCFO && !filters.employeeId && !filters.departmentId) {
+                if (isExec && !filters.employeeId && !filters.departmentId) {
                     const mergedGlobal = new Map();
                     
                     // Seed with BASE_DEPTS + availableDepartments
@@ -409,9 +424,10 @@ const ReportsPage = () => {
                 }
                 
                 setReportData(stats);
+                primaryDataLoaded = !isAdmin; // Admin uses fallback for granular percentages
                 
                 // Even if we have stats, try to populate deptTopPerformers if it's currently empty
-                if (isCFO && Object.keys(deptTopPerformers).length === 0) {
+                if (isExec && Object.keys(deptTopPerformers).length === 0) {
                     const topP = {};
                     stats.forEach(s => {
                         const score = Math.round(s.performance_index || s.score || 0);
@@ -435,11 +451,12 @@ const ReportsPage = () => {
                     if (Object.keys(topP).length > 0) setDeptTopPerformers(topP);
                 }
 
-                if (!isCFO && !isManager) {
+                if (!isExec && !isManager) { // Changed from !isCFO && !isManager to !isExec && !isManager
                     setLoading(false);
                     return;
                 }
-                // For CFO/Manager, we continue to fallback/enrichment to get the detailed status distribution
+                // For CFO/Manager: continue to fallback only to enrich workload chart data.
+                // reportData is already set from the authoritative dashboard endpoint above.
             }
 
         } catch (err) {
@@ -450,7 +467,8 @@ const ReportsPage = () => {
         try {
             const role = (user?.role || '').toUpperCase();
             const isCFO = role === 'CFO' || role === 'ADMIN';
-            const rawTasks = await fetchTasksForReports(isCFO);
+            const isManager = role === 'MANAGER';
+            const rawTasks = await fetchTasksForReports(isCFO, isManager);
 
             if (!rawTasks || rawTasks.length === 0) {
                 setReportData([]);
@@ -514,6 +532,10 @@ const ReportsPage = () => {
                 };
             });
 
+            // Debug: log unique status values from backend to diagnose any mapping gaps
+            const uniqueStatuses = [...new Set(normalizedTasks.map(t => t.status))];
+            console.log('[ReportsPage] Unique task statuses from backend:', uniqueStatuses);
+
             const filtered = normalizedTasks.filter((t) => {
                 const empOk = !filters.employeeId || t.employeeId === String(filters.employeeId);
                 const deptOk = !filters.departmentId
@@ -569,15 +591,15 @@ const ReportsPage = () => {
                         new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, rework_tasks: 0, overdue_tasks: 0
                     };
                     existing.total_tasks += 1;
-                    if (t.status === 'APPROVED') existing.approved_tasks += 1;
+                    if (TERMINAL_STATUSES.has(t.status) && t.status !== 'CANCELLED') existing.approved_tasks += 1;
                     if (!TERMINAL_STATUSES.has(t.status)) {
                         existing.pending_tasks += 1;
                         if (t.dateKey && t.dateKey < today) existing.overdue_tasks += 1;
                     }
-                    if (t.status === 'REWORK' || t.status === 'CHANGES_REQUESTED') existing.rework_tasks += 1;
-                    if (t.status === 'NEW' || t.status === 'CREATED') existing.new_tasks += 1;
-                    if (['IN_PROGRESS', 'STARTED', 'PENDING', 'IN-PROGRESS'].includes(t.status)) existing.in_progress_tasks += 1;
-                    if (t.status === 'SUBMITTED') existing.submitted_tasks += 1;
+                    if (['REWORK', 'CHANGES_REQUESTED', 'REVISION', 'REVISION_REQUIRED', 'REVISION_REQUESTED'].includes(t.status)) existing.rework_tasks += 1;
+                    if (['NEW', 'CREATED', 'OPEN', 'ASSIGNED'].includes(t.status)) existing.new_tasks += 1;
+                    if (['IN_PROGRESS', 'STARTED', 'IN-PROGRESS', 'ONGOING', 'IN_REVIEW', 'INPROGRESS'].includes(t.status)) existing.in_progress_tasks += 1;
+                    if (['SUBMITTED', 'PENDING', 'PENDING_APPROVAL', 'UNDER_REVIEW', 'PENDING_REVIEW', 'REVIEW'].includes(t.status)) existing.submitted_tasks += 1;
                     
                     globalByDept.set(key, existing);
                 });
@@ -590,19 +612,22 @@ const ReportsPage = () => {
                         new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, rework_tasks: 0, overdue_tasks: 0
                     };
                     existing.total_tasks += 1;
-                    if (t.status === 'APPROVED') existing.approved_tasks += 1;
+                    if (TERMINAL_STATUSES.has(t.status) && t.status !== 'CANCELLED') existing.approved_tasks += 1;
                     if (!TERMINAL_STATUSES.has(t.status)) {
                         existing.pending_tasks += 1;
                         if (t.dateKey && t.dateKey < today) existing.overdue_tasks += 1;
                     }
-                    if (t.status === 'REWORK' || t.status === 'CHANGES_REQUESTED') existing.rework_tasks += 1;
-                    if (t.status === 'NEW' || t.status === 'CREATED') existing.new_tasks += 1;
-                    if (['IN_PROGRESS', 'STARTED', 'PENDING', 'IN-PROGRESS'].includes(t.status)) existing.in_progress_tasks += 1;
-                    if (t.status === 'SUBMITTED') existing.submitted_tasks += 1;
+                    if (['REWORK', 'CHANGES_REQUESTED', 'REVISION', 'REVISION_REQUIRED', 'REVISION_REQUESTED'].includes(t.status)) existing.rework_tasks += 1;
+                    if (['NEW', 'CREATED', 'OPEN', 'ASSIGNED'].includes(t.status)) existing.new_tasks += 1;
+                    if (['IN_PROGRESS', 'STARTED', 'IN-PROGRESS', 'ONGOING', 'IN_REVIEW', 'INPROGRESS'].includes(t.status)) existing.in_progress_tasks += 1;
+                    if (['SUBMITTED', 'PENDING', 'PENDING_APPROVAL', 'UNDER_REVIEW', 'PENDING_REVIEW', 'REVIEW'].includes(t.status)) existing.submitted_tasks += 1;
                     byDept.set(key, existing);
                 });
 
-                setReportData(Array.from(byDept.values()).filter(d => d.total_tasks > 0 || !filters.departmentId));
+                // Only overwrite dept-level reportData if primary API had no data
+                if (!primaryDataLoaded) {
+                    setReportData(Array.from(byDept.values()).filter(d => d.total_tasks > 0 || !filters.departmentId));
+                }
                 setGlobalReportData(Array.from(globalByDept.values()));
 
                 // Calculate Top Performer per Department for CFO view
@@ -612,12 +637,16 @@ const ReportsPage = () => {
                     if (!empMap.has(key)) empMap.set(key, { id: key, name: t.employeeName, dept: t.departmentName, total: 0, approved: 0 });
                     const s = empMap.get(key);
                     s.total++;
-                    if (t.status === 'APPROVED') s.approved++;
+                    if (TERMINAL_STATUSES.has(t.status) && t.status !== 'CANCELLED') s.approved++;
                 });
                 const topP = {};
                 const todayForRaw = new Date().toISOString().slice(0, 10);
                 empMap.forEach(s => {
-                    const score = s.total > 0 ? Math.round((s.approved / s.total) * 100) : 0;
+                    // Use a more nuanced weighted formula: (Approved*1 + Submitted*0.5) / Total (minus penalties for overdue)
+                    const subCount = empTasks.filter(t => ['SUBMITTED', 'PENDING_APPROVAL', 'REVIEW', 'UNDER_REVIEW'].includes(t.status)).length;
+                    const efficiency = s.total > 0 ? (s.approved + (subCount * 0.5)) / s.total : 0;
+                    const overdues = empTasks.filter(t => !TERMINAL_STATUSES.has(t.status) && t.dateKey && t.dateKey < todayForRaw).length;
+                    const score = Math.max(0, Math.round((efficiency * 100) - (overdues * 10)));
                     if (!topP[s.dept] || score > (topP[s.dept].score || 0)) {
                         // Correctly calculate overdue and rework counts from raw tasks for this individual
                         const empTasks = normalizedTasks.filter(t => t.employeeId === s.id);
@@ -640,6 +669,8 @@ const ReportsPage = () => {
             } else {
                 const today = new Date().toISOString().slice(0, 10);
                 const byEmp = new Map();
+                // If primary dashboard API already gave us full stats, only use raw tasks
+                // to build the workload chart data — don't overwrite the authoritative reportData.
                 filtered.forEach((t) => {
                     const key = t.employeeId || t.employeeName;
                     const existing = byEmp.get(key) || {
@@ -658,20 +689,23 @@ const ReportsPage = () => {
                         overdue_tasks: 0
                     };
                     existing.total_tasks += 1;
-                    if (t.status === 'APPROVED') existing.approved_tasks += 1;
+                    if (TERMINAL_STATUSES.has(t.status) && t.status !== 'CANCELLED') existing.approved_tasks += 1;
                     if (!TERMINAL_STATUSES.has(t.status)) {
                         existing.pending_tasks += 1;
                         if (t.dateKey && t.dateKey < today) existing.overdue_tasks += 1;
                     }
-                    if (t.status === 'REWORK' || t.status === 'CHANGES_REQUESTED') existing.rework_tasks += 1;
-                    if (t.status === 'NEW' || t.status === 'CREATED') existing.new_tasks += 1;
-                    if (t.status === 'IN_PROGRESS' || t.status === 'STARTED') existing.in_progress_tasks += 1;
-                    if (t.status === 'SUBMITTED') existing.submitted_tasks += 1;
+                    if (['REWORK', 'CHANGES_REQUESTED', 'REVISION', 'REVISION_REQUIRED', 'REVISION_REQUESTED'].includes(t.status)) existing.rework_tasks += 1;
+                    if (['NEW', 'CREATED', 'OPEN', 'ASSIGNED'].includes(t.status)) existing.new_tasks += 1;
+                    if (['IN_PROGRESS', 'STARTED', 'IN-PROGRESS', 'ONGOING', 'IN_REVIEW', 'INPROGRESS'].includes(t.status)) existing.in_progress_tasks += 1;
+                    if (['SUBMITTED', 'PENDING', 'PENDING_APPROVAL', 'UNDER_REVIEW', 'PENDING_REVIEW', 'REVIEW'].includes(t.status)) existing.submitted_tasks += 1;
                     byEmp.set(key, existing);
                 });
 
                 const empRows = Array.from(byEmp.values());
-                setReportData(empRows);
+                // Only overwrite reportData if the primary API had no data
+                if (!primaryDataLoaded) {
+                    setReportData(empRows);
+                }
                 setGlobalReportData(empRows);
             }
         } catch (err) {
@@ -847,7 +881,13 @@ const ReportsPage = () => {
             const pending = Number(item.pending_tasks || item.pending || (total - completed) || 0);
             
             let onTimePct = Number(item.on_time_pct || item.performance || item.performance_index || item.score || 0);
-            if (onTimePct === 0 && total > 0) onTimePct = Math.round((completed / total) * 100);
+            if (onTimePct === 0 && total > 0) {
+                // Weighted fallback: Approved (100%), Submitted (60%), In Progress (20%)
+                const approved = completed;
+                const submitted = Number(item.submitted_tasks || item.submitted || 0);
+                const progress = Number(item.in_progress_tasks || item.in_progress || item.started_tasks || 0);
+                onTimePct = Math.round(((approved + (submitted * 0.6) + (progress * 0.2)) / total) * 100);
+            }
             
             const name = item.name || item.employee_name || item.department_name || item.department_id || 'Unit';
             
@@ -885,7 +925,31 @@ const ReportsPage = () => {
             approved_tasks: acc.approved_tasks + (curr.approved_tasks || 0),
             rework_tasks: acc.rework_tasks + (curr.rework_tasks || 0),
             overdue_tasks: acc.overdue_tasks + (curr.overdue_tasks || 0),
-        }), { new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, approved_tasks: 0, rework_tasks: 0, overdue_tasks: 0 });
+            total_tasks: acc.total_tasks + (curr.total || 0),
+        }), { new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, approved_tasks: 0, rework_tasks: 0, overdue_tasks: 0, total_tasks: 0 });
+
+        // If primary stats lack granular status counts (dashboard API only gives total+approved),
+        // supplement from globalReportData which is always built from raw tasks.
+        const globalAgg = (Array.isArray(globalReportData) ? globalReportData : []).reduce((acc, item) => ({
+            new_tasks: acc.new_tasks + Number(item.new_tasks || item.new || 0),
+            in_progress_tasks: acc.in_progress_tasks + Number(item.in_progress_tasks || item.in_progress || 0),
+            submitted_tasks: acc.submitted_tasks + Number(item.submitted_tasks || item.submitted || 0),
+            approved_tasks: acc.approved_tasks + Number(item.approved_tasks || item.approved || item.completed_tasks || 0),
+            rework_tasks: acc.rework_tasks + Number(item.rework_tasks || item.rework || item.rework_count || 0),
+            overdue_tasks: acc.overdue_tasks + Number(item.overdue_tasks || item.overdue || 0),
+            total_tasks: acc.total_tasks + Number(item.total_tasks || item.total || 0),
+        }), { new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, approved_tasks: 0, rework_tasks: 0, overdue_tasks: 0, total_tasks: 0 });
+
+        // Use globalAgg counts for any status category that mapped showed as 0
+        const finalDistribution = {
+            new_tasks: aggregateDistribution.new_tasks || globalAgg.new_tasks,
+            in_progress_tasks: aggregateDistribution.in_progress_tasks || globalAgg.in_progress_tasks,
+            submitted_tasks: aggregateDistribution.submitted_tasks || globalAgg.submitted_tasks,
+            approved_tasks: aggregateDistribution.approved_tasks || globalAgg.approved_tasks,
+            rework_tasks: aggregateDistribution.rework_tasks || globalAgg.rework_tasks,
+            overdue_tasks: aggregateDistribution.overdue_tasks || globalAgg.overdue_tasks,
+            total_tasks: aggregateDistribution.total_tasks || globalAgg.total_tasks,
+        };
 
         const sorted = [...mapped].sort((a, b) => b.onTimePct - a.onTimePct);
 
@@ -901,7 +965,7 @@ const ReportsPage = () => {
             topList = sorted.slice(0, 5);
         }
 
-        let rawTop = topPerformer?.name ? topPerformer : null;
+        let rawTop = (topPerformer?.name || topPerformer?.emp_id || topPerformer?.id) ? topPerformer : null;
         if (!rawTop) {
             if (isCFO && cfoTopEmployees.length > 0) {
                 const b = cfoTopEmployees[0];
@@ -915,7 +979,12 @@ const ReportsPage = () => {
                     department: b.department || 'Office'
                 };
             } else if (topList.length > 0) {
-                rawTop = topList[0];
+                const b = topList[0];
+                rawTop = {
+                    ...b,
+                    id: b.id || b.emp_id,
+                    name: b.name || b.emp_id || b.id || 'Unit Alpha'
+                };
             }
         }
 
@@ -1027,10 +1096,20 @@ const ReportsPage = () => {
             deptScores: isDeptShape ? globalMapped.map(d => ({ name: d.name, Performance: d.onTimePct })) : [],
             topDept: sorted[0] ? { name: sorted[0].name, Performance: sorted[0].onTimePct, Tasks: sorted[0].total } : null,
             underperformingDept: sorted.length > 1 ? { name: sorted[sorted.length - 1].name, Performance: sorted[sorted.length - 1].onTimePct, Tasks: sorted[sorted.length - 1].total } : null,
-            workloadData: isDeptShape ? globalMapped.map(d => ({ name: d.name, Total: d.total, Completed: d.completed, Pending: d.pending })) : mapped.map(d => ({ name: d.name, Total: d.total, Completed: d.completed, Pending: d.pending })),
+            workloadData: (isDeptShape ? globalMapped : mapped).map(d => ({ 
+                name: d.name, 
+                Total: d.Total || d.total || 0, 
+                Completed: d.Completed || d.completed || d.approved_tasks || 0, 
+                Pending: d.Pending || d.pending || 0,
+                New: d.New || d.new_tasks || 0,
+                InProgress: d.InProgress || d.in_progress_tasks || 0,
+                Submitted: d.Submitted || d.submitted_tasks || 0,
+                Rework: d.Rework || d.rework_tasks || 0,
+                Overdue: d.Overdue || d.overdue_tasks || 0
+            })),
             empWorkloadData: !isDeptShape ? mapped.map(u => ({ name: u.name, Completed: u.completed, Pending: u.pending })) : [],
             empPerformanceData: !isDeptShape ? mapped.map(u => ({ name: u.name, Performance: u.onTimePct })) : [],
-            aggregateDistribution,
+            aggregateDistribution: finalDistribution,
             deptQuickStats: {
                 FA: getDeptQuickStat('FA'),
                 AP: getDeptQuickStat('AP'),
@@ -1046,7 +1125,7 @@ const ReportsPage = () => {
             const role = (user?.role || '').toUpperCase();
             const isEmployee = role === 'EMPLOYEE';
             
-            let endpoint = `/reports/performance.${format}`;
+            let endpoint = format === 'pdf' ? '/reports/cfo/export-pdf' : '/reports/cfo/export-excel';
             const params = {
                 from_date: filters.fromDate || undefined,
                 to_date: filters.toDate || undefined,
@@ -1054,14 +1133,10 @@ const ReportsPage = () => {
                 end_date: filters.toDate || undefined
             };
 
-            if (isEmployee) {
-                // Using the generic endpoint as it's more reliable
-                endpoint = `/reports/performance.${format}`;
-            } else {
-                endpoint = format === 'pdf' ? '/reports/cfo/export-pdf' : '/reports/cfo/export-excel';
-                if (filters.departmentId) params.department_id = filters.departmentId;
-                if (filters.employeeId) params.employee_id = filters.employeeId;
-            }
+            if (filters.departmentId) params.department_id = filters.departmentId;
+            if (filters.employeeId) params.employee_id = filters.employeeId;
+            // Also ensure it works for the logged in user as an employee if needed by the backend
+            if (role === 'EMPLOYEE' && !params.employee_id) params.employee_id = user?.emp_id;
 
             const response = await api.get(endpoint, {
                 params,
@@ -1189,7 +1264,7 @@ const ReportsPage = () => {
                         <div className="flex items-center gap-10 min-w-fit">
                             <div className="relative w-36 h-36 shrink-0">
                                 <div className="w-full h-full rounded-full bg-gradient-to-tr from-indigo-100 via-white to-indigo-50 border-[6px] border-white flex items-center justify-center text-5xl font-semibold text-slate-800 shadow-[0_15px_40px_rgba(79,70,229,0.15)] overflow-hidden ring-[12px] ring-indigo-50/20 group-hover:scale-105 transition-transform duration-500">
-                                    {(bestPerformer?.name || 'U').charAt(0).toUpperCase()}
+                                    {(bestPerformer?.name || bestPerformer?.emp_id || bestPerformer?.id || 'U').charAt(0).toUpperCase()}
                                 </div>
                                 <div className="absolute bottom-1 right-1 w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 border-[4px] border-white flex items-center justify-center text-white shadow-lg animate-bounce-subtle z-20">
                                     <TrendingUp size={22} strokeWidth={3} />
@@ -1197,7 +1272,7 @@ const ReportsPage = () => {
                             </div>
                             <div className="space-y-3">
                                 <h4 className="text-[32px] font-medium text-slate-800 leading-tight tracking-tight">
-                                    {bestPerformer?.name || 'Unit Alpha'}
+                                    {bestPerformer?.name || bestPerformer?.emp_id || bestPerformer?.id || 'Unit Alpha'}
                                 </h4>
                                 <div className="flex items-center gap-4">
                                     <div className="px-5 py-1.5 bg-slate-900 text-white text-[11px] font-semibold capitalize tracking-widest rounded-xl shadow-lg flex items-center gap-2">
@@ -1299,51 +1374,156 @@ const ReportsPage = () => {
                 </div>
             ) : (
                 isManager && (topList.length > 0 || workloadData?.length > 0) && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 animate-in fade-in slide-in-from-top-4 duration-500 mb-6">
-                        {topDept && (
-                            <div className="mesh-gradient-emerald rounded-2xl p-4 border border-emerald-200/50 shadow-md flex flex-col justify-center relative overflow-hidden group/top card-gloss h-24">
-                                <div className="absolute top-2 right-2 bg-emerald-500/10 p-1.5 rounded-lg">
-                                    <TrendingUp size={18} className="text-emerald-600" />
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-[9px] font-semibold capitalize tracking-[0.1em] text-emerald-600/70 mb-1">Leader</span>
-                                    <span className="text-lg font-bold text-emerald-900 capitalize tracking-tight leading-none mb-1">{topDept.name}</span>
-                                    <span className="text-2xl font-semibold text-emerald-600 tabular-nums">{Number.isNaN(topDept.Performance) ? 0 : topDept.Performance}%</span>
-                                </div>
-                            </div>
-                        )}
-                        {underperformingDept && underperformingDept.name !== topDept?.name && (
-                            <div className="mesh-gradient-rose rounded-2xl p-4 border border-rose-200/50 shadow-md flex flex-col justify-center relative overflow-hidden group/needs card-gloss h-24">
-                                <div className="absolute top-2 right-2 bg-rose-500/10 p-1.5 rounded-lg">
-                                    <TrendingDown size={18} className="text-rose-600" />
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-[9px] font-semibold capitalize tracking-[0.1em] text-rose-600/70 mb-1">Intervention</span>
-                                    <span className="text-lg font-bold text-rose-900 capitalize tracking-tight leading-none mb-1">{underperformingDept.name}</span>
-                                    <span className="text-2xl font-semibold text-rose-600 tabular-nums">{Number.isNaN(underperformingDept.Performance) ? 0 : underperformingDept.Performance}%</span>
-                                </div>
-                            </div>
-                        )}
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-6 duration-700 mb-8">
+                        {/* ── Main Highlight: Centered Workload Distribution ── */}
                         {workloadData?.length > 0 && (
-                            <div className="md:col-span-2 bg-white rounded-2xl p-4 border border-slate-200/60 shadow-md relative overflow-hidden mesh-gradient h-24 flex items-center">
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full">
+                            <div className="xl:col-span-2 bg-white/70 backdrop-blur-3xl rounded-[2.5rem] p-6 border border-white shadow-xl relative overflow-hidden flex flex-col min-h-fit">
+                                {/* Background Ornament */}
+                                <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-500/5 rounded-full blur-[80px]" />
+                                <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-violet-500/5 rounded-full blur-[80px] animation-delay-2000" />
+                                
+                                <div className="flex flex-row items-center justify-between w-full mb-6 pb-4 border-b border-slate-100 relative z-10 px-4">
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-violet-600 animate-pulse" />
+                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Execution Center</span>
+                                        </div>
+                                        <h2 className="text-[24px] font-black text-slate-900 tracking-tighter leading-none">Active Metrics</h2>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-4 py-1.5 bg-slate-100 rounded-xl border border-slate-200">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Live Sync</span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full px-4 relative z-10">
                                     {workloadData.slice(0, 4).map((d, idx) => (
-                                        <div key={`${d.name}-${idx}`} className="flex flex-col">
-                                            <div className="flex items-center gap-1.5 mb-1">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
-                                                <span className="text-[10px] font-semibold text-slate-800 capitalize tracking-tight leading-none whitespace-normal break-words">{d.name}</span>
+                                        <div key={`${d.name}-${idx}`} className="flex flex-col bg-slate-50/50 rounded-[2.5rem] p-8 border border-slate-100 group/item hover:bg-white hover:shadow-xl transition-all duration-300 relative overflow-hidden">
+                                            {/* Accent Ornament */}
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -mr-16 -mt-16 group-hover/item:scale-150 transition-transform duration-700" />
+                                            
+                                            <div className="flex items-center justify-between gap-4 mb-8 border-b border-slate-100/80 pb-6">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg group-hover/item:rotate-3 transition-transform">
+                                                        <User size={24} strokeWidth={2.5}/>
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-[20px] font-black text-slate-900 uppercase tracking-tight leading-none mb-1.5">{d.name}</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-none">Management Unit</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-4xl font-black text-slate-950 tabular-nums leading-none tracking-tighter">{d.Total}</span>
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Directives</span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-2 pl-3">
-                                                <span className="text-lg font-semibold text-slate-900">{d.Total}</span>
-                                                <span className="text-[9px] font-semibold text-amber-600 bg-amber-50 px-1 rounded-md">
-                                                    {d.Pending} P
-                                                </span>
+                                            
+                                            <div className="flex flex-col gap-6 w-full">
+                                                <div className="grid grid-cols-2 gap-x-10 gap-y-6">
+                                                    {[
+                                                        { label: 'New', count: d.New, color: 'text-slate-400', dot: 'bg-slate-300' },
+                                                        { label: 'Active', count: d.InProgress, color: 'text-indigo-600', dot: 'bg-indigo-500' },
+                                                        { label: 'Review', count: d.Submitted, color: 'text-amber-600', dot: 'bg-amber-500' },
+                                                        { label: 'Rework', count: d.Rework, color: 'text-rose-600', dot: 'bg-rose-500' }
+                                                    ].map((s, si) => (
+                                                        <div key={si} className="flex flex-col items-start group/stat transition-transform hover:-translate-x-1">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <div className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                                                                <span className={`text-[10px] font-black uppercase tracking-widest ${s.color} opacity-80 whitespace-nowrap`}>{s.label}</span>
+                                                            </div>
+                                                            <span className="text-3xl font-black text-slate-900 tabular-nums leading-none tracking-tighter">{s.count}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                
+                                                <div className="h-px w-full bg-slate-100 my-2" />
+                                                
+                                                <div className="flex flex-row items-center justify-between bg-white rounded-2xl p-4 border border-slate-100 group/pending transition-all hover:bg-slate-50 hover:shadow-md">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Direct Action Path</span>
+                                                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Attention Required</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="h-10 w-px bg-slate-100" />
+                                                        <div className="text-right">
+                                                            <span className="text-3xl font-black text-indigo-600 leading-none tabular-nums block">{d.Pending}</span>
+                                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1 block">Pending</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="mt-6 flex items-center justify-between pt-4 border-t border-slate-100/50">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Performance Health Index</p>
+                                                <div className="flex items-center gap-1">
+                                                    {[...Array(5)].map((_, i) => (
+                                                        <div key={i} className={`h-1.5 w-4 rounded-full ${i < 4 ? 'bg-indigo-500' : 'bg-slate-200'}`} />
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
+
+                                {/* Status Definition Indication Legend */}
+                                <div className="mt-16 pt-8 border-t border-slate-100/60 w-full max-w-5xl relative z-10">
+                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                                        {[
+                                            { label: 'New', desc: 'Assigned but not started.', color: 'text-slate-500', bg: 'bg-slate-50' },
+                                            { label: 'Active', desc: 'Currently in progress.', color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                                            { label: 'Review', desc: 'Submitted / Waiting approval.', color: 'text-amber-600', bg: 'bg-amber-50' },
+                                            { label: 'Rework', desc: 'Returned with corrections.', color: 'text-rose-600', bg: 'bg-rose-50' }
+                                        ].map((item, idx) => (
+                                            <div key={idx} className="flex gap-4">
+                                                <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${item.color.replace('text-', 'bg-')}`} />
+                                                <div className="flex flex-col gap-1">
+                                                    <span className={`text-[11px] font-black uppercase tracking-widest ${item.color}`}>{item.label}</span>
+                                                    <p className="text-[10px] font-medium text-slate-400 capitalize leading-relaxed">{item.desc}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         )}
+
+                        {/* ── Secondary Row: Status Leaders ── */}
+                        <div className="flex flex-col gap-4 h-full">
+                            {topDept && (
+                                <div className="mesh-gradient-emerald rounded-[2.5rem] p-8 border border-emerald-200/50 shadow-lg flex items-center justify-between relative overflow-hidden group/top card-gloss flex-1 min-h-[140px]">
+                                    <div className="flex flex-col">
+                                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-600/80 mb-3">Efficiency Leader</span>
+                                        <span className="text-[32px] font-black text-emerald-950 capitalize tracking-tighter leading-none mb-1">{topDept.name}</span>
+                                        <p className="text-[13px] font-bold text-emerald-700/60 capitalize tracking-tight">Active Team Benchmark</p>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <div className="bg-white/50 backdrop-blur-md p-4 rounded-3xl border border-white shadow-xl mb-3 group-hover/top:scale-110 transition-transform duration-500">
+                                            <TrendingUp size={32} className="text-emerald-600" />
+                                        </div>
+                                        <span className="text-[36px] font-black text-emerald-600 tabular-nums tracking-tighter leading-none">
+                                            {Number.isNaN(topDept.Performance) ? 0 : topDept.Performance}%
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                            {underperformingDept && underperformingDept.name !== topDept?.name && (
+                                <div className="mesh-gradient-rose rounded-[2.5rem] p-8 border border-rose-200/50 shadow-lg flex items-center justify-between relative overflow-hidden group/needs card-gloss flex-1 min-h-[140px]">
+                                    <div className="flex flex-col">
+                                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-rose-600/80 mb-3">Urgent Intervention</span>
+                                        <span className="text-[32px] font-black text-rose-950 capitalize tracking-tighter leading-none mb-1">{underperformingDept.name}</span>
+                                        <p className="text-[13px] font-bold text-rose-700/60 capitalize tracking-tight">Critical Performance Delta</p>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <div className="bg-white/50 backdrop-blur-md p-4 rounded-3xl border border-white shadow-xl mb-3 group-hover/needs:scale-110 transition-transform duration-500">
+                                            <TrendingDown size={32} className="text-rose-600" />
+                                        </div>
+                                        <span className="text-[36px] font-black text-rose-600 tabular-nums tracking-tighter leading-none">
+                                            {Number.isNaN(underperformingDept.Performance) ? 0 : underperformingDept.Performance}%
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )
             )}
@@ -1419,7 +1599,11 @@ const ReportsPage = () => {
             )}
 
             <TaskDistributionCard 
-                data={filters.employeeId ? (performanceData.find(e => String(e.id) === String(filters.employeeId)) || aggregateDistribution) : aggregateDistribution}
+                data={filters.employeeId 
+                    ? (performanceData.find(e => String(e.id) === String(filters.employeeId)) 
+                        || employeeSummary 
+                        || aggregateDistribution) 
+                    : aggregateDistribution}
                 title={filters.employeeId ? "Task Distribution (Personal)" : "Task Distribution (Aggregate)"}
                 titleClassName="text-[18px] font-semibold"
             />

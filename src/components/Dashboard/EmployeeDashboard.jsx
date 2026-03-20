@@ -104,36 +104,77 @@ const STATUS_COLORS = {
 /* Small stat tile — CFO-style large gradient card */
 const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
     const c = {
-        violet: { bg: 'from-violet-500 to-indigo-600', shadow: 'shadow-violet-300/40', icon: 'bg-white/20', accent: 'bg-violet-400/30' },
-        green: { bg: 'from-emerald-400 to-teal-500', shadow: 'shadow-emerald-300/40', icon: 'bg-white/20', accent: 'bg-emerald-400/30' },
-        blue: { bg: 'from-blue-500 to-indigo-500', shadow: 'shadow-blue-300/40', icon: 'bg-white/20', accent: 'bg-blue-400/30' },
-        amber: { bg: 'from-amber-400 to-orange-500', shadow: 'shadow-amber-300/40', icon: 'bg-white/20', accent: 'bg-amber-400/30' },
-        orange: { bg: 'from-orange-500 to-rose-500', shadow: 'shadow-orange-300/40', icon: 'bg-white/20', accent: 'bg-orange-400/30' },
-        teal: { bg: 'from-teal-400 to-cyan-500', shadow: 'shadow-teal-300/40', icon: 'bg-white/20', accent: 'bg-teal-400/30' },
-    }[color] || { bg: 'from-violet-500 to-indigo-600', shadow: 'shadow-violet-300/40', icon: 'bg-white/20', accent: 'bg-violet-400/30' };
+        violet: { 
+            bg: 'bg-gradient-to-br from-[#7B51ED] via-[#8B64F1] to-[#6D43E0]', 
+            shadow: 'shadow-[0_8px_30px_rgb(123,81,237,0.3)]', 
+            icon: 'bg-white/20', 
+            accent: 'bg-violet-400/30' 
+        },
+        green: { 
+            bg: 'bg-gradient-to-br from-[#10B981] via-[#34D399] to-[#059669]', 
+            shadow: 'shadow-[0_8px_30px_rgb(16,185,129,0.3)]', 
+            icon: 'bg-white/20', 
+            accent: 'bg-emerald-400/30' 
+        },
+        blue: { 
+            bg: 'bg-gradient-to-br from-[#4285F4] via-[#60A5FA] to-[#2563EB]', 
+            shadow: 'shadow-[0_8px_30px_rgb(66,133,244,0.3)]', 
+            icon: 'bg-white/20', 
+            accent: 'bg-blue-400/30' 
+        },
+        amber: { 
+            bg: 'bg-gradient-to-br from-[#F59E0B] via-[#FBBF24] to-[#D97706]', 
+            shadow: 'shadow-[0_8px_30px_rgb(245,158,11,0.3)]', 
+            icon: 'bg-white/20', 
+            accent: 'bg-amber-400/30' 
+        },
+        orange: { 
+            bg: 'bg-gradient-to-br from-[#F97316] via-[#FB923C] to-[#EA580C]', 
+            shadow: 'shadow-[0_8px_30px_rgb(249,115,22,0.3)]', 
+            icon: 'bg-white/20', 
+            accent: 'bg-orange-400/30' 
+        },
+        rose: { 
+            bg: 'bg-gradient-to-br from-[#F43F5E] via-[#FB7185] to-[#E11D48]', 
+            shadow: 'shadow-[0_8px_30px_rgb(244,63,94,0.3)]', 
+            icon: 'bg-white/20', 
+            accent: 'bg-rose-400/30' 
+        },
+    }[color] || { 
+        bg: 'bg-gradient-to-br from-violet-500 to-indigo-600', 
+        shadow: 'shadow-[0_8px_30px_rgb(124,58,237,0.3)]', 
+        icon: 'bg-white/20', 
+        accent: 'bg-violet-400/30' 
+    };
 
     return (
-        <div className={`group animate-fade-in-up relative overflow-hidden rounded-2xl bg-gradient-to-br ${c.bg} ${c.shadow} shadow-lg py-5 px-6 transition-all duration-500 hover:scale-[1.03] hover:shadow-xl`}>
-            {/* Decorative blobs */}
-            <div className={`absolute -top-6 -right-6 w-24 h-24 rounded-full ${c.accent} blur-2xl`} />
-            <div className={`absolute -bottom-6 -left-6 w-20 h-20 rounded-full ${c.accent} blur-2xl opacity-60`} />
+        <div className={`group animate-fade-in-up relative overflow-hidden rounded-[1.75rem] ${c.bg} ${c.shadow} p-6 transition-all duration-500 hover:scale-[1.03] hover:shadow-2xl border border-white/10 h-full`}>
+            {/* Background Ornaments */}
+            <div className={`absolute -top-6 -right-6 w-32 h-32 rounded-full ${c.accent} blur-3xl opacity-50 group-hover:scale-125 transition-transform duration-700`} />
+            <div className={`absolute -bottom-10 -left-10 w-28 h-28 rounded-full ${c.accent} blur-2xl opacity-30 group-hover:scale-125 transition-transform duration-700 delay-100`} />
+            
+            {/* Glass Pattern */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.1),transparent_70%)] pointer-events-none" />
 
-            <div className="relative z-10 flex items-center gap-4">
-                <div className={`flex-shrink-0 w-12 h-12 rounded-2xl ${c.icon} backdrop-blur-sm flex items-center justify-center transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6 border border-white/30`}>
-                    <Icon size={24} className="text-white drop-shadow-sm" strokeWidth={2.5} />
-                </div>
-                <div className="min-w-0 flex-1">
-                    <div className="text-3xl font-bold text-white tabular-nums tracking-tighter leading-none drop-shadow">
-                        {value ?? '-'}
+            <div className="relative z-10 flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[11px] font-bold text-white/70 uppercase tracking-[0.1em] drop-shadow-sm">
+                            {label}
+                        </span>
                     </div>
-                    <div className="text-[11px] font-bold text-white/80 leading-tight mt-1.5">
-                        {label}
+                    <div className="text-4xl font-extrabold text-white tabular-nums tracking-tighter leading-none drop-shadow-md mb-2">
+                        {value ?? '0'}
                     </div>
                     {sub && (
-                        <div className="text-[9px] text-white/60 font-semibold mt-0.5">
-                            {sub}
+                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/10 text-white/90 text-[10px] font-bold backdrop-blur-md border border-white/10">
+                             {sub}
                         </div>
                     )}
+                </div>
+                
+                <div className={`flex-shrink-0 w-14 h-14 rounded-2xl ${c.icon} backdrop-blur-md flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 border border-white/25 shadow-lg`}>
+                    <Icon size={26} className="text-white drop-shadow-md" strokeWidth={2.5} />
                 </div>
             </div>
         </div>
@@ -486,51 +527,34 @@ const EmployeeDashboard = () => {
         <div className="space-y-6 animate-fade-in pb-8 mt-4">
 
 
-            {/* Top Metrics Row - 3 equal cards, aligned with My Task List width */}
+            {/* Top Metrics Row - Using the premium Stat component */}
             <div className="flex flex-col xl:flex-row gap-4">
-                {/* Left: metric cards, same flex-1 width as task table */}
                 <div className="flex-1">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-[#4285F4] text-white rounded-[1.5rem] p-5 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
-                            <div>
-                                <span className="text-4xl font-bold tracking-tight">{stats.total || 0}</span>
-                                <p className="text-[14px] font-medium mt-1 text-white/90">Total Tasks</p>
-                            </div>
-                            <div className="absolute right-4 bottom-4 opacity-20">
-                                <CheckSquare size={56} strokeWidth={1.5} />
-                            </div>
-                        </div>
-
-                        <div className="bg-[#34D399] text-white rounded-[1.5rem] p-5 shadow-sm relative overflow-hidden flex flex-col justify-between h-28">
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <span className="text-4xl font-bold tracking-tight">{score || 0}%</span>
-                                    <p className="text-[14px] font-medium mt-1 text-white/90">Performance Index</p>
-                                </div>
-                                <div className="opacity-40 mt-2">
-                                    <TrendingUp size={28} />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-[#9B51E0] text-white rounded-[1.5rem] p-5 shadow-sm relative overflow-hidden flex flex-col justify-between h-28 border border-[#a259e8]">
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <span className="text-4xl font-bold tracking-tight">{stats.pendingSubmission || 0}</span>
-                                    <p className="text-[14px] font-medium mt-1 text-white/90">Pending Submission</p>
-                                </div>
-                                <div className="opacity-40 mt-2">
-                                    <Activity size={28} />
-                                </div>
-                            </div>
-                            <div className="absolute right-[-10px] bottom-[-10px] opacity-10">
-                                <div className="w-24 h-24 rounded-full border-[10px] border-white"></div>
-                            </div>
-                        </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        <Stat 
+                            label="Total Tasks" 
+                            value={stats.total} 
+                            icon={CheckSquare} 
+                            color="blue" 
+                            sub="Assigned to you"
+                        />
+                        <Stat 
+                            label="Performance Index" 
+                            value={`${score}%`} 
+                            icon={TrendingUp} 
+                            color="green" 
+                            sub="Department avg: 82%"
+                        />
+                        <Stat 
+                            label="Pending Submission" 
+                            value={stats.pendingSubmission} 
+                            icon={Activity} 
+                            color="violet" 
+                            sub="Tasks requiring action"
+                        />
                     </div>
                 </div>
-
-                {/* Right: spacer matching quick actions column so cards don't extend under it */}
+                {/* Right: spacer matching quick actions column */}
                 <div className="hidden xl:flex w-[320px] shrink-0 gap-4" />
             </div>
 

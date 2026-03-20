@@ -44,12 +44,16 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
 
     const fetchMetadata = async () => {
         try {
+            const savedUser = JSON.parse(localStorage.getItem('pms_user') || '{}');
+            const role = String(savedUser?.role || '').toUpperCase();
+            const isAltRole = role === 'ADMIN' || role === 'CFO';
+
             const [deptRes, empRes] = await Promise.all([
                 api.get('/departments'),
-                api.get('/employees/assignable')
+                api.get(isAltRole ? '/employees' : '/employees/assignable')
             ]);
-            setDepartments(deptRes.data);
-            setEmployees(empRes.data);
+            setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
+            setEmployees(Array.isArray(empRes.data) ? empRes.data : []);
         } catch (err) {
             console.error("Meta fetch failed", err);
         }
@@ -127,14 +131,9 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const rid = template.id || template.recurring_id;
-        if (!rid) {
-            toast.error('Task ID missing');
-            return;
-        }
+        const rid = template?.id || template?.recurring_id;
         setSubmitting(true);
         try {
-            // Apply exact clean payload format identical to the successful POST creation logic
             const payload = {
                 title: formData.title,
                 description: formData.description,
@@ -145,13 +144,21 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                 yearly_month: formData.frequency === 'YEARLY' ? (parseInt(formData.yearly_month, 10) || null) : null,
                 yearly_day: formData.frequency === 'YEARLY' ? (parseInt(formData.yearly_day, 10) || null) : null
             };
-            const res = await api.patch(`/recurring-tasks/${parseInt(rid, 10)}`, payload);
-            toast.success('Task configuration updated');
+
+            let res;
+            if (rid) {
+                res = await api.patch(`/recurring-tasks/${parseInt(rid, 10)}`, payload);
+                toast.success('Task configuration updated');
+            } else {
+                res = await api.post('/recurring-tasks', payload);
+                toast.success('Recurring task created!');
+            }
+            
             onSave(res.data?.data || res.data);
             onClose();
         } catch (err) {
-            console.error('Update failed', err);
-            toast.error('Failed to update configuration');
+            console.error('Submission failed', err);
+            toast.error(`Failed to ${rid ? 'update' : 'create'} configuration`);
         } finally {
             setSubmitting(false);
         }
@@ -290,69 +297,79 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                             ) : subtasks.length === 0 ? (
                                 <div className="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-medium italic text-[11px]">No subtask templates defined.</div>
                             ) : (
-                                subtasks.map((st, idx) => (
-                                    <div key={st.id || idx} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm relative group hover:border-indigo-200 transition-all">
-                                        <button 
-                                            type="button"
-                                            onClick={() => handleDeleteSubtask(st.id)}
-                                            className="absolute top-4 right-4 text-slate-300 hover:text-rose-500 transition-colors"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="md:col-span-2">
-                                                <input 
-                                                    type="text"
-                                                    className="w-full bg-slate-50/50 border-none rounded-lg px-3 py-2 text-sm font-black text-slate-800 focus:ring-0 focus:bg-white transition-all uppercase tracking-tight"
-                                                    value={st.title}
-                                                    onChange={(e) => handleUpdateSubtask(st.id, { title: e.target.value })}
-                                                    onBlur={() => handleUpdateSubtask(st.id, { title: st.title })}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Owner</label>
-                                                <select 
-                                                    className="w-full bg-slate-50/50 border-none rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-600 focus:ring-0"
-                                                    value={st.assigned_to_emp_id}
-                                                    onChange={(e) => handleUpdateSubtask(st.id, { assigned_to_emp_id: e.target.value })}
-                                                >
-                                                    <option value="">Select Assignee</option>
-                                                    {employees.map(e => <option key={e.emp_id} value={e.emp_id}>{e.name}</option>)}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Priority</label>
-                                                <select 
-                                                    className="w-full bg-slate-50/50 border-none rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-600 focus:ring-0"
-                                                    value={st.priority}
-                                                    onChange={(e) => handleUpdateSubtask(st.id, { priority: e.target.value })}
-                                                >
-                                                    <option value="LOW">Low</option>
-                                                    <option value="MEDIUM">Medium</option>
-                                                    <option value="HIGH">High</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Start Date</label>
-                                                <input 
-                                                    type="date"
-                                                    className="w-full bg-slate-50/50 border-none rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-600 focus:ring-0"
-                                                    value={st.start_date || ''}
-                                                    onChange={(e) => handleUpdateSubtask(st.id, { start_date: e.target.value })}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">End Date</label>
-                                                <input 
-                                                    type="date"
-                                                    className="w-full bg-slate-50/50 border-none rounded-lg px-3 py-1.5 text-[11px] font-bold text-slate-600 focus:ring-0"
-                                                    value={st.end_date || ''}
-                                                    onChange={(e) => handleUpdateSubtask(st.id, { end_date: e.target.value })}
-                                                />
+                                <div className="space-y-3">
+                                    {subtasks.sort((a,b) => (a.sequence_no || 0) - (b.sequence_no || 0)).map((st, idx) => (
+                                        <div key={st.id || idx} className="bg-white border border-slate-100 rounded-[1.5rem] p-5 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all group overflow-hidden relative">
+                                            {/* Sequence indicator */}
+                                            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500 opacity-20 group-hover:opacity-100 transition-opacity" />
+                                            
+                                            <div className="flex flex-col gap-4">
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <div className="flex items-center gap-3 flex-1">
+                                                        <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-[10px] shrink-0">
+                                                            {idx + 1}
+                                                        </div>
+                                                        <input 
+                                                            type="text"
+                                                            className="flex-1 bg-transparent border-none p-0 text-[14px] font-black text-slate-800 focus:ring-0 placeholder:text-slate-300 uppercase tracking-tight"
+                                                            value={st.title}
+                                                            placeholder="Subtask Title"
+                                                            onChange={(e) => setSubtasks(subtasks.map(s => s.id === st.id ? {...s, title: e.target.value} : s))}
+                                                            onBlur={() => handleUpdateSubtask(st.id, { title: st.title })}
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <button 
+                                                            type="button"
+                                                            onClick={async () => {
+                                                                if (window.confirm(`Delete subtask "${st.title}"?`)) {
+                                                                    handleDeleteSubtask(st.id);
+                                                                }
+                                                            }}
+                                                            className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                                            title="Remove Subtask"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50/50 p-4 rounded-2xl">
+                                                    <div className="space-y-1">
+                                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Assignee</label>
+                                                        <select 
+                                                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                            value={st.assigned_to_emp_id}
+                                                            onChange={(e) => handleUpdateSubtask(st.id, { assigned_to_emp_id: e.target.value })}
+                                                        >
+                                                            <option value="">Select Owner</option>
+                                                            {employees.map(e => <option key={e.emp_id} value={e.emp_id}>{e.name}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Priority</label>
+                                                        <select 
+                                                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                            value={st.priority}
+                                                            onChange={(e) => handleUpdateSubtask(st.id, { priority: e.target.value })}
+                                                        >
+                                                            <option value="LOW">Low</option>
+                                                            <option value="MEDIUM">Medium</option>
+                                                            <option value="HIGH">High</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Deadline Rule</label>
+                                                        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2">
+                                                            <Clock size={12} className="text-slate-400" />
+                                                            <span className="text-[11px] font-bold text-slate-500 italic">Auto-calculated</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))
+                                    ))}
+                                </div>
                             )}
                         </div>
                     </div>

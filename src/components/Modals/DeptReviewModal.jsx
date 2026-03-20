@@ -1,8 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Target, MessageSquare, ShieldCheck, ChevronDown, Building2 } from 'lucide-react';
 
-const DeptReviewModal = ({ isOpen, onClose, onSave, departments = [] }) => {
-    const [selectedDept, setSelectedDept] = useState('');
+const DeptReviewModal = ({ isOpen, onClose, onSave, departments = [], initialDepartment = '' }) => {
+    const [selectedDept, setSelectedDept] = useState(initialDepartment);
+    
+    // Sync state if initialDepartment changes while open
+    useEffect(() => {
+        if (initialDepartment) setSelectedDept(initialDepartment);
+    }, [initialDepartment, isOpen]);
+
     const [status, setStatus] = useState('ON_TRACK');
     const [summary, setSummary] = useState('');
 

@@ -20,6 +20,7 @@ import OKRDashboardPage from './pages/OKRDashboardPage';
 import OKRSubTaskPage from './pages/OKRSubTaskPage';
 import RecurringTasksPage from './pages/RecurringTasksPage';
 import EmployeePerformanceDashboard from './pages/EmployeePerformanceDashboard';
+import DepartmentsPage from './pages/DepartmentsPage';
 import AccessDeniedPage from './pages/AccessDeniedPage';
 
 function App() {
@@ -106,7 +107,7 @@ function App() {
           <Route
             path="okr-dashboard"
             element={
-              <ProtectedRoute allowedRoles={['CFO', 'Admin', 'Manager', 'Employee']}>
+              <ProtectedRoute allowedRoles={['CFO', 'Manager', 'Employee']}>
                 <OKRDashboardPage />
               </ProtectedRoute>
             }
@@ -115,7 +116,7 @@ function App() {
           <Route
             path="okr-subtask"
             element={
-              <ProtectedRoute allowedRoles={['CFO', 'Admin', 'Manager', 'Employee']}>
+              <ProtectedRoute allowedRoles={['CFO', 'Manager', 'Employee']}>
                 <OKRSubTaskPage />
               </ProtectedRoute>
             }
@@ -124,12 +125,20 @@ function App() {
           <Route
             path="okr-subtask/:okrId"
             element={
-              <ProtectedRoute allowedRoles={['CFO', 'Admin', 'Manager', 'Employee']}>
+              <ProtectedRoute allowedRoles={['CFO', 'Manager', 'Employee']}>
                 <OKRSubTaskPage />
               </ProtectedRoute>
             }
           />
 
+          <Route
+            path="departments"
+            element={
+              <ProtectedRoute allowedRoles={['Admin', 'CFO']}>
+                <DepartmentsPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="recurring-tasks"
             element={

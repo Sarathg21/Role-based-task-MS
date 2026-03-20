@@ -358,7 +358,7 @@ const ActionTaskTable = ({
                           </button>
                         )}
                         {task.status === "SUBMITTED" && (
-                          <span className="text-[11px] text-slate-400 font-medium italic">Pending Review</span>
+                          <span className="text-[11px] text-slate-400 font-medium italic">Waiting Approval</span>
                         )}
                       </>
                     )}
@@ -644,11 +644,8 @@ const TaskPage = () => {
       if (filter.search) params.search = filter.search;
 
       let endpoint = '/reports/cfo/export-excel';
-      const role = (user?.role || '').toUpperCase();
-      if (role === 'EMPLOYEE' || (role === 'MANAGER' && viewMode === 'personal')) {
-        // Try the generic endpoint which might be more reliable for employees
-        endpoint = '/reports/performance.excel';
-      }
+      // Unify the endpoint to use the CFO export which supports all roles via scope parameter
+      // This fixes the 404 error encountered on /reports/performance.excel
 
       const response = await api.get(endpoint, {
         params,
@@ -987,8 +984,8 @@ const TaskPage = () => {
             />
           </div>
 
-          {/* CFO Departments Filter - inside the bar if isCFO */}
-          {isCFO && (
+          {/* Departments Filter - inside the bar if isCFO or Manager in Team View */}
+          {(isCFO || (isManager && viewMode === 'team')) && (
             <>
               <div className="w-px h-6 bg-slate-200 mx-1 shrink-0" />
               <div className="shrink-0 relative">

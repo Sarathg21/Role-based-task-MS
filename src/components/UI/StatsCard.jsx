@@ -1,5 +1,8 @@
 import { ArrowUp, ArrowDown } from "lucide-react";
 
+/**
+ * Premium StatsCard component with gradient background and glassmorphic effects.
+ */
 const StatsCard = ({
   title,
   label,
@@ -7,156 +10,106 @@ const StatsCard = ({
   icon: Icon,
   trend,
   trendValue,
-  color = "primary",
-  compact = false,
-  size = "md",
+  color = "violet",
+  sub,
   className = "",
   style = {},
 }) => {
   const displayTitle = title || label;
-  const isSmall = size === "sm" || compact;
 
   const getTrendColor = () => {
     if (typeof trend === "number") {
-      return trend >= 0
-        ? "text-emerald-600 bg-emerald-50 border border-emerald-100"
-        : "text-rose-600 bg-rose-50 border border-rose-100";
+      return trend >= 0 ? "bg-emerald-400/20 text-emerald-100" : "bg-rose-400/20 text-rose-100";
     }
-    if (trend === "up")
-      return "text-emerald-600 bg-emerald-50 border border-emerald-100";
-    if (trend === "down")
-      return "text-rose-600 bg-rose-50 border border-rose-100";
-
-    return "text-slate-500 bg-slate-100 border border-slate-200";
+    if (trend === "up") return "bg-emerald-400/20 text-emerald-100";
+    if (trend === "down") return "bg-rose-400/20 text-rose-100";
+    return "bg-white/10 text-white/70";
   };
 
   const colorMap = {
-    primary: {
-      gradient: "from-violet-500 to-violet-700",
-      shadow: "shadow-violet-200/50",
-      glow: "rgba(139,92,246,0.1)",
-      cardBg: "bg-violet-50",
-      accent: "violet",
-      textHover: "group-hover:text-violet-600",
+    violet: { 
+        bg: 'bg-gradient-to-br from-[#7B51ED] via-[#8B64F1] to-[#6D43E0]', 
+        shadow: 'shadow-[0_8px_30px_rgb(123,81,237,0.3)]', 
+        accent: 'bg-violet-400/30' 
     },
-    violet: {
-      gradient: "from-violet-500 to-violet-700",
-      shadow: "shadow-violet-200/50",
-      glow: "rgba(139,92,246,0.1)",
-      cardBg: "bg-violet-50",
-      accent: "violet",
-      textHover: "group-hover:text-violet-600",
+    green: { 
+        bg: 'bg-gradient-to-br from-[#10B981] via-[#34D399] to-[#059669]', 
+        shadow: 'shadow-[0_8px_30px_rgb(16,185,129,0.3)]', 
+        accent: 'bg-emerald-400/30' 
     },
-    emerald: {
-      gradient: "from-emerald-400 to-emerald-600",
-      shadow: "shadow-emerald-200/50",
-      glow: "rgba(16,185,129,0.1)",
-      cardBg: "bg-emerald-50",
-      accent: "emerald",
-      textHover: "group-hover:text-emerald-600",
+    emerald: { 
+        bg: 'bg-gradient-to-br from-[#10B981] via-[#34D399] to-[#059669]', 
+        shadow: 'shadow-[0_8px_30px_rgb(16,185,129,0.3)]', 
+        accent: 'bg-emerald-400/30' 
     },
-    amber: {
-      gradient: "from-amber-400 to-amber-600",
-      shadow: "shadow-amber-200/50",
-      glow: "rgba(245,158,11,0.1)",
-      cardBg: "bg-orange-50",
-      accent: "amber",
-      textHover: "group-hover:text-amber-600",
+    blue: { 
+        bg: 'bg-gradient-to-br from-[#4285F4] via-[#60A5FA] to-[#2563EB]', 
+        shadow: 'shadow-[0_8px_30px_rgb(66,133,244,0.3)]', 
+        accent: 'bg-blue-400/30' 
     },
-    rose: {
-      gradient: "from-rose-500 to-rose-700",
-      shadow: "shadow-rose-200/50",
-      glow: "rgba(239,68,68,0.1)",
-      cardBg: "bg-rose-50",
-      accent: "rose",
-      textHover: "group-hover:text-rose-600",
+    amber: { 
+        bg: 'bg-gradient-to-br from-[#F59E0B] via-[#FBBF24] to-[#D97706]', 
+        shadow: 'shadow-[0_8px_30px_rgb(245,158,11,0.3)]', 
+        accent: 'bg-amber-400/30' 
+    },
+    rose: { 
+        bg: 'bg-gradient-to-br from-[#F43F5E] via-[#FB7185] to-[#E11D48]', 
+        shadow: 'shadow-[0_8px_30px_rgb(244,63,94,0.3)]', 
+        accent: 'bg-rose-400/30' 
     },
   };
 
-  const c = colorMap[color] || colorMap.primary;
+  const c = colorMap[color] || colorMap.violet;
 
   return (
     <div
-      className={`stat-card group relative overflow-hidden transition-all duration-300 hover:-translate-y-1 border border-slate-200 shadow-sm ${c.cardBg} ${
-        isSmall ? "py-2.5 px-4" : "py-5 px-6"
-      } rounded-2xl ${className}`}
-      style={{ "--glow-color": c.glow, ...style }}
+      className={`group relative overflow-hidden rounded-[1.75rem] ${c.bg} ${c.shadow} p-6 transition-all duration-500 hover:scale-[1.03] hover:shadow-2xl border border-white/10 ${className}`}
+      style={style}
     >
-      {/* Top accent line */}
-      <div
-        className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-${c.accent}-300 to-transparent opacity-80`}
-      />
+      {/* Background Ornaments */}
+      <div className={`absolute -top-6 -right-6 w-32 h-32 rounded-full ${c.accent} blur-3xl opacity-50 group-hover:scale-125 transition-transform duration-700`} />
+      <div className={`absolute -bottom-10 -left-10 w-28 h-28 rounded-full ${c.accent} blur-2xl opacity-30 group-hover:scale-125 transition-transform duration-700 delay-100`} />
+      
+      {/* Glass Pattern */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.1),transparent_70%)] pointer-events-none" />
 
-      <div className="flex items-center gap-4 relative z-10">
-        {/* Icon */}
-        <div
-          className={`flex-shrink-0 flex items-center justify-center bg-gradient-to-br ${c.gradient} shadow-md ${c.shadow} transition-all duration-300 group-hover:rotate-6 ${
-            isSmall ? "w-9 h-9 rounded-lg" : "w-12 h-12 rounded-xl"
-          }`}
-        >
-          {Icon && (
-            <Icon
-              size={isSmall ? 18 : 24}
-              className="text-white"
-              strokeWidth={2.5}
-            />
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="min-w-0 flex-1 flex flex-col pt-1">
-          <p
-            className={`font-medium text-slate-400 truncate mb-1 ${
-              isSmall ? "text-[8px]" : "text-[9px]"
-            }`}
-          >
-            {displayTitle}
-          </p>
-
-          <div className="flex items-baseline gap-2">
-            <h3
-              className={`font-semibold text-slate-800 tabular-nums tracking-tight leading-none transition-colors ${c.textHover} ${
-                isSmall ? "text-2xl" : "text-3xl"
-              }`}
-            >
-              {value ?? "—"}
-            </h3>
-
+      <div className="relative z-10 flex items-center justify-between">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[11px] font-bold text-white/70 uppercase tracking-[0.1em] drop-shadow-sm truncate">
+              {displayTitle}
+            </span>
             {(trendValue !== undefined || trend !== undefined) && (
               <span
-                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border ${getTrendColor()}`}
+                className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[9px] font-bold border border-white/10 backdrop-blur-md ${getTrendColor()}`}
               >
-                {trend === "up" ||
-                (typeof trend === "number" && trend > 0) ? (
+                {trend === "up" || (typeof trend === "number" && trend > 0) ? (
                   <ArrowUp size={8} strokeWidth={3} />
                 ) : (
                   <ArrowDown size={8} strokeWidth={3} />
                 )}
-                {trendValue ||
-                  (typeof trend === "number" ? Math.abs(trend) + "%" : "")}
+                {trendValue || (typeof trend === "number" ? Math.abs(trend) + "%" : "")}
               </span>
             )}
           </div>
+          <div className="text-4xl font-extrabold text-white tabular-nums tracking-tighter leading-none drop-shadow-md mb-2">
+            {value ?? '0'}
+          </div>
+          {(sub || label) && (
+            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/10 text-white/90 text-[10px] font-bold backdrop-blur-md border border-white/10 truncate max-w-full">
+               {sub || label}
+            </div>
+          )}
         </div>
-
-        {/* Status Dot */}
-        <div className="absolute bottom-4 right-4 flex gap-1">
-          <div
-            className={`w-1.5 h-1.5 rounded-full ${
-              color === "rose"
-                ? "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]"
-                : "bg-slate-200"
-            } opacity-0 group-hover:opacity-100 transition-opacity`}
-          />
-        </div>
+        
+        {Icon && (
+          <div className={`flex-shrink-0 w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 border border-white/25 shadow-lg`}>
+            <Icon size={26} className="text-white drop-shadow-md" strokeWidth={2.5} />
+          </div>
+        )}
       </div>
-
-      {/* Bottom accent */}
-      <div
-        className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-${c.accent}-400 to-transparent opacity-0 group-hover:opacity-100 transition-opacity`}
-      />
     </div>
   );
 };
 
-export default StatsCard;
+export default StatsCard;

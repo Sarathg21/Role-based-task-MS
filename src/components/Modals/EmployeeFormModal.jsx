@@ -7,54 +7,39 @@ import CustomSelect from "../UI/CustomSelect";
 
 /* ─── Reusable styled field label ─── */
 const FieldLabel = ({ icon: Icon, color = "text-indigo-600", textColor = "text-indigo-700", children }) => (
-  <label className={`flex items-center gap-1.5 text-xs font-bold ${textColor} uppercase tracking-wider mb-2`}>
+  <label className={`flex items-center gap-1.5 text-xs font-bold ${textColor} capitalize tracking-wider mb-2`}>
     <Icon size={12} className={color} />
     {children}
   </label>
 );
 
-/* ─── Select with chevron overlay ─── */
-const StyledSelect = ({ value, onChange, children, ring = "focus:ring-indigo-500" }) => (
-  <div className="relative">
-    <select
-      value={value}
-      onChange={onChange}
-      className={`w-full appearance-none px-4 py-3.5 text-sm rounded-xl border-2 border-slate-200
-        bg-white text-slate-800 font-medium focus:outline-none focus:ring-2 ${ring}
-        focus:border-transparent transition-all duration-200 cursor-pointer hover:border-slate-400`}
-    >
-      {children}
-    </select>
-    <ChevronDown size={15} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
-  </div>
-);
-
 /* ─── Section card with colored left accent ─── */
 const Section = ({ icon: Icon, headerBg, iconBg, iconColor, titleColor, title, borderColor, children }) => (
-  <div className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden animate-fade-in-up`}>
-    <div className={`flex items-center gap-4 px-10 py-6 border-b border-slate-100 ${headerBg}/30 backdrop-blur-sm`}>
+  <div className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-visible animate-fade-in-up`}>
+    <div className={`flex items-center gap-4 px-10 py-6 border-b border-slate-100 ${headerBg}/30 backdrop-blur-sm rounded-t-[2rem]`}>
       <div className={`w-10 h-10 rounded-2xl ${iconBg} flex items-center justify-center shadow-lg shadow-indigo-100`}>
         <Icon size={20} className={iconColor} />
       </div>
-      <span className={`text-base font-black ${titleColor} uppercase tracking-[0.2em]`}>{title}</span>
+      <span className={`text-base font-black ${titleColor} capitalize tracking-[0.2em]`}>{title}</span>
     </div>
     <div className="px-10 py-8 bg-white/50">{children}</div>
   </div>
 );
 
 /* ─── Main Component ─── */
-const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
+const EmployeeFormModal = ({ onClose, onAdd, onEdit, managers, departments, initialData = null }) => {
+  const isEdit = !!initialData;
   const firstDept = Array.isArray(departments) && departments.length > 0
-    ? (typeof departments[0] === 'string' ? departments[0] : departments[0].id || departments[0])
+    ? (typeof departments[0] === 'string' ? departments[0] : departments[0].id || departments[0].department_id || departments[0])
     : '';
 
   const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    role: "EMPLOYEE",
-    department_id: firstDept,
-    manager_emp_id: "",
-    emp_id: "",
+    name: initialData?.name || "",
+    email: initialData?.email || "",
+    role: initialData?.role || "EMPLOYEE",
+    department_id: initialData?.department_id || initialData?.department || firstDept,
+    manager_emp_id: initialData?.manager_emp_id || "",
+    emp_id: initialData?.emp_id || initialData?.id || "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -64,7 +49,7 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
   const inputCls = `w-full px-4 py-3.5 text-sm rounded-xl border-2 border-slate-200
     bg-white text-slate-800 font-medium placeholder-slate-400 focus:outline-none
     focus:ring-2 focus:ring-indigo-500 focus:border-transparent
-    transition-all duration-200 hover:border-slate-400`;
+    transition-all duration-200 hover:border-slate-400 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed`;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -75,22 +60,28 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
 
     setSubmitting(true);
     try {
-      // Match EmployeeCreate schema exactly
-      await onAdd({
+      const payload = {
         emp_id: formData.emp_id,
         name: formData.name,
         email: formData.email,
         role: formData.role,
         department_id: formData.department_id,
         manager_emp_id: formData.manager_emp_id || null,
-      });
+      };
+
+      if (isEdit) {
+        await onEdit(payload);
+      } else {
+        await onAdd(payload);
+      }
+      
       setSubmitted(true);
       setTimeout(() => {
         setSubmitted(false);
         onClose();
       }, 1500);
     } catch (err) {
-      console.error("Failed to add employee", err);
+      console.error(`Failed to ${isEdit ? 'update' : 'add'} employee`, err);
     } finally {
       setSubmitting(false);
     }
@@ -103,7 +94,7 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
         <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
           <CheckCircle size={32} className="text-green-500" />
         </div>
-        <p className="text-lg font-bold text-slate-800">Employee Added!</p>
+        <p className="text-lg font-bold text-slate-800">Employee {isEdit ? 'Updated' : 'Added'}!</p>
         <p className="text-sm text-slate-500">Redirecting back to directory…</p>
       </div>
     );
@@ -115,7 +106,7 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
       {/* ── Page Header ── */}
       <div
         className="relative rounded-[2rem] overflow-hidden px-12 py-12 flex items-center justify-between shadow-2xl"
-        style={{ background: "linear-gradient(135deg, #0f0c29 0%, #302b63 40%, #4f46e5 75%, #818cf8 100%)" }}
+        style={{ background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 75%, #6366f1 100%)" }}
       >
         {/* Decorative blobs */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
@@ -131,9 +122,11 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
             <UserPlus size={26} className="text-white" strokeWidth={1.8} />
           </div>
           <div>
-            <p className="text-indigo-300 text-[11px] font-bold uppercase tracking-widest mb-0.5">Admin Console</p>
-            <h1 className="text-2xl font-extrabold text-white tracking-tight">Add New Employee</h1>
-            <p className="text-indigo-200 text-xs mt-0.5">Fill in the details to register a new team member</p>
+            <p className="text-indigo-300 text-[11px] font-bold capitalize tracking-widest mb-0.5">Admin Console</p>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">{isEdit ? 'Edit Employee Data' : 'Add New Employee'}</h1>
+            <p className="text-indigo-200 text-xs mt-0.5">
+              {isEdit ? `Modifying profile for ${formData.name}` : 'Fill in the details to register a new team member'}
+            </p>
           </div>
         </div>
 
@@ -142,7 +135,7 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
             <div key={label} className="px-4 py-2.5 rounded-2xl text-center"
               style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)" }}>
               <div className="text-xl font-black text-white leading-none">{val}</div>
-              <div className="text-indigo-300 text-[10px] font-semibold uppercase tracking-widest mt-0.5">{label}</div>
+              <div className="text-indigo-300 text-[10px] font-semibold capitalize tracking-widest mt-0.5">{label}</div>
             </div>
           ))}
         </div>
@@ -167,7 +160,7 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
             <div>
               <FieldLabel icon={Hash} color="text-indigo-500" textColor="text-indigo-700">Employee ID</FieldLabel>
               <input type="text" className={inputCls} placeholder="e.g. EMP001"
-                value={formData.emp_id} onChange={set("emp_id")} required />
+                value={formData.emp_id} onChange={set("emp_id")} required disabled={isEdit} />
             </div>
             <div className="sm:col-span-2">
               <FieldLabel icon={User} color="text-indigo-500" textColor="text-indigo-700">Email Address</FieldLabel>
@@ -226,7 +219,7 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
             <CustomSelect
               options={[
                 { value: '', label: '— No Manager Assigned —' },
-                ...managers.map((m, idx) => ({
+                ...managers.filter(m => m.emp_id !== formData.emp_id).map((m, idx) => ({
                   value: m.emp_id || m.id || `mgr-${idx}`,
                   label: `${m.name || 'Unknown'} · ${m.department_id || m.department || 'N/A'}`
                 }))
@@ -240,8 +233,8 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
 
         {/* Action Footer */}
         <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl px-10 py-8 flex items-center justify-between gap-4">
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest hidden sm:block">
-            Default credentials: <span className="font-mono font-bold text-violet-600 bg-violet-50 px-3 py-1 rounded-lg border border-violet-100 ml-2">password123</span>
+          <p className="text-[10px] text-slate-400 font-black capitalize tracking-widest hidden sm:block">
+            {isEdit ? "Modifications will sync across all systems" : <>Default credentials: <span className="font-mono font-bold text-violet-600 bg-violet-50 px-3 py-1 rounded-lg border border-violet-100 ml-2">Password123</span></>}
           </p>
 
           <div className="flex items-center gap-3 ml-auto">
@@ -253,7 +246,7 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
                 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-95"
             >
               <ArrowLeft size={15} />
-              Back to Directory
+              Cancel
             </button>
             <button
               type="submit"
@@ -265,8 +258,8 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
                 boxShadow: "0 4px 16px rgba(79,70,229,0.4)"
               }}
             >
-              {submitting ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
-              {submitting ? "Adding..." : "Add Employee"}
+              {submitting ? <Loader2 size={15} className="animate-spin" /> : (isEdit ? <CheckCircle size={15} /> : <UserPlus size={15} />)}
+              {submitting ? (isEdit ? "Saving..." : "Adding...") : (isEdit ? "Save Changes" : "Add Employee")}
             </button>
           </div>
         </div>
@@ -275,4 +268,4 @@ const AddEmployeeForm = ({ onClose, onAdd, managers, departments }) => {
   );
 };
 
-export default AddEmployeeForm;
+export default EmployeeFormModal;

@@ -187,7 +187,7 @@ const PerformanceDashboard = () => {
             overdue_tasks: e.overdue,
             performance_score: e.completion_rate,
             department: e.department,
-            risk_status: e.overdue > 2 ? 'OFF_TRACK' : e.overdue > 0 ? 'AT_RISK' : 'ON_TRACK'
+            risk_status: e.overdue > 2 ? 'OFF_TRACK' : e.overdue > 1 ? 'AT_RISK' : e.overdue === 1 ? 'WATCH' : 'ON_TRACK'
         })));
 
         // Dept Metrics
@@ -223,16 +223,16 @@ const PerformanceDashboard = () => {
             // Clean empty params
             Object.keys(extendedParams).forEach(key => !extendedParams[key] && delete extendedParams[key]);
 
-            const empParams = { active: true, limit: 200 };
+            const empParams = { active: true, limit: 100 };
             if (currentDeptId) empParams.department_id = currentDeptId;
 
             const results = await Promise.allSettled([
                 api.get(base, { params: extendedParams }),
                 api.get(`${base}/department-metrics`, { params: extendedParams }),
                 api.get(`${base}/trends`, { params: { ...extendedParams, days: 30 } }),
-                api.get(`${base}/team-performance`, { params: { ...extendedParams, limit: 100 } }),
-                api.get(`${base}/employee-risk`, { params: { ...extendedParams, limit: 100 } }),
-                api.get(isCFO ? '/tasks' : '/tasks/team', { params: { ...extendedParams, scope: currentDeptId ? 'department' : 'org', limit: 200 } }),
+                api.get(`${base}/team-performance`, { params: { ...extendedParams, limit: 50 } }),
+                api.get(`${base}/employee-risk`, { params: { ...extendedParams, limit: 5 } }),
+                api.get(isCFO ? '/tasks' : '/tasks/team', { params: { ...extendedParams, scope: currentDeptId ? 'department' : 'org', limit: 100 } }),
                 api.get('/employees', { params: empParams })
             ]);
 
@@ -253,6 +253,8 @@ const PerformanceDashboard = () => {
                 setDeptMetrics({
                     total_tasks: Number(d.total_tasks || 0),
                     completed_tasks: Number(d.completed_tasks || 0),
+                    submitted_tasks: Number(d.submitted_tasks || 0),
+                    new_tasks: Number(d.new_tasks || 0),
                     overdue_tasks: Number(d.overdue_tasks || 0),
                     active_tasks: Number(d.active_tasks || 0),
                     completion_pct: Number(d.completion_pct || d.completion_percentage || 0)
@@ -322,7 +324,7 @@ const PerformanceDashboard = () => {
                     active_tasks: risk.active_tasks || (perf.tasks_assigned - (perf.completed || 0)) || 0,
                     overdue_tasks: risk.overdue_tasks || perf.overdue || 0,
                     performance_score: risk.performance_score || perf.completion_rate || 0,
-                    risk_status: risk.risk_status || (perf.overdue > 0 ? 'AT_RISK' : 'ON_TRACK')
+                    risk_status: risk.risk_status || (perf.overdue > 2 ? 'OFF_TRACK' : perf.overdue > 1 ? 'AT_RISK' : perf.overdue === 1 ? 'WATCH' : 'ON_TRACK')
                 };
             }).sort((a,b) => (b.overdue_tasks || 0) - (a.overdue_tasks || 0));
 
@@ -394,6 +396,20 @@ const PerformanceDashboard = () => {
         const dept = departments.find(d => String(d.department_id || d.id) === String(selectedDept));
         return dept ? dept.name : (user?.department_name || user?.department || 'My Department');
     }, [selectedDept, departments, user]);
+    const weeklyTrends = useMemo(() => {
+        if (!trends || trends.length === 0) return [];
+        const weeks = [];
+        for (let i = 0; i < trends.length; i += 7) {
+            const chunk = trends.slice(i, i + 7);
+            weeks.push({
+                name: chunk[0].name,
+                new: chunk.reduce((sum, item) => sum + (item.new || 0), 0),
+                pending: chunk.reduce((sum, item) => sum + (item.pending || 0), 0),
+                overdue: chunk.reduce((sum, item) => sum + (item.overdue || 0), 0)
+            });
+        }
+        return weeks;
+    }, [trends]);
 
     if (loading && isInitialLoad) {
         return (
@@ -414,10 +430,12 @@ const PerformanceDashboard = () => {
                 <div className="flex-1">
                     <div className="flex items-center gap-3 mb-4">
                         <span className="h-[2px] w-10 bg-indigo-600/40 rounded-full" />
-                        <p className="text-indigo-600 text-[11px] font-medium capitalize tracking-[0.4em] capitalize">Executive dashboard</p>
+                        <p className="text-indigo-600 text-[11px] font-medium tracking-[0.3em] uppercase">
+                            {isCFO ? 'Executive dashboard' : 'Manager Dashboard'}
+                        </p>
                     </div>
                     <h1 className="text-[34px] font-medium text-[#1E1B4B] tracking-tight leading-none mb-4 capitalize">
-                        Cross-department analytics
+                        {isCFO ? 'Cross-department analytics' : 'Task Overview & Team Performance Tracking'}
                     </h1>
                     <div className="flex items-center gap-2.5 text-slate-500 font-medium text-[13px] bg-white/40 backdrop-blur-md px-4 py-2 rounded-2xl w-fit border border-white/60 shadow-sm">
                         <Building2 size={15} className="text-indigo-500/70" />
@@ -476,56 +494,84 @@ const PerformanceDashboard = () => {
                 </div>
             </div>
 
-            {/* ── KPI SUMMARY CARDS ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10 px-4">
-                <div className="group bg-white/80 backdrop-blur-md rounded-[2.25rem] p-7 border border-white shadow-sm hover:shadow-2xl hover:translate-y-[-6px] transition-all duration-500 overflow-hidden relative">
-                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-50 rounded-full blur-3xl opacity-50 group-hover:scale-150 transition-transform duration-700" />
-                    <div className="flex items-center gap-5 relative z-10">
-                        <div className="w-16 h-16 rounded-[1.5rem] bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-500">
-                            <Briefcase size={28} />
+            {/* ── KPI SUMMARY CARDS (5 COLORFUL CARDS) ── */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-5 mb-10 px-4">
+                {/* 1. TEAM TASKS - INDIGO */}
+                <div className="group relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#6366F1] to-[#4F46E5] p-6 shadow-xl shadow-indigo-200/50 transition-all duration-500 hover:scale-[1.03] hover:shadow-indigo-300/40">
+                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
+                    <div className="flex flex-col gap-4 relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-sm transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6">
+                            <Briefcase size={22} strokeWidth={2.5} />
                         </div>
                         <div>
-                                 <p className="text-[10px] font-medium text-slate-400 capitalize tracking-widest leading-none mb-1.5">Team tasks</p>
-                                <h4 className="text-3xl font-medium text-[#1E1B4B] tracking-tighter tabular-nums leading-none">{summary?.team_tasks || 0}</h4>
+                             <p className="text-[10px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">Team tasks</p>
+                             <h4 className="text-3xl font-black text-white tracking-tighter tabular-nums leading-none">
+                                {summary?.team_tasks || 0}
+                             </h4>
                         </div>
                     </div>
                 </div>
 
-                <div className="group bg-white/80 backdrop-blur-md rounded-[2.25rem] p-7 border border-white shadow-sm hover:shadow-2xl hover:translate-y-[-6px] transition-all duration-500 overflow-hidden relative">
-                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-50 rounded-full blur-3xl opacity-50 group-hover:scale-150 transition-transform duration-700" />
-                    <div className="flex items-center gap-5 relative z-10">
-                        <div className="w-16 h-16 rounded-[1.5rem] bg-blue-50 flex items-center justify-center text-blue-600 shadow-inner group-hover:bg-blue-600 group-hover:text-white transition-colors duration-500">
-                            <Activity size={28} />
+                {/* 2. IN PROGRESS - SKY */}
+                <div className="group relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#0EA5E9] to-[#0284C7] p-6 shadow-xl shadow-sky-200/50 transition-all duration-500 hover:scale-[1.03] hover:shadow-sky-300/40">
+                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
+                    <div className="flex flex-col gap-4 relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-sm transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6">
+                            <Activity size={22} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <p className="text-[11px] font-medium text-slate-400 capitalize tracking-[0.1em] mb-2 leading-none">In progress</p>
-                            <h4 className="text-[32px] font-medium text-[#1E1B4B] tracking-tighter tabular-nums leading-none">{summary?.in_progress_tasks || 0}</h4>
+                             <p className="text-[10px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">In progress</p>
+                             <h4 className="text-3xl font-black text-white tracking-tighter tabular-nums leading-none">
+                                {summary?.in_progress_tasks || 0}
+                             </h4>
                         </div>
                     </div>
                 </div>
 
-                <div className="group bg-white/80 backdrop-blur-md rounded-[2.25rem] p-7 border border-white shadow-sm hover:shadow-2xl hover:translate-y-[-6px] transition-all duration-500 overflow-hidden relative">
-                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-50 rounded-full blur-3xl opacity-50 group-hover:scale-150 transition-transform duration-700" />
-                    <div className="flex items-center gap-5 relative z-10">
-                        <div className="w-16 h-16 rounded-[1.5rem] bg-amber-50 flex items-center justify-center text-amber-600 shadow-inner group-hover:bg-amber-600 group-hover:text-white transition-colors duration-500">
-                            <CheckCircle size={28} />
+                {/* 3. PENDING REVIEW - AMBER */}
+                <div className="group relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#F59E0B] to-[#D97706] p-6 shadow-xl shadow-amber-100/50 transition-all duration-500 hover:scale-[1.03] hover:shadow-amber-200/40">
+                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
+                    <div className="flex flex-col gap-4 relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-sm transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6">
+                            <Clock size={22} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <p className="text-[11px] font-medium text-slate-400 capitalize tracking-[0.1em] mb-2 leading-none">Pending review</p>
-                            <h4 className="text-[32px] font-medium text-[#1E1B4B] tracking-tighter tabular-nums leading-none">{summary?.pending_approval || 0}</h4>
+                             <p className="text-[10px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">Pending review</p>
+                             <h4 className="text-3xl font-black text-white tracking-tighter tabular-nums leading-none">
+                                {summary?.pending_approval || 0}
+                             </h4>
                         </div>
                     </div>
                 </div>
 
-                <div className="group bg-white/80 backdrop-blur-md rounded-[2.25rem] p-7 border border-white shadow-sm hover:shadow-2xl hover:translate-y-[-6px] transition-all duration-500 overflow-hidden relative">
-                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-rose-50 rounded-full blur-3xl opacity-50 group-hover:scale-150 transition-transform duration-700" />
-                    <div className="flex items-center gap-5 relative z-10">
-                        <div className="w-16 h-16 rounded-[1.5rem] bg-rose-50 flex items-center justify-center text-rose-600 shadow-inner group-hover:bg-rose-600 group-hover:text-white transition-colors duration-500">
-                            <AlertCircle size={28} />
+                {/* 4. OVERDUE TASKS - ROSE */}
+                <div className="group relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#F43F5E] to-[#E11D48] p-6 shadow-xl shadow-rose-200/50 transition-all duration-500 hover:scale-[1.03] hover:shadow-rose-300/40">
+                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
+                    <div className="flex flex-col gap-4 relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-sm transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6">
+                            <AlertCircle size={22} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <p className="text-[11px] font-medium text-slate-400 capitalize tracking-[0.1em] mb-2 leading-none">Overdue tasks</p>
-                            <h4 className="text-[32px] font-medium text-[#1E1B4B] tracking-tighter tabular-nums leading-none">{summary?.overdue_tasks || 0}</h4>
+                             <p className="text-[10px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">Overdue tasks</p>
+                             <h4 className="text-3xl font-black text-white tracking-tighter tabular-nums leading-none">
+                                {summary?.overdue_tasks || 0}
+                             </h4>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 5. PERFORMANCE % - EMERALD */}
+                <div className="group relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#10B981] to-[#059669] p-6 shadow-xl shadow-emerald-200/50 transition-all duration-500 hover:scale-[1.03] hover:shadow-emerald-300/40">
+                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
+                    <div className="flex flex-col gap-4 relative z-10">
+                        <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-sm transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6">
+                            <Target size={22} strokeWidth={2.5} />
+                        </div>
+                        <div>
+                             <p className="text-[10px] font-black text-white/70 uppercase tracking-[0.2em] mb-1">Efficiency index</p>
+                             <h4 className="text-3xl font-black text-white tracking-tighter tabular-nums leading-none">
+                                {deptMetrics?.completion_pct || 0}%
+                             </h4>
                         </div>
                     </div>
                 </div>
@@ -564,7 +610,7 @@ const PerformanceDashboard = () => {
                         </div>
                         <div className="flex-1 w-full min-h-0 -ml-4 pr-2">
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={trends} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                <BarChart data={weeklyTrends} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                     <defs>
                                         <linearGradient id="colorNew" x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="5%" stopColor="#6366F1" stopOpacity={0.15}/>
@@ -592,15 +638,10 @@ const PerformanceDashboard = () => {
                                         tickLine={false} 
                                         tick={{fontSize: 10, fontWeight: '500', fill: '#94A3B8'}}
                                     />
-                                    <Tooltip 
-                                        contentStyle={{ borderRadius: '1.25rem', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.08)', background: '#fff' }}
-                                        itemStyle={{ fontSize: '12px', fontWeight: '700', padding: '0px' }}
-                                        labelStyle={{ color: '#1E1B4B', fontWeight: '700', marginBottom: '8px' }}
-                                    />
-                                    <Area type="monotone" dataKey="new" name="New Tasks" stroke="#6366F1" strokeWidth={3} fillOpacity={1} fill="url(#colorNew)" />
-                                    <Area type="monotone" dataKey="pending" name="Pending Review" stroke="#F59E0B" strokeWidth={3} fillOpacity={1} fill="url(#colorPending)" />
-                                    <Area type="monotone" dataKey="overdue" name="Overdue" stroke="#F43F5E" strokeWidth={3} fillOpacity={1} fill="url(#colorOverdue)" />
-                                </AreaChart>
+                                    <Bar dataKey="overdue" name="Overdue" stackId="a" fill="#F43F5E" radius={[0, 0, 0, 0]} barSize={24} />
+                                    <Bar dataKey="pending" name="Pending Review" stackId="a" fill="#F59E0B" radius={[0, 0, 0, 0]} barSize={24} />
+                                    <Bar dataKey="new" name="New Tasks" stackId="a" fill="#3B82F6" radius={[6, 6, 0, 0]} barSize={24} />
+                                </BarChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
@@ -616,36 +657,53 @@ const PerformanceDashboard = () => {
                         </div>
 
                         <div className="relative w-full aspect-square max-w-[190px] flex items-center justify-center mb-6">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={[
-                                            { name: 'Completed', value: deptMetrics?.completed_tasks || 0 },
-                                            { name: 'Submitted', value: deptMetrics?.submitted_tasks || 0 },
-                                            { name: 'Active', value: (deptMetrics?.active_tasks || 0) },
-                                            { name: 'Overdue', value: deptMetrics?.overdue_tasks || 0 }
-                                        ].filter(d => d.value > 0)}
-                                        innerRadius={55}
-                                        outerRadius={75}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                    >
-                                        <Cell fill="#10B981" />
-                                        <Cell fill="#F59E0B" />
-                                        <Cell fill="#6366F1" />
-                                        <Cell fill="#F43F5E" />
-                                    </Pie>
-                                </PieChart>
-                            </ResponsiveContainer>
-                            <div className="absolute flex flex-col items-center">
-                                <span className="text-3xl font-medium text-[#1E1B4B] leading-none mb-1 tracking-tighter">
-                                    {Math.round(deptMetrics?.completion_pct || 0)}%
-                                </span>
-                                <span className="text-[9px] font-medium text-slate-400 capitalize tracking-widest opacity-60">Completion</span>
-                            </div>
+                            {(deptMetrics?.completed_tasks || 0) === 0 && (deptMetrics?.submitted_tasks || 0) === 0 && (deptMetrics?.new_tasks || 0) === 0 && (deptMetrics?.active_tasks || 0) === 0 && (deptMetrics?.overdue_tasks || 0) === 0 ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+                                     <div className="w-16 h-16 rounded-full border-4 border-slate-100 flex items-center justify-center mb-4">
+                                        <Activity size={20} className="text-slate-300" />
+                                     </div>
+                                    <span className="text-[10px] font-bold text-slate-400 capitalize tracking-[0.2em] leading-relaxed text-center">No department activity available</span>
+                                </div>
+                            ) : (
+                                <>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={[
+                                                    { name: 'Completed', value: deptMetrics?.completed_tasks || 0 },
+                                                    { name: 'Submitted', value: deptMetrics?.submitted_tasks || 0 },
+                                                    { name: 'New', value: deptMetrics?.new_tasks || 0 },
+                                                    { name: 'Active', value: (deptMetrics?.active_tasks || 0) },
+                                                    { name: 'Overdue', value: deptMetrics?.overdue_tasks || 0 }
+                                                ].filter(d => d.value > 0)}
+                                                innerRadius={55}
+                                                outerRadius={75}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                            >
+                                                <Cell fill="#10B981" />
+                                                <Cell fill="#F59E0B" />
+                                                <Cell fill="#3B82F6" />
+                                                <Cell fill="#8B5CF6" />
+                                                <Cell fill="#F43F5E" />
+                                            </Pie>
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                    <div className="absolute flex flex-col items-center">
+                                        <span className="text-3xl font-medium text-[#1E1B4B] leading-none mb-1 tracking-tighter">
+                                            {Math.round(deptMetrics?.completion_pct || 0)}%
+                                        </span>
+                                        <span className="text-[9px] font-medium text-slate-400 capitalize tracking-widest opacity-60">Completion</span>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
-                        <div className="w-full grid grid-cols-3 gap-2 mb-6">
+                        <div className="w-full grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
+                             <div className="flex flex-col p-2.5 rounded-xl bg-blue-50/50 border border-blue-100">
+                                <span className="text-[9px] font-medium text-blue-600 capitalize tracking-widest mb-1 opacity-60">New</span>
+                                <span className="text-lg font-medium text-blue-700 leading-none">{deptMetrics?.new_tasks || 0}</span>
+                             </div>
                              <div className="flex flex-col p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-100">
                                 <span className="text-[9px] font-medium text-emerald-600 capitalize tracking-widest mb-1 opacity-60">Done</span>
                                 <span className="text-lg font-medium text-emerald-700 leading-none">{deptMetrics?.completed_tasks || 0}</span>
@@ -668,7 +726,7 @@ const PerformanceDashboard = () => {
                 </div>
 
                 {/* ROW 2: Team Performance & Risk Monitor */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-10">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch mb-10">
                     <div className="lg:col-span-8 bg-white/70 backdrop-blur-md border border-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.03)] overflow-hidden transition-all hover:bg-white/90">
                         <div className="p-8 border-b border-slate-100 flex items-center justify-between">
                             <div className="flex items-center gap-4">
@@ -702,7 +760,13 @@ const PerformanceDashboard = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
-                                    {teamPerformance.slice((teamPage - 1) * teamItemsPerPage, teamPage * teamItemsPerPage).map((emp, i) => (
+                                    {teamPerformance.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={isCFO ? 7 : 6} className="py-12 bg-slate-50/30 text-center">
+                                                <span className="text-[12px] font-bold text-slate-400 capitalize tracking-[0.2em]">No team task data available</span>
+                                            </td>
+                                        </tr>
+                                    ) : teamPerformance.slice((teamPage - 1) * teamItemsPerPage, teamPage * teamItemsPerPage).map((emp, i) => (
                                         <tr key={i} className="group hover:bg-white/60 transition-all duration-300 border-none">
                                             <td className="py-5 px-10">
                                                 <div className="flex items-center gap-4">
@@ -780,7 +844,7 @@ const PerformanceDashboard = () => {
                         </div>
                     </div>
 
-                    <div className="lg:col-span-4 bg-white/80 border border-white rounded-[3rem] shadow-[0_10px_40px_rgba(0,0,0,0.02)] px-6 py-10 flex flex-col min-h-[500px]">
+                    <div className="lg:col-span-4 bg-white/80 border border-white rounded-[3rem] shadow-[0_10px_40px_rgba(0,0,0,0.02)] px-6 py-10 flex flex-col min-h-[500px] h-full">
                         <div className="flex items-center justify-between mb-8">
                              <h3 className="text-[18px] font-medium text-[#2D2852] flex items-center gap-3">
                                 <AlertTriangle size={20} className="text-rose-500" />
@@ -797,28 +861,36 @@ const PerformanceDashboard = () => {
                         </div>
                         
                         <div className="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                            {employeeRisk.slice(0, 10).map((emp, i) => {
+                            {employeeRisk.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full py-12">
+                                    <span className="text-[12px] font-bold text-slate-400 capitalize tracking-[0.2em] text-center">No employee risks detected</span>
+                                </div>
+                            ) : employeeRisk.filter(emp => emp.name !== user?.name).slice(0, 5).map((emp, i) => {
                                 const statusCfg = ({
-                                    'ON_TRACK': { label: 'On track', bg: 'bg-emerald-50 text-emerald-600 border-emerald-100', dot: 'bg-emerald-500' },
-                                    'WATCH': { label: 'Watch', bg: 'bg-amber-50 text-amber-600 border-amber-100', dot: 'bg-amber-500' },
-                                    'AT_RISK': { label: 'At risk', bg: 'bg-rose-50 text-rose-600 border-rose-100', dot: 'bg-rose-500' },
-                                    'OFF_TRACK': { label: 'Off track', bg: 'bg-rose-50 text-rose-600 border-rose-100', dot: 'bg-rose-500' }
-                                }[emp.risk_status?.toUpperCase() || (emp.overdue_tasks > 0 ? 'AT_RISK' : 'ON_TRACK')]) || { label: 'WATCH', bg: 'bg-amber-50 text-amber-600 border-amber-100', dot: 'bg-amber-500' };
+                                    'ON_TRACK': { label: 'Perfect..', bg: 'bg-emerald-50 text-emerald-600 border-emerald-100', dot: 'bg-emerald-500' },
+                                    'WATCH': { label: 'Monitor', bg: 'bg-amber-50 text-amber-600 border-amber-100', dot: 'bg-amber-500' },
+                                    'AT_RISK': { label: 'Action', bg: 'bg-rose-50 text-rose-600 border-rose-100', dot: 'bg-rose-500' },
+                                    'OFF_TRACK': { label: 'Off track', bg: 'bg-rose-100 text-rose-700 border-rose-200', dot: 'bg-rose-600' }
+                                }[emp.risk_status?.toUpperCase() || (emp.overdue_tasks > 1 ? 'AT_RISK' : emp.overdue_tasks === 1 ? 'WATCH' : 'ON_TRACK')]) || { label: 'Monitor', bg: 'bg-amber-50 text-amber-600 border-amber-100', dot: 'bg-amber-500' };
 
                                 return (
-                                    <div key={i} className="flex items-center justify-between p-4 bg-white/40 border border-white/50 rounded-2xl hover:bg-white transition-all shadow-sm hover:translate-x-1 duration-300">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <div className="w-10 h-10 rounded-xl bg-slate-50 border border-white shadow-sm flex items-center justify-center font-medium text-[#1E1B4B] text-[11px]">
+                                    <div key={i} className="grid grid-cols-12 gap-2 items-center p-3 bg-white/40 border border-white/50 rounded-2xl hover:bg-white transition-all shadow-sm hover:translate-x-1 duration-300">
+                                        <div className="col-span-6 flex items-center gap-3 min-w-0">
+                                            <div className="w-8 h-8 rounded-lg bg-slate-50 border border-white shadow-sm flex items-center justify-center font-medium text-[#1E1B4B] text-[10px] shrink-0">
                                                 {getInitials(emp.name)}
                                             </div>
                                             <div className="flex flex-col min-w-0">
-                                                <p className="text-[13px] font-medium text-[#1E1B4B] truncate leading-none mb-1">{emp.name}</p>
-                                                 <p className="text-[9px] font-medium text-slate-400 capitalize tracking-widest">{emp.department || 'Accounts'}</p>
+                                                <p className="text-[12px] font-bold text-[#1E1B4B] truncate leading-none mb-1">{emp.name}</p>
+                                                 <p className="text-[9px] font-medium text-slate-400 capitalize tracking-widest truncate">{emp.department || 'Accounts'}</p>
                                             </div>
                                         </div>
-                                        <div className={`px-3 py-1.5 rounded-full border ${statusCfg.bg} text-[10px] font-medium capitalize tracking-widest flex items-center gap-2`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot} animate-pulse`} />
-                                            {statusCfg.label}
+                                        <div className="col-span-1 text-center text-[12px] font-bold text-slate-700 tabular-nums">{emp.active_tasks ?? 0}</div>
+                                        <div className="col-span-2 text-center text-[12px] font-bold text-slate-900 tabular-nums tracking-tighter">{Math.round(emp.performance_score ?? 0)}%</div>
+                                        <div className="col-span-3 text-right">
+                                            <div className={`px-2 py-1 rounded-lg border ${statusCfg.bg} text-[9px] font-bold capitalize tracking-tighter flex items-center gap-1.5 justify-center w-full`}>
+                                                <span className={`w-1 h-1 rounded-full ${statusCfg.dot} animate-pulse`} />
+                                                {statusCfg.label}
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -826,17 +898,21 @@ const PerformanceDashboard = () => {
                         </div>
                         
                         <div className="mt-auto pt-6 border-t border-slate-50 flex flex-wrap gap-x-6 gap-y-3">
+                             <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-rose-600" />
+                                <span className="text-[10px] font-medium text-slate-400 tracking-wider capitalize">Off Track: Critical</span>
+                             </div>
+                             <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-rose-400" />
+                                <span className="text-[10px] font-medium text-slate-400 tracking-wider capitalize">At Risk: Action</span>
+                             </div>
                              <div className="flex items-center gap-2 group cursor-help relative">
                                 <div className="w-2 h-2 rounded-full bg-amber-500" />
                                 <span className="text-[10px] font-medium text-slate-400 tracking-wider capitalize">Watch: Monitor</span>
                              </div>
                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-red-500" />
-                                <span className="text-[10px] font-medium text-slate-400 tracking-wider capitalize">At Risk: Action</span>
-                             </div>
-                             <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                <span className="text-[10px] font-medium text-slate-400 tracking-wider capitalize">On Track: Perfect</span>
+                                <span className="text-[10px] font-medium text-slate-400 tracking-wider capitalize">On Track: Perfect..</span>
                              </div>
                         </div>
                     </div>
@@ -861,7 +937,7 @@ const PerformanceDashboard = () => {
                                 <thead className="bg-[#FAF9FF] text-[11px] font-medium text-slate-400 capitalize tracking-widest border-b border-slate-100 sticky top-0 z-10">
                                     <tr>
                                         <th className="py-5 px-10">Employee</th>
-                                        <th className="py-5 px-4 text-center">Active</th>
+                                        <th className="py-5 px-4 text-center">Act</th>
                                         <th className="py-5 px-4 text-center">Overdue</th>
                                         <th className="py-5 px-4 text-center">Score</th>
                                         <th className="py-5 px-10 text-right">Status</th>
@@ -870,11 +946,11 @@ const PerformanceDashboard = () => {
                                 <tbody className="divide-y divide-slate-50">
                                     {employeeRisk.map((emp, i) => {
                                         const statusCfg = ({
-                                            'ON_TRACK': { label: 'On track', bg: 'bg-emerald-500', text: 'text-white' },
-                                            'WATCH': { label: 'Watch', bg: 'bg-amber-500', text: 'text-white' },
-                                            'AT_RISK': { label: 'At risk', bg: 'bg-rose-500', text: 'text-white' },
-                                            'OFF_TRACK': { label: 'Off track', bg: 'bg-rose-500', text: 'text-white' }
-                                        }[emp.risk_status?.toUpperCase()]) || { label: 'Watch', bg: 'bg-amber-500', text: 'text-white' };
+                                            'ON_TRACK': { label: 'Perfect..', bg: 'bg-emerald-500', text: 'text-white' },
+                                            'WATCH': { label: 'Monitor', bg: 'bg-amber-500', text: 'text-white' },
+                                            'AT_RISK': { label: 'Action', bg: 'bg-rose-500', text: 'text-white' },
+                                            'OFF_TRACK': { label: 'Off track', bg: 'bg-rose-700', text: 'text-white' }
+                                        }[emp.risk_status?.toUpperCase()]) || { label: 'Monitor', bg: 'bg-amber-500', text: 'text-white' };
 
                                         return (
                                             <tr key={i} className="hover:bg-slate-50/50 transition-colors">
@@ -891,7 +967,7 @@ const PerformanceDashboard = () => {
                                                 </td>
                                                 <td className="py-5 px-4 text-center text-sm font-medium text-slate-700 tabular-nums">{emp.active_tasks || 0}</td>
                                                 <td className="py-5 px-4 text-center text-sm font-medium text-rose-600 tabular-nums">{emp.overdue_tasks || 0}</td>
-                                                <td className="py-5 px-4 text-center text-sm font-medium text-[#2D2852] tabular-nums">{emp.performance_score || 0}</td>
+                                                <td className="py-5 px-4 text-center text-sm font-medium text-[#2D2852] tabular-nums">{Math.round(emp.performance_score || 0)}%</td>
                                                 <td className="py-5 px-10 text-right">
                                                     <span className={`inline-block px-3 py-1 rounded-2xl text-[10px] font-medium ${statusCfg.bg} text-white shadow-sm capitalize tracking-widest`}>
                                                         {statusCfg.label}
