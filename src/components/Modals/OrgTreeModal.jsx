@@ -201,30 +201,35 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
 
             {/* ── Children ── */}
             {hasChildren && !collapsed && (
-                <div className="flex flex-col items-center">
-                    {/* Connector line down */}
-                    <div className="w-px h-8 bg-slate-300" />
+                <div className="flex flex-col items-center w-full">
+                    {/* Primary vertical connector from parent down to the branch line */}
+                    <div className="w-0.5 h-10 bg-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.4)]" />
 
-                    <div className="relative flex justify-center">
-                        {/* Horizontal bar across children */}
-                        {children.length > 1 && (
-                            <div className="absolute top-0 left-[calc(50%-var(--half,0px))] w-[calc(100%-12rem)] h-px bg-slate-300"
-                                style={{ left: '6rem', width: `calc(100% - 12rem)` }}
-                            />
-                        )}
-                        <div className="flex gap-4 pt-0">
-                            {children.map(child => (
-                                <div key={child.emp_id || child.user?.id || child.id || Math.random()} className="flex flex-col items-center relative">
-                                    {/* Stub line up to horizontal bar */}
-                                    <div className="w-px h-8 bg-slate-300 absolute -top-8" />
+                    <div className="flex justify-center flex-nowrap pt-0 gap-0">
+                        {children.map((child, idx) => (
+                            <div key={child.emp_id || Math.random()} className="flex flex-col items-center relative">
+                                
+                                {/* Horizontal connectors forming the 'spine' - robust single-element approach */}
+                                <div 
+                                    className="absolute top-0 h-0.5 bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.4)]"
+                                    style={{ 
+                                        left: idx === 0 ? '50%' : '0', 
+                                        right: idx === children.length - 1 ? '50%' : '0' 
+                                    }}
+                                />
+
+                                {/* Stub vertical line connecting the spine down to the child card */}
+                                <div className="w-0.5 h-10 bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.2)]" />
+                                
+                                <div className="px-6">
                                     <OrgNode
                                         node={child}
                                         departments={departments}
                                         onAddNode={onAddNode}
                                     />
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}

@@ -46,14 +46,15 @@ const AdminPage = () => {
     setLoading(true);
     try {
       const [empRes, deptRes] = await Promise.all([
-        api.get('/employees'),
-        api.get('/admin/departments')
+        api.get('/employees').catch(e => { console.error("Employees fetch failed", e); throw e; }),
+        api.get('/admin/departments').catch(e => { console.error("Departments fetch failed", e); throw e; })
       ]);
       setEmployees(Array.isArray(empRes.data) ? empRes.data : []);
       setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
     } catch (err) {
-      console.error("Failed to fetch admin data", err);
-      toast.error("Failed to load records.");
+      console.error("Critical: Admin data fetch failed. Check backend/ngrok status.", err);
+      const isTimeout = err.code === 'ECONNABORTED' || String(err).includes('timeout');
+      toast.error(isTimeout ? "Connection Timeout: Your backend (ngrok) might be offline." : "Fetch Error: Could not connect to administration services.");
     } finally {
       setLoading(false);
     }
@@ -65,10 +66,28 @@ const AdminPage = () => {
 
   const filteredEmployees = (Array.isArray(employees) ? employees : []).filter((emp) => {
     if (!emp) return false;
-    const query = searchTerm.toLowerCase();
-    const nameMatches = (emp.name || '').toLowerCase().includes(query) || (emp.emp_id || '').toLowerCase().includes(query);
-    const roleMatches = roleFilter === "All" || emp.role === roleFilter;
-    const deptMatches = deptFilter === "All" || (String(emp.department_id) === String(deptFilter) || emp.department === deptFilter);
+    const query = (searchTerm || '').toLowerCase();
+    
+    // Name or ID match
+    const nameMatches = (emp.name || '').toLowerCase().includes(query) || 
+                        (emp.emp_id || '').toLowerCase().includes(query) ||
+                        (emp.id || '').toString().includes(query);
+    
+    // Role match
+    const filterRole = String(roleFilter || 'All').toUpperCase();
+    const roleMatches = filterRole === "ALL" || String(emp.role || '').toUpperCase() === filterRole;
+    
+    // Department match
+    const filterDept = String(deptFilter || 'All');
+    const isAllDept = filterDept.toUpperCase() === 'ALL';
+    
+    const empDeptId = String(emp.department_id || emp.dept_id || '');
+    const empDeptName = (emp.department_name || emp.department || '').toString().toLowerCase();
+    
+    const deptMatches = isAllDept || 
+                        empDeptId === filterDept || 
+                        empDeptName === filterDept.toLowerCase();
+                        
     return nameMatches && roleMatches && deptMatches;
   });
 
@@ -94,10 +113,10 @@ const AdminPage = () => {
   };
 
   const handleResetPassword = async (emp, manual) => {
-    const pwd = manual || "Password123";
+    const pwd = manual || "Perfmetric@123";
     try {
       await api.post(`/employees/${emp.emp_id}/reset-password`, { new_password: pwd });
-      toast.success("Password reset complete.");
+      toast.success(`Password reset to: ${pwd} for ${emp.name}`, { duration: 6000 });
     } catch (err) {
       toast.error("Failed to reset password.");
     }
@@ -136,16 +155,18 @@ const AdminPage = () => {
       
       {/* Modals */}
       {(showAddModal || editingEmployee) && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <div className="w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl overflow-visible overflow-y-auto max-h-[90vh]">
-              <EmployeeFormModal
-                onClose={() => { setShowAddModal(false); setEditingEmployee(null); }}
-                onAdd={handleAddEmployee}
-                onEdit={handleUpdateEmployee}
-                initialData={editingEmployee}
-                managers={employees.filter(e => ['ADMIN', 'CFO', 'MANAGER'].includes(e.role))}
-                departments={departments}
-              />
+        <div className="fixed inset-0 z-[200] flex items-start justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto pt-20 pb-24">
+            <div className="w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl relative mb-12">
+              <div className="p-0 overflow-visible">
+                <EmployeeFormModal
+                  onClose={() => { setShowAddModal(false); setEditingEmployee(null); }}
+                  onAdd={handleAddEmployee}
+                  onEdit={handleUpdateEmployee}
+                  initialData={editingEmployee}
+                  managers={employees.filter(e => ['ADMIN', 'CFO', 'MANAGER'].includes(String(e.role || '').toUpperCase()))}
+                  departments={departments}
+                />
+              </div>
             </div>
         </div>
       )}
@@ -202,13 +223,19 @@ const AdminPage = () => {
             <p className="text-slate-400 text-sm font-medium">Manage corporate access and organizational alignment.</p>
           </div>
           
-          <div className="flex items-center gap-3">
-              <div className="w-[200px]">
+          <div className="flex items-center gap-3 w-full lg:w-auto">
+              <div className="flex-1 min-w-[240px]">
                 <CustomSelect
-                    options={[{ value: 'All', label: 'All Departments' }, ...departments.map(d => ({ value: d.department_id || d.id, label: d.name }))]}
+                    options={[
+                        { value: 'All', label: 'All Departments' }, 
+                        ...departments.map(d => ({ 
+                            value: d.department_id || d.id || d.dept_id || (typeof d === 'string' ? d : d.name), 
+                            label: d.name || d.dept_name || d.department || (typeof d === 'string' ? d : 'Unknown')
+                        }))
+                    ]}
                     value={deptFilter}
                     onChange={setDeptFilter}
-                    className="w-full bg-white border-none shadow-sm h-11 rounded-xl text-[12px] font-black uppercase tracking-widest"
+                    className="w-full bg-white border-none shadow-sm h-11 rounded-xl text-[14px] font-medium"
                 />
               </div>
               <div className="w-[180px]">
@@ -290,11 +317,11 @@ const AdminPage = () => {
                                         <>
                                             <div className="fixed inset-0 z-40" onClick={() => setOpenActionMenuId(null)} />
                                             <div className="absolute right-10 top-12 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 animate-in fade-in zoom-in-95 duration-150 origin-top-right">
-                                                <button onClick={() => { setSelectedEmployee(emp); setOpenActionMenuId(null); }} className="w-full flex items-center gap-3 px-5 py-3 text-[11px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors uppercase tracking-widest"><Eye size={16} /> VIEW PROFILE</button>
-                                                <button onClick={() => { setEditingEmployee(emp); setOpenActionMenuId(null); }} className="w-full flex items-center gap-3 px-5 py-3 text-[11px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors uppercase tracking-widest"><Edit3 size={16} /> EDIT PROFILE</button>
+                                                <button onClick={(e) => { e.stopPropagation(); setSelectedEmployee(emp); setOpenActionMenuId(null); }} className="w-full flex items-center gap-3 px-5 py-3 text-[11px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors uppercase tracking-widest"><Eye size={16} /> VIEW PROFILE</button>
+                                                <button onClick={(e) => { e.stopPropagation(); setEditingEmployee(emp); setOpenActionMenuId(null); }} className="w-full flex items-center gap-3 px-5 py-3 text-[11px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors uppercase tracking-widest"><Edit3 size={16} /> EDIT PROFILE</button>
                                                 <div className="h-px bg-slate-50 my-1 mx-3" />
-                                                <button onClick={() => { handleResetPassword(emp); setOpenActionMenuId(null); }} className="w-full flex items-center gap-3 px-5 py-3 text-[11px] font-black text-amber-600 hover:bg-amber-50 transition-colors uppercase tracking-widest"><KeyRound size={16} /> RESET PASSWORD</button>
-                                                <button onClick={() => { handleToggleStatus(emp); setOpenActionMenuId(null); }} className={`w-full flex items-center gap-3 px-5 py-3 text-[11px] font-black transition-colors uppercase tracking-widest ${emp.active ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}><Power size={16} /> {emp.active ? 'DEACTIVATE' : 'ACTIVATE'}</button>
+                                                <button onClick={(e) => { e.stopPropagation(); handleResetPassword(emp); setOpenActionMenuId(null); }} className="w-full flex items-center gap-3 px-5 py-3 text-[11px] font-black text-amber-600 hover:bg-amber-50 transition-colors uppercase tracking-widest"><KeyRound size={16} /> RESET PASSWORD</button>
+                                                <button onClick={(e) => { e.stopPropagation(); handleToggleStatus(emp); setOpenActionMenuId(null); }} className={`w-full flex items-center gap-3 px-5 py-3 text-[11px] font-black transition-colors uppercase tracking-widest ${emp.active ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}><Power size={16} /> {emp.active ? 'DEACTIVATE' : 'ACTIVATE'}</button>
                                             </div>
                                         </>
                                     )}

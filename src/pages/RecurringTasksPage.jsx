@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { 
     RefreshCw, Plus, Clock, Play, Pause, Trash2, 
     Calendar, User, Building2, AlertCircle, Loader2, ArrowLeft, 
-    Settings, MoreHorizontal, CheckCircle2, XCircle, ChevronDown,
+    Settings, MoreHorizontal, CheckCircle2, XCircle, ChevronDown, ChevronRight,
     ListTodo, Info, Edit2, Check
 } from 'lucide-react';
 import AutomationConfigModal from '../components/Modals/AutomationConfigModal';
@@ -23,6 +23,7 @@ const RecurringTasksPage = () => {
     const [isFreqOpen, setIsFreqOpen] = useState(false);
     const [isTempOpen, setIsTempOpen] = useState(false);
     const [rowMenuId, setRowMenuId] = useState(null);
+    const [expandedRowId, setExpandedRowId] = useState(null);
 
     // Filter templates based on status, search, and frequency
     const filteredTemplates = useMemo(() => {
@@ -35,15 +36,39 @@ const RecurringTasksPage = () => {
         });
     }, [templates, filterStatus, searchQuery, filterFrequency]);
 
+    const fetchSubtasks = async (rid) => {
+        try {
+            const res = await api.get(`/recurring-tasks/${rid}/subtasks`);
+            const data = res.data?.data || res.data;
+            setTemplates(prev => prev.map(t => 
+                (t.id || t.recurring_id) === rid ? { ...t, subtasks: Array.isArray(data) ? data : [] } : t
+            ));
+        } catch (err) {
+            console.error("Subtask fetch failed", err);
+        }
+    };
+
+    const selectedTemplate = useMemo(() => {
+        const t = templates.find(t => (t.id || t.recurring_id) === selectedTemplateId) || templates[0];
+        return t;
+    }, [templates, selectedTemplateId]);
+
+    useEffect(() => {
+        if (selectedTemplateId) {
+            fetchSubtasks(selectedTemplateId);
+        }
+    }, [selectedTemplateId]); // Selected ID change triggers fetch
+
     const fetchTemplates = async () => {
         setLoading(true);
         try {
             const res = await api.get('/recurring-tasks');
-            const data = res.data?.data || res.data;
+            const data = (res.data?.data || res.data || []);
             const templateList = Array.isArray(data) ? data : [];
             setTemplates(templateList);
             if (templateList.length > 0 && !selectedTemplateId) {
-                setSelectedTemplateId(templateList[0].id || templateList[0].recurring_id);
+                const initialId = templateList[0].id || templateList[0].recurring_id;
+                setSelectedTemplateId(initialId);
             }
         } catch (err) {
             console.error("Failed to fetch recurring task templates", err);
@@ -56,10 +81,6 @@ const RecurringTasksPage = () => {
     useEffect(() => {
         fetchTemplates();
     }, []);
-
-    const selectedTemplate = useMemo(() => {
-        return templates.find(t => (t.id || t.recurring_id) === selectedTemplateId) || templates[0];
-    }, [templates, selectedTemplateId]);
 
     const handleToggleStatus = async (template) => {
         const id = template.id || template.recurring_id;
@@ -237,70 +258,115 @@ const RecurringTasksPage = () => {
                                     const isActive = t.status === 'ACTIVE';
                                     const isSelected = selectedTemplateId === id;
                                     return (
-                                        <tr 
-                                            key={id} 
-                                            onClick={() => setSelectedTemplateId(id)}
-                                            className={`group cursor-pointer transition-all duration-300 ${isSelected ? 'bg-indigo-100/40' : 'hover:bg-white/60'}`}
-                                        >
-                                            <td className="px-10 py-5">
-                                                <span className={`text-[15px] font-bold ${isSelected ? 'text-indigo-700' : 'text-slate-700'} tracking-tight`}>
-                                                    {t.title}
-                                                </span>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <span className="text-[13px] font-bold text-slate-500">{formatFrequency(t)}</span>
-                                            </td>
-                                            <td className="px-8 py-5">
-                                                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-sm ${
-                                                    isActive 
-                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                                                        : 'bg-orange-50 text-orange-600 border-orange-100'
-                                                }`}>
-                                                    {isActive ? <Check size={12} strokeWidth={4} /> : <Pause size={12} strokeWidth={4} />}
-                                                    {isActive ? 'Active' : 'Inactive'}
-                                                </div>
-                                            </td>
-                                            <td className="px-10 py-5 text-right relative" onClick={(e) => e.stopPropagation()}>
-                                                <button 
-                                                    onClick={() => setRowMenuId(rowMenuId === id ? null : id)}
-                                                    className={`p-2.5 rounded-xl transition-all shadow-sm ${rowMenuId === id ? 'bg-indigo-600 text-white shadow-indigo-200' : 'text-slate-400 group-hover:text-indigo-600 hover:bg-indigo-50'}`}
-                                                >
-                                                    <MoreHorizontal size={20} strokeWidth={3} />
-                                                </button>
-                                                
-                                                {rowMenuId === id && (
-                                                    <>
-                                                        <div className="fixed inset-0 z-40" onClick={() => setRowMenuId(null)} />
-                                                        <div className="absolute top-full right-10 mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
-                                                            <button 
-                                                                onClick={() => { handleToggleStatus(t); setRowMenuId(null); }}
-                                                                className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all mb-0.5 flex items-center gap-3 ${
-                                                                    isActive ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'
-                                                                }`}
-                                                            >
-                                                                {actionLoading === id ? <Loader2 size={14} className="animate-spin" /> : (isActive ? <Pause size={14} /> : <Play size={14} />)}
-                                                                {isActive ? 'Pause Task' : 'Activate Task'}
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => { setConfigModal({ isOpen: true, template: t }); setRowMenuId(null); }}
-                                                                className="w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black text-slate-600 uppercase tracking-widest hover:bg-slate-50 transition-all mb-0.5 flex items-center gap-3"
-                                                            >
-                                                                <Settings size={14} />
-                                                                Configure
-                                                            </button>
-                                                            <div className="h-px bg-slate-50 my-1 mx-2" />
-                                                            <button 
-                                                                onClick={() => { handleDelete(t); setRowMenuId(null); }}
-                                                                className="w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black text-rose-600 uppercase tracking-widest hover:bg-rose-50 transition-all flex items-center gap-3"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                                Delete
-                                                            </button>
+                                        <React.Fragment key={id}>
+                                            <tr 
+                                                onClick={() => {
+                                                    setSelectedTemplateId(id);
+                                                    setExpandedRowId(expandedRowId === id ? null : id);
+                                                }}
+                                                className={`group cursor-pointer transition-all duration-300 ${isSelected ? 'bg-indigo-100/40' : 'hover:bg-white/60'}`}
+                                            >
+                                                <td className="px-10 py-5">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`transition-transform duration-300 ${expandedRowId === id ? 'rotate-90' : ''}`}>
+                                                            <ChevronRight size={16} className="text-slate-400 group-hover:text-indigo-600" />
                                                         </div>
-                                                    </>
-                                                )}
-                                            </td>
-                                        </tr>
+                                                        <span className={`text-[15px] font-bold ${isSelected ? 'text-indigo-700' : 'text-slate-700'} tracking-tight`}>
+                                                            {t.title}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <span className="text-[13px] font-bold text-slate-500">{formatFrequency(t)}</span>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-sm ${
+                                                        isActive 
+                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                                                            : 'bg-orange-50 text-orange-600 border-orange-100'
+                                                    }`}>
+                                                        {isActive ? <Check size={12} strokeWidth={4} /> : <Pause size={12} strokeWidth={4} />}
+                                                        {isActive ? 'Active' : 'Inactive'}
+                                                    </div>
+                                                </td>
+                                                <td className="px-10 py-5 text-right relative" onClick={(e) => e.stopPropagation()}>
+                                                    <button 
+                                                        onClick={() => setRowMenuId(rowMenuId === id ? null : id)}
+                                                        className={`p-2.5 rounded-xl transition-all shadow-sm ${rowMenuId === id ? 'bg-indigo-600 text-white shadow-indigo-200' : 'text-slate-400 group-hover:text-indigo-600 hover:bg-indigo-50'}`}
+                                                    >
+                                                        <MoreHorizontal size={20} strokeWidth={3} />
+                                                    </button>
+                                                    
+                                                    {rowMenuId === id && (
+                                                        <>
+                                                            <div className="fixed inset-0 z-40" onClick={() => setRowMenuId(null)} />
+                                                            <div className="absolute top-full right-10 mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                                                                <button 
+                                                                    onClick={() => { handleToggleStatus(t); setRowMenuId(null); }}
+                                                                    className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all mb-0.5 flex items-center gap-3 ${
+                                                                        isActive ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'
+                                                                    }`}
+                                                                >
+                                                                    {actionLoading === id ? <Loader2 size={14} className="animate-spin" /> : (isActive ? <Pause size={14} /> : <Play size={14} />)}
+                                                                    {isActive ? 'Pause Task' : 'Activate Task'}
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => { setConfigModal({ isOpen: true, template: t }); setRowMenuId(null); }}
+                                                                    className="w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black text-slate-600 uppercase tracking-widest hover:bg-slate-50 transition-all mb-0.5 flex items-center gap-3"
+                                                                >
+                                                                    <Settings size={14} />
+                                                                    Configure
+                                                                </button>
+                                                                <div className="h-px bg-slate-50 my-1 mx-2" />
+                                                                <button 
+                                                                    onClick={() => { handleDelete(t); setRowMenuId(null); }}
+                                                                    className="w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black text-rose-600 uppercase tracking-widest hover:bg-rose-50 transition-all flex items-center gap-3"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                    Delete
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                            {expandedRowId === id && (
+                                                <tr className="bg-slate-50/50">
+                                                    <td colSpan={4} className="px-10 py-6 border-b border-indigo-100/30 animate-in slide-in-from-top-2 duration-300">
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                            <div className="space-y-4">
+                                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                                    <Info size={12} className="text-indigo-400" />
+                                                                    Automation Summary
+                                                                </h4>
+                                                                <p className="text-[13px] text-slate-600 leading-relaxed font-medium">
+                                                                    {t.description || "No description provided."}
+                                                                </p>
+                                                            </div>
+                                                            <div className="space-y-4">
+                                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                                    <ListTodo size={12} className="text-emerald-400" />
+                                                                    Subtask Templates ({t.subtasks?.length || 0})
+                                                                </h4>
+                                                                <div className="space-y-2">
+                                                                    {t.subtasks?.length > 0 ? (
+                                                                        t.subtasks.map((st, sidx) => (
+                                                                            <div key={sidx} className="flex items-center gap-3 px-4 py-2 bg-white rounded-xl border border-slate-100 shadow-sm">
+                                                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                                                                                <span className="text-[12px] font-bold text-slate-700">{st.title}</span>
+                                                                                <span className="ml-auto text-[9px] font-black text-slate-300 uppercase tracking-widest">{st.priority}</span>
+                                                                            </div>
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="text-[11px] text-slate-400 italic py-2">No subtask templates found. Click Configure to add some.</div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     );
                                 })
                             )}
@@ -431,11 +497,14 @@ const RecurringTasksPage = () => {
                     setTemplates(prev => {
                         const exists = prev.find(t => (t.id || t.recurring_id) === uid);
                         if (exists) {
-                            return prev.map(t => (t.id || t.recurring_id) === uid ? updated : t);
+                            return prev.map(t => (t.id || t.recurring_id) === uid ? { ...t, ...updated } : t);
                         }
                         return [updated, ...prev];
                     });
-                    if (uid) setSelectedTemplateId(uid);
+                    if (uid) {
+                        setSelectedTemplateId(uid);
+                        fetchSubtasks(uid); // Re-fetch to ensure subtasks are synced
+                    }
                 }}
             />
         </div>

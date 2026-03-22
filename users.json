@@ -1,0 +1,182 @@
+[
+  {
+    "id": "EMP_AP1",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_AP2",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_AP3",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_AP4",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_AP5",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_AP6",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_AP7",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "MGR_AP",
+    "role": "MANAGER"
+  },
+  {
+    "id": "EMP_AR1",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_AR3",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_AR4",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_AR5",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_AR6",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "MGR_AR",
+    "role": "MANAGER"
+  },
+  {
+    "id": "EMP_CASH1",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_CASH2",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_CASH3",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_CASH4",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_CASH5",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_CASH6",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "MGR_CASH",
+    "role": "MANAGER"
+  },
+  {
+    "id": "ADMIN001",
+    "role": "ADMIN"
+  },
+  {
+    "id": "CFO001",
+    "role": "CFO"
+  },
+  {
+    "id": "EMP_FA1",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_FA2",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_FA3",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_FA4",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_FA5",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_FA6",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "MGR_FA",
+    "role": "MANAGER"
+  },
+  {
+    "id": "EMP_MIS1",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_MIS2",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_MIS3",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_MIS4",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_MIS5",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_MIS6",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "MGR_MIS",
+    "role": "MANAGER"
+  },
+  {
+    "id": "MGR_TR",
+    "role": "MANAGER"
+  },
+  {
+    "id": "EMP_TTF1",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_TTF2",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_TTF3",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_TTF4",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_TTF5",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "EMP_TTF6",
+    "role": "EMPLOYEE"
+  },
+  {
+    "id": "MGR_TTF",
+    "role": "MANAGER"
+  }
+]

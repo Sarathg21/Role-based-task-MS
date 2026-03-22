@@ -24,7 +24,8 @@ const CustomSelect = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const selectedOption = options.find(opt => opt.value === value) || options.find(opt => opt.label === value);
+    const selectedOption = options.find(opt => String(opt.value) === String(value)) || 
+                           options.find(opt => String(opt.label) === String(value));
     const displayLabel = selectedOption ? selectedOption.label : placeholder;
 
     const buttonClasses = variant === 'borderless'
@@ -42,7 +43,7 @@ const CustomSelect = ({
                 onClick={() => setIsOpen(!isOpen)}
                 className={buttonClasses}
             >
-                <span className="truncate">{displayLabel}</span>
+                <span className="whitespace-nowrap px-1">{displayLabel}</span>
                 <ChevronDown
                     size={16}
                     className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}

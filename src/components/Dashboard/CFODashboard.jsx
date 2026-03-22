@@ -502,7 +502,6 @@ const ExportReportsPanel = ({ fromDate, toDate }) => {
 const CFODashboard = () => {
     const navigate = useNavigate();
     const handleCreateTask = () => navigate('/tasks/assign');
-    const handleViewReports = () => navigate('/reports');
     const handleManageTeam = () => navigate('/admin');
 
     const [dashboardData, setDashboardData] = useState(null);

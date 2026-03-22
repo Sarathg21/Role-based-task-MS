@@ -103,16 +103,15 @@ const DepartmentFormModal = ({ onClose, onSave, employees = [], initialData = nu
 
             <div className="group">
                 <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 group-focus-within:text-indigo-600 transition-colors">
-                    <Users size={12} /> Deployment ID (Slug)
+                    <Users size={12} /> Department ID (Unique Key)
                 </label>
                 <input
                     type="text"
-                    className="w-full px-6 py-4 rounded-2xl border-2 border-slate-50 bg-slate-50 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all text-[15px] font-bold text-slate-800 placeholder:text-slate-300 shadow-sm disabled:opacity-40 disabled:grayscale font-mono"
+                    className="w-full px-6 py-4 rounded-2xl border-2 border-slate-50 bg-slate-50 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all text-[15px] font-bold text-slate-800 placeholder:text-slate-300 shadow-sm font-mono"
                     placeholder="e.g. MKT-HQ, ENG-CORE"
                     value={formData.department_id}
                     onChange={(e) => setFormData(p => ({ ...p, department_id: e.target.value }))}
                     required
-                    disabled={isEdit}
                 />
             </div>
 

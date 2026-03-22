@@ -16,7 +16,9 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
         monthly_day: 1,
         yearly_month: 1,
         yearly_day: 1,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        department_id: '',
+        assigned_to_emp_id: ''
     });
     const [subtasks, setSubtasks] = useState([]);
     const [departments, setDepartments] = useState([]);
@@ -35,9 +37,13 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                 monthly_day: template.monthly_day || 1,
                 yearly_month: template.yearly_month || 1,
                 yearly_day: template.yearly_day || 1,
-                status: template.status || 'ACTIVE'
+                status: template.status || 'ACTIVE',
+                department_id: template.department_id || '',
+                assigned_to_emp_id: template.assigned_to_emp_id || template.assigned_to || ''
             });
             fetchSubtasks(rid);
+            fetchMetadata();
+        } else if (isOpen) {
             fetchMetadata();
         }
     }, [template, isOpen]);
@@ -49,11 +55,15 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
             const isAltRole = role === 'ADMIN' || role === 'CFO';
 
             const [deptRes, empRes] = await Promise.all([
-                api.get('/departments'),
-                api.get(isAltRole ? '/employees' : '/employees/assignable')
+                api.get('/departments').catch(() => ({ data: [] })),
+                api.get(isAltRole ? '/employees' : '/employees/assignable').catch(() => ({ data: [] }))
             ]);
-            setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
-            setEmployees(Array.isArray(empRes.data) ? empRes.data : []);
+            
+            const depts = Array.isArray(deptRes.data?.data) ? deptRes.data.data : (Array.isArray(deptRes.data) ? deptRes.data : []);
+            const emps = Array.isArray(empRes.data?.data) ? empRes.data.data : (Array.isArray(empRes.data) ? empRes.data : []);
+            
+            setDepartments(depts);
+            setEmployees(emps);
         } catch (err) {
             console.error("Meta fetch failed", err);
         }
@@ -63,8 +73,21 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
         setLoadingSubtasks(true);
         try {
             const res = await api.get(`/recurring-tasks/${rid}/subtasks`);
-            const data = res.data?.data || res.data;
-            setSubtasks(Array.isArray(data) ? data : []);
+            const data = (res.data?.data || res.data || []);
+            
+            // Log for debugging ID keys
+            if (Array.isArray(data) && data.length > 0) {
+                console.log("Subtask ID debug - keys:", Object.keys(data[0]));
+            }
+
+            setSubtasks(
+                Array.isArray(data)
+                    ? data.map(st => ({
+                        ...st,
+                        id: st.id ?? st.subtask_id ?? st.recurring_subtask_id ?? null
+                    }))
+                    : []
+            );
         } catch (err) {
             console.error("Failed to fetch subtasks", err);
         } finally {
@@ -73,24 +96,40 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
     };
 
     const handleAddSubtask = async () => {
-        const rid = template.id || template.recurring_id;
+        const rid = template?.id || template?.recurring_id;
+        
+        const defaultDept = formData.department_id || (departments[0]?.department_id || departments[0]?.id || '');
+        const defaultEmp = formData.assigned_to_emp_id || (employees[0]?.emp_id || '');
+        
+        const newSt = {
+            title: 'New Subtask',
+            description: 'Description...',
+            department_id: defaultDept || null,
+            assigned_to_emp_id: defaultEmp || null,
+            priority: 'MEDIUM',
+            sequence_no: subtasks.length + 1
+        };
+
+        if (!rid) {
+            // Local mode for new recurring tasks
+            setSubtasks(prev => [
+    ...prev,
+    { ...newSt, id: `local-${Date.now()}-${Math.random()}`}
+]);
+            toast.success('Local subtask template added');
+            return;
+        }
+
+        setSubmitting(true);
         try {
-            const defaultDept = template.department_id || (departments[0]?.id ? String(departments[0].id) : '');
-            const defaultEmp = template.assigned_to_emp_id || template.assigned_to || (employees[0]?.emp_id ? String(employees[0].emp_id) : '');
-            
-            const newSt = {
-                title: 'New Subtask',
-                description: 'Description...',
-                department_id: defaultDept,
-                assigned_to_emp_id: defaultEmp,
-                start_date: null,
-                end_date: null,
-                priority: 'MEDIUM',
-                sequence_no: subtasks.length + 1
-            };
             const res = await api.post(`/recurring-tasks/${rid}/subtasks`, newSt);
-            setSubtasks([...subtasks, res.data?.data || res.data]);
-            toast.success('Subtask template added');
+            const addedSt = res.data?.data || res.data;
+            const normalizedSt = {
+                ...addedSt,
+                id: getSubtaskId(addedSt) || addedSt.id // Ensure we have a consistent ID set
+            };
+            setSubtasks(prev => [...prev, normalizedSt]);
+            toast.success('Subtask template added to server');
         } catch (err) {
             console.error(err.response?.data);
             const detail = err.response?.data?.detail;
@@ -99,34 +138,104 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
             } else {
                 toast.error('Failed to add subtask: ' + (detail || err.message));
             }
+        } finally {
+            setSubmitting(false);
         }
     };
+    const getSubtaskId = (st) => {
+        return (
+            st?.id ??
+            st?.subtask_id ??
+            st?.subtask_template_id ??
+            st?.recurring_subtask_id ??
+            st?.recurring_task_subtask_id ??
+            st?.task_id ??
+            null
+        );
+    };
 
-    const handleUpdateSubtask = async (sid, updates) => {
-        const rid = template.id || template.recurring_id;
+    const handleUpdateSubtask = async (targetId, updates) => {
+        const rid = template?.id || template?.recurring_id;
+        const isLocal = String(targetId).startsWith('local-');
+
+        // ✅ LOCAL → no API call
+        if (isLocal) {
+            setSubtasks(prev =>
+                prev.map(st => {
+                    const sid = getSubtaskId(st);
+                    return String(sid) === String(targetId) ? { ...st, ...updates } : st;
+                })
+            );
+            return;
+        }
+
+        if (!rid || targetId == null) {
+            console.error("Missing ID for update:", { targetId, rid });
+            return;
+        }
+
         try {
             const sanitizedUpdates = { ...updates };
             if (sanitizedUpdates.start_date === '') sanitizedUpdates.start_date = null;
             if (sanitizedUpdates.end_date === '') sanitizedUpdates.end_date = null;
-            
-            await api.patch(`/recurring-tasks/${rid}/subtasks/${sid}`, sanitizedUpdates);
-            setSubtasks(subtasks.map(st => st.id === sid ? { ...st, ...updates } : st));
+
+            const numericRid = isNaN(rid) ? rid : parseInt(rid, 10);
+            const numericSid = isNaN(targetId) ? targetId : parseInt(targetId, 10);
+
+            await api.patch(
+                `/recurring-tasks/${numericRid}/subtasks/${numericSid}`,
+                sanitizedUpdates
+            );
+
+            setSubtasks(prev =>
+                prev.map(st => {
+                    const sid = getSubtaskId(st);
+                    return String(sid) === String(targetId)
+                        ? { ...st, ...updates }
+                        : st;
+                })
+            );
+
         } catch (err) {
+            console.error("Subtask update failed", err);
             toast.error('Failed to update subtask');
         }
     };
 
-    const handleDeleteSubtask = async (sid) => {
-        const rid = template.id || template.recurring_id;
+    const handleDeleteSubtask = async (targetId) => {
+        if (!targetId) return;
+
+        const isLocal = String(targetId).startsWith('local-');
+
+        // ✅ ALWAYS remove instantly from UI
+        setSubtasks(prev => prev.filter(st => {
+            const sid = getSubtaskId(st);
+            return String(sid) !== String(targetId);
+        }));
+
+        // ✅ STOP here for local subtasks
+        if (isLocal) {
+            toast.success('Local subtask removed');
+            return;
+        }
+
+        const rid = template?.id || template?.recurring_id;
+        if (!rid) return;
+
         try {
-            await api.delete(`/recurring-tasks/${rid}/subtasks/${sid}`);
-            setSubtasks(subtasks.filter(st => st.id !== sid));
-            toast.success('Subtask template removed');
+            // ✅ ONLY numeric IDs go to API
+            const numericRid = isNaN(rid) ? rid : parseInt(rid, 10);
+            const numericSid = isNaN(targetId) ? targetId : parseInt(targetId, 10);
+
+            await api.delete(`/recurring-tasks/${numericRid}/subtasks/${numericSid}`);
+            toast.success('Subtask removed');
         } catch (err) {
-            toast.error('Failed to delete subtask');
+            console.error(err);
+            // ❗ rollback UI if API fails
+            fetchSubtasks(rid);
+            toast.error('Delete failed, reverted');
         }
     };
-
     if (!isOpen) return null;
 
     const handleSubmit = async (e) => {
@@ -139,6 +248,8 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                 description: formData.description,
                 frequency: formData.frequency,
                 status: formData.status,
+                department_id: formData.department_id || null,
+                assigned_to_emp_id: formData.assigned_to_emp_id || null,
                 weekly_day: formData.frequency === 'WEEKLY' ? formData.weekly_day : null,
                 monthly_day: formData.frequency === 'MONTHLY' ? (parseInt(formData.monthly_day, 10) || null) : null,
                 yearly_month: formData.frequency === 'YEARLY' ? (parseInt(formData.yearly_month, 10) || null) : null,
@@ -147,11 +258,24 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
 
             let res;
             if (rid) {
-                res = await api.patch(`/recurring-tasks/${parseInt(rid, 10)}`, payload);
+                res = await api.patch(`/recurring-tasks/${rid}`, payload);
                 toast.success('Task configuration updated');
             } else {
                 res = await api.post('/recurring-tasks', payload);
-                toast.success('Recurring task created!');
+                const newRid = res.data?.id || res.data?.recurring_id;
+                
+                // If we have local subtasks, save them for the new template
+                if (newRid && subtasks.length > 0) {
+                    for (const st of subtasks) {
+                        try {
+                            const { id, ...stPayload } = st; 
+                            await api.post(`/recurring-tasks/${newRid}/subtasks`, stPayload);
+                        } catch (stErr) {
+                            console.error("Failed to save local subtask", stErr);
+                        }
+                    }
+                }
+                toast.success('Recurring task created with subtasks!');
             }
             
             onSave(res.data?.data || res.data);
@@ -200,6 +324,35 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                                 value={formData.title}
                                 onChange={(e) => setFormData({...formData, title: e.target.value})}
                             />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Responsible Dept</label>
+                                <select 
+                                    className="w-full px-5 py-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-bold transition-all text-sm"
+                                    value={formData.department_id}
+                                    onChange={(e) => setFormData({...formData, department_id: e.target.value})}
+                                >
+                                    <option value="">Select Department</option>
+                                    {departments.map((d, dik) => (
+                                        <option key={d.department_id || d.id || `dept-${dik}`} value={d.department_id || d.id}>{d.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Process Owner</label>
+                                <select 
+                                    className="w-full px-5 py-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-bold transition-all text-sm"
+                                    value={formData.assigned_to_emp_id}
+                                    onChange={(e) => setFormData({...formData, assigned_to_emp_id: e.target.value})}
+                                >
+                                    <option value="">Select Manager</option>
+                                    {employees.map((e, eik) => (
+                                        <option key={e.emp_id || `emp-${eik}`} value={e.emp_id}>{e.name}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-6">
@@ -298,77 +451,95 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                                 <div className="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-medium italic text-[11px]">No subtask templates defined.</div>
                             ) : (
                                 <div className="space-y-3">
-                                    {subtasks.sort((a,b) => (a.sequence_no || 0) - (b.sequence_no || 0)).map((st, idx) => (
-                                        <div key={st.id || idx} className="bg-white border border-slate-100 rounded-[1.5rem] p-5 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all group overflow-hidden relative">
-                                            {/* Sequence indicator */}
-                                            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500 opacity-20 group-hover:opacity-100 transition-opacity" />
-                                            
-                                            <div className="flex flex-col gap-4">
-                                                <div className="flex items-center justify-between gap-4">
-                                                    <div className="flex items-center gap-3 flex-1">
-                                                        <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-[10px] shrink-0">
-                                                            {idx + 1}
+                                        {subtasks.sort((a,b) => (a.sequence_no || 0) - (b.sequence_no || 0)).map((st, idx) => {
+                                            const subtaskId = getSubtaskId(st);
+                                            return (
+                                                <div key={subtaskId || `local-${idx}`} className="bg-white border border-slate-100 rounded-[1.5rem] p-5 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all group overflow-hidden relative">
+                                                    {/* Sequence indicator */}
+                                                    <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500 opacity-20 group-hover:opacity-100 transition-opacity" />
+                                                    
+                                                    <div className="flex flex-col gap-4">
+                                                        <div className="flex items-center justify-between gap-4">
+                                                            <div className="flex items-center gap-3 flex-1">
+                                                                <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-[10px] shrink-0">
+                                                                    {idx + 1}
+                                                                </div>
+                                                                <input 
+                                                                    type="text"
+                                                                    className="flex-1 bg-transparent border-none p-0 text-[14px] font-black text-slate-800 focus:ring-0 placeholder:text-slate-300 uppercase tracking-tight"
+                                                                    value={st.title}
+                                                                    placeholder="Subtask Title"
+                                                                    onChange={(e) => setSubtasks(subtasks.map(s => {
+                                                                        const sid = getSubtaskId(s);
+                                                                        const tid = getSubtaskId(st);
+                                                                        return String(sid) === String(tid) ? {...s, title: e.target.value} : s;
+                                                                    }))}
+                                                                    onBlur={() => handleUpdateSubtask(subtaskId, { title: st.title })}
+                                                                />
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={async () => {
+                                                                        if (window.confirm(`Delete subtask "${st.title}"?`)) {
+                                                                            handleDeleteSubtask(subtaskId);
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                                                    title="Remove Subtask"
+                                                                >
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                        <input 
-                                                            type="text"
-                                                            className="flex-1 bg-transparent border-none p-0 text-[14px] font-black text-slate-800 focus:ring-0 placeholder:text-slate-300 uppercase tracking-tight"
-                                                            value={st.title}
-                                                            placeholder="Subtask Title"
-                                                            onChange={(e) => setSubtasks(subtasks.map(s => s.id === st.id ? {...s, title: e.target.value} : s))}
-                                                            onBlur={() => handleUpdateSubtask(st.id, { title: st.title })}
-                                                        />
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <button 
-                                                            type="button"
-                                                            onClick={async () => {
-                                                                if (window.confirm(`Delete subtask "${st.title}"?`)) {
-                                                                    handleDeleteSubtask(st.id);
-                                                                }
-                                                            }}
-                                                            className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                                                            title="Remove Subtask"
-                                                        >
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    </div>
-                                                </div>
 
-                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50/50 p-4 rounded-2xl">
-                                                    <div className="space-y-1">
-                                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Assignee</label>
-                                                        <select 
-                                                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                                            value={st.assigned_to_emp_id}
-                                                            onChange={(e) => handleUpdateSubtask(st.id, { assigned_to_emp_id: e.target.value })}
-                                                        >
-                                                            <option value="">Select Owner</option>
-                                                            {employees.map(e => <option key={e.emp_id} value={e.emp_id}>{e.name}</option>)}
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Priority</label>
-                                                        <select 
-                                                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                                            value={st.priority}
-                                                            onChange={(e) => handleUpdateSubtask(st.id, { priority: e.target.value })}
-                                                        >
-                                                            <option value="LOW">Low</option>
-                                                            <option value="MEDIUM">Medium</option>
-                                                            <option value="HIGH">High</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Deadline Rule</label>
-                                                        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2">
-                                                            <Clock size={12} className="text-slate-400" />
-                                                            <span className="text-[11px] font-bold text-slate-500 italic">Auto-calculated</span>
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/50 p-4 rounded-2xl">
+                                                            <div className="space-y-1">
+                                                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Responsible Dept</label>
+                                                                <select 
+                                                                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                                    value={st.department_id}
+                                                                    onChange={(e) => handleUpdateSubtask(subtaskId, { department_id: e.target.value })}
+                                                                >
+                                                                    <option value="">Select Dept</option>
+                                                                    {departments.map((d, dk) => <option key={d.department_id || d.id || `st-dept-${dk}`} value={d.department_id || d.id}>{d.name}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Assignee</label>
+                                                                <select 
+                                                                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                                    value={st.assigned_to_emp_id}
+                                                                    onChange={(e) => handleUpdateSubtask(subtaskId, { assigned_to_emp_id: e.target.value })}
+                                                                >
+                                                                    <option value="">Select Owner</option>
+                                                                    {employees.map((e, ek) => <option key={e.emp_id || `st-emp-${ek}`} value={e.emp_id}>{e.name}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Priority</label>
+                                                                <select 
+                                                                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                                    value={st.priority}
+                                                                    onChange={(e) => handleUpdateSubtask(subtaskId, { priority: e.target.value })}
+                                                                >
+                                                                    <option value="LOW">Low</option>
+                                                                    <option value="MEDIUM">Medium</option>
+                                                                    <option value="HIGH">High</option>
+                                                                </select>
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Timeline</label>
+                                                                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2">
+                                                                    <Clock size={12} className="text-slate-400" />
+                                                                    <span className="text-[11px] font-bold text-slate-500 italic">Rules Based</span>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                            );
+                                        })}
                                 </div>
                             )}
                         </div>

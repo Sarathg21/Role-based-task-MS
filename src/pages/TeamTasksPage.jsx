@@ -163,7 +163,15 @@ const TaskRow = ({
                         <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-black text-slate-500 overflow-hidden shrink-0">
                             {assignedTo?.charAt(0) || <User size={12} />}
                         </div>
-                        <span className="text-[12px] font-bold text-slate-700 truncate max-w-[100px]">{assignedTo}</span>
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-[12px] font-bold text-slate-700 truncate max-w-[100px]">{assignedTo}</span>
+                            {(task.is_reassigned || task.reassigned_from || (task.reassignment_count > 0)) && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 mt-0.5 w-fit">
+                                    <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 6h10M7 2l4 4-4 4"/></svg>
+                                    Reassigned
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </td>
                 <td className="p-5 text-left">
@@ -503,7 +511,8 @@ const TeamTasksPage = () => {
                         </div>
                     </div>
                     <div className="lg:col-span-5 grid grid-cols-3 gap-3">
-                        <div className="space-y-1.5 flex flex-col"><label className="text-[10px] font-bold text-slate-400 ml-1">Department</label>
+                        <div className={`space-y-1.5 flex flex-col ${!(user?.role?.toUpperCase() === 'CFO' || user?.role?.toUpperCase() === 'ADMIN') ? 'hidden' : ''}`}>
+                            <label className="text-[10px] font-bold text-slate-400 ml-1">Department</label>
                             <CustomSelect value={filters.department_id} onChange={(v) => setFilters(p => ({ ...p, department_id: v }))} options={[{ value: '', label: 'All Dept' }, ...departments.map(d => ({ value: d.department_id || d.id, label: d.name || d.department_id }))]} />
                         </div>
                         <div className="space-y-1.5 flex flex-col"><label className="text-[10px] font-bold text-slate-400 ml-1">Status</label>
@@ -555,11 +564,22 @@ const TeamTasksPage = () => {
                 </div>
             </div>
 
-            <ReassignTaskModal isOpen={isReassignModalOpen} onClose={() => setIsReassignModalOpen(false)} currentTask={selectedTask} currentUser={user} employees={allEmployees} onReassign={async (data) => {
+            <ReassignTaskModal isOpen={isReassignModalOpen} onClose={() => setIsReassignModalOpen(false)} currentTask={selectedTask} currentUser={user} employees={allEmployees} onReassign={async ({ employeeId, newDueDate, reason }) => {
                 try {
-                    await api.post(`/tasks/${selectedTask?.task_id || selectedTask?.id}/reassign`, data);
+                    const payload = {
+                        new_assigned_to_emp_id: employeeId,
+                        new_due_date: newDueDate,
+                        reason: reason || ''
+                    };
+                    await api.post(`/tasks/${selectedTask?.task_id || selectedTask?.id}/reassign`, payload, {
+                        headers: { 'X-EMP-ID': user.id }
+                    });
                     toast.success("Task reassigned"); setIsReassignModalOpen(false); fetchTasks(pagination.page); fetchMetrics(); window.dispatchEvent(new Event('refresh-notifications'));
-                } catch (err) { toast.error("Reassign failed"); }
+                } catch (err) {
+                    console.error('[Reassign] Failed. Full error:', err.response?.data);
+                    console.error('[Reassign] Detail:', JSON.stringify(err.response?.data?.detail, null, 2));
+                    toast.error("Reassign failed: " + (err.response?.data?.detail?.[0]?.msg || err.response?.data?.detail || "Check fields"));
+                }
             }} />
             <ReworkCommentModal isOpen={isReworkModalOpen} onClose={() => setIsReworkModalOpen(false)} onConfirm={(comment) => handleAction(selectedTask?.task_id || selectedTask?.id, 'REWORK', { comment })} taskTitle={selectedTask?.task_title || selectedTask?.title} />
             <TaskReviewModal isOpen={isReviewModalOpen} onClose={() => setIsReviewModalOpen(false)} task={selectedTask} onApprove={() => handleAction(selectedTask?.task_id || selectedTask?.id, 'APPROVE')} onRework={() => { setIsReviewModalOpen(false); setIsReworkModalOpen(true); }} />

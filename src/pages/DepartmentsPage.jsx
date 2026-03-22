@@ -37,8 +37,10 @@ const DepartmentsPage = () => {
     const handleSaveDepartment = async (deptData) => {
         try {
             if (editingDept) {
-                await api.patch(`/admin/departments/${deptData.dept_id || deptData.department_id || deptData.id}`, deptData);
-                toast.success("Department updated successfully!");
+                // Prioritize the internal database ID if available for the URL
+                const targetId = editingDept.id || editingDept.department_id || editingDept.dept_id;
+                await api.patch(`/admin/departments/${targetId}`, deptData);
+                toast.success("Department reconfigured successfully!");
             } else {
                 await api.post('/admin/departments', deptData);
                 toast.success("Department created successfully!");
@@ -153,8 +155,8 @@ const DepartmentsPage = () => {
                 {[
                     { label: 'Total Depts', value: deptStats.total, icon: Building2, color: 'indigo' },
                     { label: 'Total Personnel', value: deptStats.totalStaff, icon: Users, color: 'blue' },
-                    { label: 'With Managers', value: deptStats.withManagers, icon: User, color: 'emerald' },
-                    { label: 'Empty Units', value: deptStats.emptyDepts, icon: AlertCircle, color: 'rose' }
+                    { label: 'Managers', value: deptStats.withManagers, icon: User, color: 'emerald' },
+                    { label: 'Memberless Units', value: deptStats.emptyDepts, icon: AlertCircle, color: 'rose' }
                 ].map((stat) => (
                     <div key={stat.label} className="bg-white p-5 lg:p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
                         <div className="relative z-10 flex flex-col gap-1">

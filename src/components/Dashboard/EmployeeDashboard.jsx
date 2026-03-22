@@ -9,7 +9,8 @@ import ChartPanel from '../Charts/ChartPanel';
 import {
     TrendingUp, CheckCircle, Clock, AlertCircle,
     ThumbsUp, Calendar, ArrowRight, ChevronRight, CalendarCheck, Loader2,
-    Search as SearchIcon, Plus, Settings, MessageSquare, ChevronDown, User, Edit2, Activity, CheckSquare, BarChart2, PlusCircle, RefreshCw
+    Search as SearchIcon, Plus, Settings, MessageSquare, ChevronDown, User, Edit2, Activity, CheckSquare, BarChart2, PlusCircle, RefreshCw,
+    Download, FileSpreadsheet
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -362,6 +363,48 @@ const EmployeeDashboard = () => {
         }
     };
 
+    const downloadFile = async (format) => {
+        const toastId = toast.loading(`Preparing ${format.toUpperCase()} report...`);
+        try {
+            const rolePath = user?.role?.toLowerCase() || 'employee';
+            let endpoint = format === 'pdf' ? `/reports/${rolePath}/export-pdf` : `/reports/${rolePath}/export-excel`;
+            const params = {
+                employee_id: user?.emp_id,
+                from_date: fromDate || undefined,
+                to_date: toDate || undefined
+            };
+
+            const response = await api.get(endpoint, {
+                params,
+                responseType: 'blob'
+            });
+
+            if (response.data.size < 250) {
+                const text = await response.data.text();
+                try {
+                    const errorJson = JSON.parse(text);
+                    throw new Error(errorJson.detail || errorJson.message || 'Export failed');
+                } catch (e) { /* Proceed if not JSON */ }
+            }
+
+            const contentType = response.headers['content-type'] || (format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            const blob = new Blob([response.data], { type: contentType });
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `my_performance_report_${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(blobUrl);
+
+            toast.success(`${format.toUpperCase()} downloaded successfully`, { id: toastId });
+        } catch (err) {
+            console.error(`Failed to download ${format}`, err);
+            toast.error(err.message || `Failed to download ${format} report`, { id: toastId });
+        }
+    };
+
     const fetchActivities = async () => {
         setLoadingActivities(true);
         try {
@@ -388,10 +431,23 @@ const EmployeeDashboard = () => {
         if (!confirmed) return;
 
         try {
-            await api.post(`/tasks/${taskId}/transition`, { action, comment: "" });
+            const payload = { 
+                action, 
+                comment: comment || "",
+                emp_role: user.role?.toUpperCase(),
+                emp_id: user.id,
+                scope: "mine"
+            };
+            await api.post(`/tasks/${taskId}/transition`, payload, {
+                headers: {
+                    'X-EMP-ID': user.id
+                }
+            });
+            toast.success(`Task ${action.toLowerCase()}ed successfully`);
             fetchDashboardData(); // Refresh dashboard
         } catch (err) {
-            console.error("Failed to update task status", err);
+            console.error("Failed to update task status:", err);
+            toast.error(err.response?.data?.message || err.response?.data?.detail || "Action failed");
         }
     };
 
@@ -525,6 +581,45 @@ const EmployeeDashboard = () => {
 
     return (
         <div className="space-y-6 animate-fade-in pb-8 mt-4">
+            {/* Filter Bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/50 backdrop-blur-md p-4 rounded-3xl border border-white shadow-sm">
+                <div className="flex items-center gap-3 px-2">
+                    <div className="w-10 h-10 rounded-2xl bg-violet-600 flex items-center justify-center text-white shadow-lg shadow-violet-200">
+                        <Calendar size={20} />
+                    </div>
+                    <div>
+                        <h2 className="text-[15px] font-black text-[#1E1B4B] tracking-tight leading-none mb-1">Performance Period</h2>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">Select range for export</p>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-inner">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">From</span>
+                        <input 
+                            type="date" 
+                            className="bg-transparent border-none text-[12px] font-bold text-slate-700 p-0 focus:ring-0 cursor-pointer"
+                            value={fromDate}
+                            onChange={(e) => setFromDate(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-inner">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">To</span>
+                        <input 
+                            type="date" 
+                            className="bg-transparent border-none text-[12px] font-bold text-slate-700 p-0 focus:ring-0 cursor-pointer"
+                            value={toDate}
+                            onChange={(e) => setToDate(e.target.value)}
+                        />
+                    </div>
+                    <button 
+                        onClick={() => { setFromDate(''); setToDate(''); }}
+                        className="px-4 py-2 text-[10px] font-black text-violet-600 uppercase tracking-widest hover:bg-violet-50 rounded-xl transition-all"
+                    >
+                        Reset
+                    </button>
+                </div>
+            </div>
 
 
             {/* Top Metrics Row - Using the premium Stat component */}
@@ -707,12 +802,27 @@ const EmployeeDashboard = () => {
                     <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100">
                         <h3 className="text-[15px] font-bold text-slate-800 mb-4 tracking-tight">Quick Actions</h3>
                         <div className="flex flex-col gap-3">
-                            <button onClick={() => navigate('/tasks')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
-                                <CheckSquare size={18} strokeWidth={2.5} /> View All Tasks
+                            <button onClick={() => navigate('/tasks')} className="w-full py-3 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[13px]">
+                                <CheckSquare size={16} strokeWidth={2.5} /> View My Tasks
                             </button>
-                            <button onClick={() => navigate('/reports')} className="w-full py-3.5 px-5 bg-[#7B51ED] text-white shadow-lg shadow-violet-500/20 rounded-xl font-bold flex items-center gap-3 hover:bg-violet-700 hover:translate-y-[-1px] transition-all text-[14px]">
-                                <Activity size={18} strokeWidth={2.5} /> View Reports
-                            </button>
+                            <div className="h-px bg-slate-100 my-1" />
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Export Performance</p>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button 
+                                    onClick={() => downloadFile('excel')}
+                                    className="flex flex-col items-center justify-center py-2.5 rounded-xl border border-emerald-100 bg-emerald-50/50 hover:bg-emerald-100 transition-all group"
+                                >
+                                    <FileSpreadsheet size={16} className="text-emerald-600 mb-1 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Excel</span>
+                                </button>
+                                <button 
+                                    onClick={() => downloadFile('pdf')}
+                                    className="flex flex-col items-center justify-center py-2.5 rounded-xl border border-rose-100 bg-rose-50/50 hover:bg-rose-100 transition-all group"
+                                >
+                                    <Download size={16} className="text-rose-600 mb-1 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest">PDF</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 

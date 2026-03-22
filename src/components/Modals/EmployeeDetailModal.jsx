@@ -210,29 +210,9 @@ const EmployeeDetailModal = ({ employee, departments = [], allEmployees = [], on
                                                 
                                                 <div className="flex items-center gap-4">
                                                     <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${colleague.active ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                        {colleague.active ? 'Active' : 'Inactive'}
-                                                    </span>
-                                                    
-                                                    <div className="relative">
-                                                        <button 
-                                                            onClick={() => setOpenMenuId(openMenuId === colleague.emp_id ? null : colleague.emp_id)}
-                                                            className={`p-1.5 rounded-full transition-all flex items-center gap-2 ${openMenuId === colleague.emp_id ? 'bg-[#7B51ED] text-white px-4 rounded-xl shadow-lg' : 'bg-white text-slate-400 hover:bg-violet-50 hover:text-violet-600 shadow-sm border border-slate-100'}`}
-                                                        >
-                                                            {openMenuId === colleague.emp_id && <span className="text-[9px] font-black uppercase tracking-widest">Options</span>}
-                                                            <MoreHorizontal size={16} />
-                                                        </button>
-                                                        
-                                                        {openMenuId === colleague.emp_id && (
-                                                            <>
-                                                                <div className="fixed inset-0 z-40" onClick={() => setOpenMenuId(null)} />
-                                                                <div className="absolute right-0 top-10 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-150 origin-top-right">
-                                                                    <button onClick={() => { setActiveTab('access'); setOpenMenuId(null); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-[10px] font-black text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-colors uppercase tracking-widest"><KeyRound size={14} /> Reset Pass</button>
-                                                                    <button onClick={() => { onToggleStatus?.(colleague); setOpenMenuId(null); }} className={`w-full flex items-center gap-3 px-4 py-2.5 text-[10px] font-black transition-colors uppercase tracking-widest ${colleague.active ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}><ShieldOff size={14} /> {colleague.active ? 'Deactivate' : 'Activate'}</button>
-                                                                </div>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                                         {colleague.active ? 'Active' : 'Inactive'}
+                                                     </span>
+                                                 </div>
                                             </div>
                                         ))
                                     ) : (

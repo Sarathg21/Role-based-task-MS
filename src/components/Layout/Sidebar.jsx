@@ -136,7 +136,6 @@ const Sidebar = ({ isCollapsed, toggleSidebar, isMobileOpen, closeMobileSidebar 
                         <NavItem to="/tasks/team"   icon={Users}           label="Team Tasks" />
                         <NavItem to="/departments"  icon={Building2}       label="Departments" />
                         <NavItem to="/org-tree"     icon={Network}         label="Organization Tree" />
-                        <NavItem to="/reports"      icon={BarChart3}       label="Reports" />
                         <SectionLabel label="Strategic OKRs" />
                         <NavItem to="/okr-dashboard"   icon={Target}     label="OKR Dashboard" />
                         <NavItem to="/okr-subtask"     icon={Layers}     label="Sub-task Tracking" />
@@ -154,15 +153,13 @@ const Sidebar = ({ isCollapsed, toggleSidebar, isMobileOpen, closeMobileSidebar 
                             <>
                                 <SectionLabel label="Team Management" />
                                 <NavItem to="/tasks/team" icon={Users}    label="Team Tasks" />
-                                <SectionLabel label="Analytics" />
-                                <NavItem to="/reports"    icon={BarChart3} label="Reports & Insights" />
+                                <NavItem to="/performance-dashboard" icon={TrendingUp} label="Team Performance" />
                             </>
                         )}
 
                         {userRole === 'EMPLOYEE' && (
                             <>
-                                <SectionLabel label="Analytics" />
-                                <NavItem to="/reports" icon={BarChart3} label="My Performance" />
+                                <NavItem to="/performance-dashboard" icon={TrendingUp}    label="My Performance" />
                             </>
                         )}
                     </>

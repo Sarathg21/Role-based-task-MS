@@ -35,12 +35,19 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
        - CFO: all employees (excluding current assignee) */
     const candidateEmployees = employees.filter(u => {
         const uId = u.emp_id || u.id;
-        if (u.role?.toUpperCase() !== 'EMPLOYEE') return false;
-        if (uId === currentTask.employee_id) return false;           // exclude current
+        const uRole = (u.role || '').toUpperCase();
+        // Exclude current assignee (check both possible ID fields on the task)
+        const currentAssigneeId = currentTask.employee_id || currentTask.assigned_to_emp_id;
+        if (uId === currentAssigneeId) return false;
+        // Only include Employee and Manager roles
+        if (!['EMPLOYEE', 'MANAGER'].includes(uRole)) return false;
+        // Manager: scope to same department, checking both department and department_id fields
         if (currentUser?.role?.toUpperCase() === 'MANAGER') {
-            return u.department === currentUser.department;          // dept-scoped
+            const userDept = currentUser.department || currentUser.department_id || '';
+            const empDept = u.department_id || u.department || '';
+            return empDept === userDept;
         }
-        return true;                                                 // CFO sees all
+        return true; // CFO sees all
     });
 
     const currentAssignee = employees.find(u => (u.emp_id || u.id) === currentTask.employee_id);

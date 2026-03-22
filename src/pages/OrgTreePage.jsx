@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import {
-    X, User, Shield, Briefcase, Network,
+    X, User, Shield, Briefcase, Network, RefreshCw,
     ChevronDown, ChevronRight, PlusCircle, Check, XCircle, Loader2, ArrowLeft
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -93,12 +93,16 @@ const ROLE_CARD = {
     ADMIN: "border-indigo-100",
     MANAGER: "border-indigo-100",
     EMPLOYEE: "border-indigo-100",
+    SYSTEM: "border-violet-200",
+    ORGANIZATION: "border-violet-200",
 };
 const ROLE_BADGE = {
     CFO: "text-indigo-600 bg-indigo-50",
     ADMIN: "text-indigo-600 bg-indigo-50",
     MANAGER: "text-blue-600 bg-blue-50",
     EMPLOYEE: "text-emerald-600 bg-emerald-50",
+    SYSTEM: "text-violet-600 bg-violet-50",
+    ORGANIZATION: "text-violet-600 bg-violet-50",
 };
 
 // ─── Single Org Node ─────────────────────────────────────────────────────────
@@ -197,35 +201,35 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
 
             {/* ── Children ── */}
             {hasChildren && !collapsed && (
-                <div className="flex flex-col items-center">
-                    {/* Primary vertical connector */}
-                    <div className="w-px h-12 bg-indigo-200" />
+                <div className="flex flex-col items-center w-full">
+                    {/* Primary vertical connector from parent down to the branch line */}
+                    <div className="w-0.5 h-10 bg-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.4)]" />
 
-                    <div className="relative flex justify-center">
-                        {/* Horizontal spine across multiple children */}
-                        {children.length > 1 && (
-                            <div 
-                                className="absolute top-0 h-px bg-indigo-200"
-                                style={{
-                                    left: '140px',
-                                    right: '140px',
-                                    width: 'auto'
-                                }}
-                            />
-                        )}
-                        <div className="flex gap-12 pt-0">
-                            {children.map(child => (
-                                <div key={child.emp_id || child.user?.id || child.id || Math.random()} className="flex flex-col items-center relative">
-                                    {/* Stub vertical line up to spine */}
-                                    <div className="w-px h-12 bg-indigo-200 absolute -top-12" />
+                    <div className="flex justify-center flex-nowrap pt-0 gap-0">
+                        {children.map((child, idx) => (
+                            <div key={child.emp_id || child.user?.id || child.id || Math.random()} className="flex flex-col items-center relative gap-0">
+                                
+                                {/* Horizontal connectors forming the 'spine' - robust approach */}
+                                <div 
+                                    className="absolute top-0 h-0.5 bg-indigo-500 shadow-[0_0_8px_rgba(79,70,229,0.3)] transition-all duration-500"
+                                    style={{ 
+                                        left: idx === 0 ? '50%' : '0', 
+                                        right: idx === children.length - 1 ? '50%' : '0' 
+                                    }}
+                                />
+
+                                {/* Stub vertical line connecting the spine down to the child card */}
+                                <div className="w-0.5 h-10 bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.2)]" />
+                                
+                                <div className="px-6">
                                     <OrgNode
                                         node={child}
                                         departments={departments}
                                         onAddNode={onAddNode}
                                     />
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
@@ -246,26 +250,36 @@ const OrgTreePage = () => {
     const fetchTree = async () => {
         setLoading(true);
         try {
-            const [treeRes, deptRes, empRes] = await Promise.all([
+            const results = await Promise.allSettled([
                 api.get('/org/tree'),
                 api.get('/admin/departments'),
                 api.get('/employees')
             ]);
             
+            // Extract employees first for fallback
+            const empRes = results[2].status === 'fulfilled' ? results[2].value : { data: [] };
             const emps = Array.isArray(empRes.data) ? empRes.data : [];
-            const depts = Array.isArray(deptRes.data) ? deptRes.data : [];
-            setDepartments(depts);
             setTotalEmployees(emps.length);
+            
+            // Extract departments
+            const deptRes = results[1].status === 'fulfilled' ? results[1].value : { data: [] };
+            setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
 
-            const rawTreeData = treeRes.data;
-            if (rawTreeData && (rawTreeData.children || rawTreeData.root)) {
-                setTreeData(rawTreeData);
+            // Handle Tree Data
+            if (results[0].status === 'fulfilled' && results[0].value.data) {
+                const raw = results[0].value.data;
+                if (raw.root || raw.children) {
+                    setTreeData(raw);
+                } else {
+                    setTreeData(buildHierarchy(emps));
+                }
             } else {
+                // If org/tree failed, build from employees
                 setTreeData(buildHierarchy(emps));
             }
         } catch (err) {
             console.error("Failed to build org tree", err);
-            toast.error("Failed to load organization hierarchy");
+            toast.error("Error building structure. Trying local build.");
         } finally {
             setLoading(false);
         }
@@ -399,30 +413,42 @@ const OrgTreePage = () => {
                         Department
                         <ChevronDown size={14} className="text-slate-400" />
                     </button>
+
+                    <button 
+                        onClick={fetchTree}
+                        disabled={loading}
+                        className="p-3 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-indigo-600 shadow-sm hover:shadow-md transition-all active:scale-95 disabled:opacity-50"
+                    >
+                        <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                    </button>
                 </div>
             </div>
 
             {/* Tree Canvas */}
-            <div className="flex-1 bg-[#F5F3FF] rounded-[2.5rem] shadow-sm border border-indigo-100 overflow-auto p-4 bg-[radial-gradient(#d1d5db_1px,transparent_1px)] [background-size:32px_32px] relative flex justify-center min-h-0">
+            <div className="flex-1 bg-[#F5F3FF] rounded-[2.5rem] shadow-sm border border-indigo-100 overflow-auto p-12 bg-[radial-gradient(#d1d5db_1px,transparent_1px)] [background-size:32px_32px] relative flex flex-col items-center min-h-0">
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center h-full">
+                    <div className="flex flex-col items-center justify-center m-auto">
                         <Loader2 size={32} className="text-violet-600 animate-spin mb-2" />
                         <p className="text-sm text-slate-500 font-medium">Building tree structure...</p>
                     </div>
                 ) : (
-                    <div className="pb-12 pt-4 transition-transform duration-300 origin-top" style={{ transform: `scale(${zoom})` }}>
-                        {/* Root Node */}
-                        <div className="flex gap-16 justify-center">
-                            {(treeData?.root || treeData?.cfo) && (
-                                <OrgNode
-                                    key={(treeData.root || treeData.cfo).emp_id || (treeData.root || treeData.cfo).user?.id || 'root'}
-                                    node={treeData.root || treeData.cfo}
-                                    departments={depts}
-                                    onAddNode={handleAddNode}
-                                    isRoot
-                                />
-                            )}
-                        </div>
+                    <div className="m-auto min-w-fit flex flex-col items-center pb-24 pt-4 transition-transform duration-300 origin-top" style={{ transform: `scale(${zoom})` }}>
+                        {/* Root Node Detection & Rendering */}
+                        {(() => {
+                            const mainNode = treeData?.root || treeData?.cfo || (treeData?.children ? treeData : null);
+                            if (!mainNode) return null;
+                            return (
+                                <div className="flex gap-16 justify-center">
+                                    <OrgNode
+                                        key={mainNode.emp_id || mainNode.user?.id || mainNode.id || 'root'}
+                                        node={mainNode}
+                                        departments={depts}
+                                        onAddNode={handleAddNode}
+                                        isRoot
+                                    />
+                                </div>
+                            );
+                        })()}
 
                         {/* Orphans */}
                         {treeData?.orphan_managers?.length > 0 && (

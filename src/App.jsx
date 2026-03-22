@@ -11,7 +11,6 @@ import DashboardPage from './pages/DashboardPage';
 import TaskPage from './pages/TaskPage';
 import AssignTaskPage from './pages/AssignTaskPage';
 import AdminPage from './pages/AdminPage';
-import ReportsPage from './pages/ReportsPage';
 import ProfilePage from './pages/ProfilePage';
 import OrgTreePage from './pages/OrgTreePage';
 import TeamTasksPage from './pages/TeamTasksPage';
@@ -69,14 +68,6 @@ function App() {
             }
           />
 
-          <Route
-            path="reports"
-            element={
-              <ProtectedRoute allowedRoles={['Employee', 'Manager', 'Admin', 'CFO']}>
-                <ReportsPage />
-              </ProtectedRoute>
-            }
-          />
 
           <Route
             path="admin"
@@ -150,7 +141,7 @@ function App() {
           <Route
             path="performance-dashboard"
             element={
-              <ProtectedRoute allowedRoles={['CFO', 'Admin']}>
+              <ProtectedRoute allowedRoles={['CFO', 'Admin', 'Manager', 'Employee']}>
                 <EmployeePerformanceDashboard />
               </ProtectedRoute>
             }

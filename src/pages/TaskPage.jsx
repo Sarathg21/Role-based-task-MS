@@ -46,16 +46,14 @@ const StatusCell = ({ task }) => {
   const isOverdue = dueDateKey && dueDateKey < today && !['APPROVED', 'CANCELLED'].includes(task.status);
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-1.5">
-        <Badge variant={task.status}>{formatStatus(task.status)}</Badge>
-        {isOverdue && (
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 shadow-sm animate-pulse-gentle">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
-            <span className="text-[9px] font-semibold text-rose-600 capitalize tracking-tighter">Overdue</span>
-          </span>
-        )}
-      </div>
+    <div className="flex items-center justify-center gap-1.5 flex-wrap">
+      <Badge variant={task.status}>{formatStatus(task.status)}</Badge>
+      {isOverdue && (
+        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-50 border border-rose-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+          <span className="text-[9px] font-semibold text-rose-600 whitespace-nowrap">Overdue</span>
+        </span>
+      )}
     </div>
   );
 };
@@ -116,7 +114,15 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                     <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-sm border border-white">
                       {(task.assigneeName || task.employee_id || '?').charAt(0)}
                     </div>
-                    <span className="truncate font-semibold text-[13px]">{task.assigneeName || task.employee_id}</span>
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate font-semibold text-[13px]">{task.assigneeName || task.employee_id}</span>
+                      {(task.is_reassigned || task.reassigned_from || (task.reassignment_count > 0)) && (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 mt-0.5 w-fit">
+                          <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 6h10M7 2l4 4-4 4"/></svg>
+                          Reassigned
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </td>
 
@@ -300,7 +306,15 @@ const ActionTaskTable = ({
                     <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-sm border border-white">
                       {(assigneeName || '?').charAt(0)}
                     </div>
-                    <span className="truncate font-medium">{assigneeName}</span>
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate font-medium">{assigneeName}</span>
+                      {(task.is_reassigned || task.reassigned_from || (task.reassignment_count > 0)) && (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 mt-0.5 w-fit">
+                          <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 6h10M7 2l4 4-4 4"/></svg>
+                          Reassigned
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </td>
 
@@ -330,10 +344,11 @@ const ActionTaskTable = ({
                 <td className="p-4 text-right">
                   <div className="flex justify-end gap-1.5 flex-wrap items-center">
 
-                    {/* ── ASSIGNEE ACTIONS (Employee OR Manager in Personal View) ── */}
-                    {viewMode === "personal" && (
+                    {/* ── ASSIGNEE ACTIONS: START / SUBMIT / RESTART
+                        Shown to ANYONE when task is assigned to the current user */}
+                    {String(task.employee_id) === String(user?.id) && (
                       <>
-                        {task.status === "NEW" && (
+                        {(String(task.status).toUpperCase() === "NEW" || String(task.status).toUpperCase() === "NOT_STARTED") && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, "START"); }}
                             className="px-4 py-1.5 bg-[#7B51ED] text-white text-[12px] font-bold rounded-lg hover:bg-violet-700 transition shadow-sm flex items-center gap-1.5"
@@ -341,7 +356,7 @@ const ActionTaskTable = ({
                             Start
                           </button>
                         )}
-                        {task.status === "IN_PROGRESS" && (
+                        {String(task.status).toUpperCase() === "IN_PROGRESS" && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, "SUBMIT"); }}
                             className="px-4 py-1.5 bg-[#10B981] text-white text-[12px] font-bold rounded-lg hover:bg-emerald-600 transition shadow-sm flex items-center gap-1.5"
@@ -349,7 +364,7 @@ const ActionTaskTable = ({
                             Submit
                           </button>
                         )}
-                        {task.status === "REWORK" && (
+                        {String(task.status).toUpperCase() === "REWORK" && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, "RESTART"); }}
                             className="px-4 py-1.5 bg-[#F59E0B] text-white text-[12px] font-bold rounded-lg hover:bg-amber-600 transition shadow-sm flex items-center gap-1.5"
@@ -363,10 +378,11 @@ const ActionTaskTable = ({
                       </>
                     )}
 
-                    {/* ── REVIEWER ACTIONS (Manager only, in Team View) ── */}
+                    {/* ── MANAGER REVIEWER ACTIONS: APPROVE / REWORK / REASSIGN / CANCEL
+                        Team view: APPROVE/REWORK only for tasks NOT assigned to the manager themselves */}
                     {user?.role?.toUpperCase() === "MANAGER" && viewMode === "team" && (
                       <>
-                        {task.status === "SUBMITTED" && (
+                        {task.status === "SUBMITTED" && String(task.employee_id) !== String(user?.id) && (
                           <>
                             <button
                               onClick={(e) => { e.stopPropagation(); onStatusChange(task.id, "APPROVE"); }}
@@ -485,7 +501,9 @@ const TaskPage = () => {
           api.get('/employees'),
           api.get('/departments'),
         ]);
-        setUsers(usersRes.data);
+        const usersData = usersRes.data;
+        const userArray = Array.isArray(usersData) ? usersData : (Array.isArray(usersData?.data) ? usersData.data : []);
+        setUsers(userArray);
         setDepartments(Array.isArray(deptsRes.data) ? deptsRes.data : []);
       } catch (err) {
         console.error("Failed to fetch support data", err);
@@ -541,40 +559,8 @@ const TaskPage = () => {
         if (id && title) taskMap[id] = title;
       });
 
-      // Pass 1.5: Fetch each child task's individual detail to retrieve parent_task_title.
-      // The backend now returns parent_task_title on GET /tasks/{task_id}.
-      // We fetch the *child* task (which the user has access to) rather than the parent task
-      // (which may be 403-restricted), so we can reliably read parent_task_title from the response.
-      const tasksNeedingParentFetch = [];
-      const seenParentIds = new Set();
-      raw.forEach(t => {
-          const childId = t.task_id || t.id;
-          const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
-          const ptitle = t.parent_task_title || t.parentTaskTitle || t.parent_task_name || t.parent_title || t.parent_name || t.parent_directive_title || t.parent_directive_name ||
-                        (t.parent_task ? (t.parent_task.task_title || t.parent_task.title || t.parent_task.task_name || t.parent_task.name || t.parent_task.directive_title) : '');
-          if (pid && !ptitle && !taskMap[pid] && childId && !seenParentIds.has(pid)) {
-              seenParentIds.add(pid);
-              tasksNeedingParentFetch.push({ childId, pid });
-          }
-      });
-
-      if (tasksNeedingParentFetch.length > 0) {
-          console.log(`TaskPage - Fetching ${tasksNeedingParentFetch.length} task details for parent titles...`);
-          await Promise.allSettled(
-              tasksNeedingParentFetch.map(async ({ childId, pid }) => {
-                  try {
-                      const res = await api.get(`/tasks/${childId}`);
-                      const detail = res.data?.data || res.data;
-                      if (detail && !Array.isArray(detail)) {
-                          const parentTitle = detail.parent_task_title || detail.parentTaskTitle;
-                          if (parentTitle) taskMap[pid] = parentTitle;
-                      }
-                  } catch (err) {
-                      console.warn(`Failed to fetch task detail ${childId}:`, err);
-                  }
-              })
-          );
-      }
+      // Pass 1.5: Simplified - we only map titles that happened to be in the same list.
+      // Removed parallel detail fetching to avoid server timeouts and 403 errors.
 
       const normalised = raw.map(t => {
         const parentId =
@@ -643,7 +629,8 @@ const TaskPage = () => {
       if (filter.employeeId && filter.employeeId !== 'All') params.assigned_to_emp_id = filter.employeeId;
       if (filter.search) params.search = filter.search;
 
-      let endpoint = '/reports/cfo/export-excel';
+      const rolePath = isCFO ? 'cfo' : (user?.role?.toLowerCase() || 'employee');
+      let endpoint = `/reports/${rolePath}/export-excel`;
       // Unify the endpoint to use the CFO export which supports all roles via scope parameter
       // This fixes the 404 error encountered on /reports/performance.excel
 
@@ -754,15 +741,39 @@ const TaskPage = () => {
 
   const handleStatusChange = async (taskId, action, comment = "") => {
     if (!taskId && taskId !== 0) return;
+    if (!action) { console.error("handleStatusChange called with no action!"); return; }
 
     const confirmed = window.confirm(`Are you sure you want to ${action.toLowerCase()} this task?`);
     if (!confirmed) return;
 
     try {
-      await api.post(`/tasks/${taskId}/transition`, { action, comment });
+      const payload = { action, ...(comment ? { comment } : {}) };
+      await api.post(`/tasks/${taskId}/transition`, payload, {
+        headers: { 'X-EMP-ID': user.id }
+      });
+      const actionLabel = action.charAt(0).toUpperCase() + action.slice(1).toLowerCase();
+      toast.success(`Task ${actionLabel}d successfully!`);
       fetchTasks();
     } catch (err) {
-      console.error("Failed to update task status", err);
+      console.error('[TaskPage] Transition error:', {
+        action, taskId,
+        status: err.response?.status,
+        data: err.response?.data,
+        code: err.code,
+        message: err.message,
+      });
+      if (err.response?.status === 403) {
+        toast.error(
+          `⚠️ Permission Denied: The server has blocked the "${action}" action for the "${user.role}" role.`,
+          { duration: 8000 }
+        );
+      } else if (!err.response) {
+        toast.error(`Network error: ${err.message || 'Could not reach the server.'}`);
+      } else {
+        const msg = err.response?.data?.detail || err.response?.data?.message;
+        const detail = Array.isArray(msg) ? msg.map(d => d.msg).join(', ') : msg;
+        toast.error(detail || 'Action failed. Please try again.');
+      }
     }
   };
 
@@ -787,17 +798,23 @@ const TaskPage = () => {
     setReworkModalOpen(true);
   };
 
-  const handleReworkConfirm = async (comment) => {
-    if (!taskForRework) return;
-    setReworkModalOpen(false);
-    try {
-      await api.post(`/tasks/${taskForRework.id}/transition`, { action: "REWORK", comment });
-      fetchTasks();
-    } catch (err) {
-      console.error("Failed to request rework", err);
-    }
-    setTaskForRework(null);
-  };
+  // Locate your handleReworkConfirm function and update the axios call:
+const handleReworkConfirm = async (comment) => {
+  if (!taskForRework) return;
+  setReworkModalOpen(false);
+  try {
+    // Add the headers object here as well
+    await api.post(`/tasks/${taskForRework.id}/transition`, 
+      { action: "REWORK", comment },
+      { headers: { 'X-EMP-ID': user.id } } // Add this!
+    );
+    fetchTasks();
+  } catch (err) {
+    console.error("Failed to request rework", err);
+    toast.error("Rework request failed: " + (err.response?.data?.detail || "Access Denied"));
+  }
+  setTaskForRework(null);
+};
 
   const openReassignModal = (task) => {
     setTaskToReassign(task);
@@ -808,15 +825,20 @@ const TaskPage = () => {
     const confirmed = window.confirm("Are you sure you want to reassign this task?");
     if (!confirmed) return;
     try {
-      await api.post(`/tasks/${taskToReassign.id}/reassign`, {
+      const payload = {
         new_assigned_to_emp_id: newAssigneeId,
         new_due_date: newDueDate,
         reason: reason || ''
+      };
+      await api.post(`/tasks/${taskToReassign.id}/reassign`, payload, {
+        headers: { 'X-EMP-ID': user.id }
       });
       setReassignModalOpen(false);
       fetchTasks();
+      toast.success('Task reassigned successfully!');
     } catch (err) {
-      console.error("Failed to reassign task", err);
+      console.error('[Reassign] Failed:', err.response?.data);
+      toast.error('Reassign failed: ' + (err.response?.data?.detail?.[0]?.msg || err.response?.data?.detail || 'Check fields'));
     }
   };
 
@@ -906,6 +928,57 @@ const TaskPage = () => {
           </div>
         </div>
       </div>
+
+      {/* View Toggle — Manager only */}
+      {/* ── EMPLOYEE FILTER BANNER — shown when drilling into a specific employee from Team Performance ── */}
+      {filter.employeeId && filter.employeeId !== 'All' && (() => {
+        const emp = users.find(u => (u.emp_id || u.id) === filter.employeeId);
+        const empName = emp?.name || filter.employeeId;
+        const empTasks = filteredTasks;
+        const empActive = empTasks.filter(t => !['APPROVED', 'CANCELLED', 'SUBMITTED'].includes(t.status)).length;
+        const empInProgress = empTasks.filter(t => t.status === 'IN_PROGRESS').length;
+        const empOverdue = empTasks.filter(t => {
+          const today = new Date().toLocaleDateString('en-CA');
+          const dk = toDateKey(t.due_date);
+          return dk && dk < today && !['APPROVED', 'CANCELLED'].includes(t.status);
+        }).length;
+        const empApproved = empTasks.filter(t => t.status === 'APPROVED').length;
+        const completion = empTasks.length ? Math.round((empApproved / empTasks.length) * 100) : 0;
+        return (
+          <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 max-w-7xl mx-auto">
+            <div className="flex items-center gap-3 flex-1">
+              <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-sm font-black shadow-lg shadow-indigo-200 shrink-0">
+                {empName.trim().split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)}
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Viewing Tasks For</p>
+                <p className="text-base font-black text-indigo-900 capitalize leading-tight">{empName}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-5 flex-wrap">
+              {[
+                { label: 'Total', value: empTasks.length, color: 'text-slate-700' },
+                { label: 'Active', value: empActive, color: 'text-blue-600' },
+                { label: 'In Progress', value: empInProgress, color: 'text-orange-600' },
+                { label: 'Overdue', value: empOverdue, color: empOverdue > 0 ? 'text-rose-600' : 'text-slate-400' },
+                { label: 'Completion', value: `${completion}%`, color: completion >= 70 ? 'text-emerald-600' : 'text-amber-600' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="text-center">
+                  <p className={`text-xl font-black tabular-nums leading-none ${color}`}>{value}</p>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setFilter(prev => ({ ...prev, employeeId: 'All' }))}
+              className="flex items-center gap-1.5 px-4 py-2 bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-600 text-xs font-bold rounded-xl transition-all shadow-sm shrink-0"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              Clear Filter
+            </button>
+          </div>
+        );
+      })()}
 
       {/* View Toggle — Manager only */}
       {user.role === "MANAGER" && (

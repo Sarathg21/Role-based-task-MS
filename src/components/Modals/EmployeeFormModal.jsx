@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   User, Briefcase, Building2, Users, Hash, UserPlus,
-  ChevronDown, ArrowLeft, CheckCircle, Loader2
+  ChevronDown, ArrowLeft, CheckCircle, Loader2, Phone, Mail
 } from "lucide-react";
 import CustomSelect from "../UI/CustomSelect";
 
@@ -40,6 +40,7 @@ const EmployeeFormModal = ({ onClose, onAdd, onEdit, managers, departments, init
     department_id: initialData?.department_id || initialData?.department || firstDept,
     manager_emp_id: initialData?.manager_emp_id || "",
     emp_id: initialData?.emp_id || initialData?.id || "",
+    phone: initialData?.phone || "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -67,6 +68,7 @@ const EmployeeFormModal = ({ onClose, onAdd, onEdit, managers, departments, init
         role: formData.role,
         department_id: formData.department_id,
         manager_emp_id: formData.manager_emp_id || null,
+        phone: formData.phone,
       };
 
       if (isEdit) {
@@ -160,7 +162,12 @@ const EmployeeFormModal = ({ onClose, onAdd, onEdit, managers, departments, init
             <div>
               <FieldLabel icon={Hash} color="text-indigo-500" textColor="text-indigo-700">Employee ID</FieldLabel>
               <input type="text" className={inputCls} placeholder="e.g. EMP001"
-                value={formData.emp_id} onChange={set("emp_id")} required disabled={isEdit} />
+                value={formData.emp_id} onChange={set("emp_id")} required />
+            </div>
+            <div>
+              <FieldLabel icon={Phone} color="text-indigo-500" textColor="text-indigo-700">Contact Number</FieldLabel>
+              <input type="text" className={inputCls} placeholder="e.g. +1 234 567 890"
+                value={formData.phone || ""} onChange={set("phone")} />
             </div>
             <div className="sm:col-span-2">
               <FieldLabel icon={User} color="text-indigo-500" textColor="text-indigo-700">Email Address</FieldLabel>
@@ -171,70 +178,75 @@ const EmployeeFormModal = ({ onClose, onAdd, onEdit, managers, departments, init
         </Section>
 
         {/* Role & Department */}
-        <Section
-          icon={Briefcase}
-          headerBg="bg-violet-50" iconBg="bg-violet-500" iconColor="text-white"
-          titleColor="text-violet-700" borderColor="border-violet-200"
-          title="Role & Department"
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="relative z-30">
+          <Section
+            icon={Briefcase}
+            headerBg="bg-violet-50" iconBg="bg-violet-500" iconColor="text-white"
+            titleColor="text-violet-700" borderColor="border-violet-200"
+            title="Role & Department"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div>
+                <FieldLabel icon={Briefcase} color="text-violet-500" textColor="text-violet-700">Role</FieldLabel>
+                <CustomSelect
+                  options={[
+                    { value: 'EMPLOYEE', label: 'Employee' },
+                    { value: 'MANAGER', label: 'Manager' },
+                    { value: 'CFO', label: 'CFO' },
+                    { value: 'ADMIN', label: 'Admin' },
+                  ]}
+                  value={formData.role}
+                  onChange={(val) => setFormData(p => ({ ...p, role: val }))}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <FieldLabel icon={Building2} color="text-violet-500" textColor="text-violet-700">Department</FieldLabel>
+                <CustomSelect
+                  options={departments.map((d, idx) => {
+                    const val = d.department_id || d.id || d.dept_id || (typeof d === 'string' ? d : d.name) || `dept-${idx}`;
+                    const label = d.name || d.dept_name || d.department || (typeof d === 'string' ? d : 'Unknown');
+                    return { value: String(val), label: String(label) };
+                  })}
+                  value={formData.department_id}
+                  onChange={(val) => setFormData(p => ({ ...p, department_id: val }))}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </Section>
+        </div>
+        
+        {/* Reporting Structure */}
+        <div className="relative z-20">
+          <Section
+            icon={Users}
+            headerBg="bg-sky-50" iconBg="bg-sky-500" iconColor="text-white"
+            titleColor="text-sky-700" borderColor="border-sky-200"
+            title="Reporting Structure"
+          >
             <div>
-              <FieldLabel icon={Briefcase} color="text-violet-500" textColor="text-violet-700">Role</FieldLabel>
+              <FieldLabel icon={Users} color="text-sky-500" textColor="text-sky-700">Reporting Manager</FieldLabel>
               <CustomSelect
                 options={[
-                  { value: 'EMPLOYEE', label: 'Employee' },
-                  { value: 'MANAGER', label: 'Manager' },
-                  { value: 'ADMIN', label: 'Admin' },
+                  { value: '', label: '— No Manager Assigned —' },
+                  ...managers.filter(m => m.emp_id !== formData.emp_id).map((m, idx) => ({
+                    value: m.emp_id || m.id || `mgr-${idx}`,
+                    label: `${m.name || 'Unknown'} · ${m.department_id || m.department || 'N/A'}`
+                  }))
                 ]}
-                value={formData.role}
-                onChange={(val) => setFormData(p => ({ ...p, role: val }))}
+                value={formData.manager_emp_id}
+                onChange={(val) => setFormData(p => ({ ...p, manager_emp_id: val }))}
                 className="w-full"
               />
             </div>
-            <div>
-              <FieldLabel icon={Building2} color="text-violet-500" textColor="text-violet-700">Department</FieldLabel>
-              <CustomSelect
-                options={departments.map((d, idx) => {
-                  const val = typeof d === 'string' ? d : (d.id || d.department_id || `dept-${idx}`);
-                  const label = typeof d === 'string' ? d : (d.name || d.department_id || 'Unknown');
-                  return { value: String(val), label: String(label) };
-                })}
-                value={formData.department_id}
-                onChange={(val) => setFormData(p => ({ ...p, department_id: val }))}
-                className="w-full"
-              />
-            </div>
-          </div>
-        </Section>
-
-        {/* Reporting Structure */}
-        <Section
-          icon={Users}
-          headerBg="bg-sky-50" iconBg="bg-sky-500" iconColor="text-white"
-          titleColor="text-sky-700" borderColor="border-sky-200"
-          title="Reporting Structure"
-        >
-          <div>
-            <FieldLabel icon={Users} color="text-sky-500" textColor="text-sky-700">Reporting Manager</FieldLabel>
-            <CustomSelect
-              options={[
-                { value: '', label: '— No Manager Assigned —' },
-                ...managers.filter(m => m.emp_id !== formData.emp_id).map((m, idx) => ({
-                  value: m.emp_id || m.id || `mgr-${idx}`,
-                  label: `${m.name || 'Unknown'} · ${m.department_id || m.department || 'N/A'}`
-                }))
-              ]}
-              value={formData.manager_emp_id}
-              onChange={(val) => setFormData(p => ({ ...p, manager_emp_id: val }))}
-              className="w-full"
-            />
-          </div>
-        </Section>
+          </Section>
+        </div>
 
         {/* Action Footer */}
         <div className="bg-white rounded-[2rem] border border-slate-100 shadow-xl px-10 py-8 flex items-center justify-between gap-4">
           <p className="text-[10px] text-slate-400 font-black capitalize tracking-widest hidden sm:block">
-            {isEdit ? "Modifications will sync across all systems" : <>Default credentials: <span className="font-mono font-bold text-violet-600 bg-violet-50 px-3 py-1 rounded-lg border border-violet-100 ml-2">Password123</span></>}
+            {isEdit ? "Modifications will sync across all systems" : <>Default credentials: <span className="font-mono font-bold text-violet-600 bg-violet-50 px-3 py-1 rounded-lg border border-violet-100 ml-2">Perfmetric@123</span></>}
           </p>
 
           <div className="flex items-center gap-3 ml-auto">

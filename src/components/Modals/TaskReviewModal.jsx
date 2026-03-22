@@ -73,10 +73,11 @@ const TaskReviewModal = ({ isOpen, onClose, onApprove, onRework, task }) => {
                 <div className="px-8 pb-8 flex gap-3">
                     <button
                         onClick={onRework}
-                        className="flex-1 px-6 py-3.5 rounded-2xl border border-slate-200 text-amber-600 font-black text-[11px] uppercase tracking-widest hover:bg-amber-50 hover:border-amber-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+                        className="flex-1 px-6 py-3.5 rounded-2xl border border-amber-200 bg-amber-50 text-amber-700 font-black text-[11px] uppercase tracking-widest hover:bg-amber-100 transition-all active:scale-95 flex items-center justify-center gap-2"
+                        title="Send this task back to the employee for corrections"
                     >
                         <RotateCcw size={14} />
-                        Request Review
+                        Request Rework
                     </button>
                     <button
                         onClick={onApprove}
