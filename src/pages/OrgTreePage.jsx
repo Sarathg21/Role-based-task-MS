@@ -241,6 +241,8 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
 const OrgTreePage = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const [deptFilter, setDeptFilter] = useState('ALL');
+    const [isDeptOpen, setIsDeptOpen] = useState(false);
     const [treeData, setTreeData] = useState(null);
     const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -371,6 +373,46 @@ const OrgTreePage = () => {
         calculatedEmployees = stats.employees;
     }
 
+    // Helper to filter tree nodes by department
+    const filterNodeByDept = (node, deptFilter) => {
+        if (!node) return null;
+        if (deptFilter === 'ALL') return node;
+        
+        const u = node.user || node;
+        const empDeptId = String(u.department_id || u.dept_id || '').toUpperCase();
+        const empDeptName = String(u.department || u.department_name || '').toUpperCase();
+        const currentFilter = deptFilter.toUpperCase();
+
+        // Check if the node itself matches by ID or Name
+        // We also check against our departments list to see if the filter represents a name that maps to this node's ID
+        const matchingBaseDepts = departments.filter(d => {
+            const dName = (d.name || d.dept_name || (typeof d === 'string' ? d : '')).toUpperCase();
+            const dId = (d.department_id || d.dept_id || d.id || '').toString().toUpperCase();
+            return dName === currentFilter || dId === currentFilter;
+        });
+
+        const validIds = matchingBaseDepts.map(d => (d.department_id || d.dept_id || d.id || '').toString().toUpperCase());
+        const validNames = matchingBaseDepts.map(d => (d.name || d.dept_name || (typeof d === 'string' ? d : '')).toUpperCase());
+
+        const selfMatch = (empDeptId && (empDeptId === currentFilter || validIds.includes(empDeptId))) || 
+                          (empDeptName && (empDeptName === currentFilter || validNames.includes(empDeptName))) ||
+                          (empDeptName.includes(currentFilter)) || (empDeptId.includes(currentFilter));
+        
+        // Recursively filter children
+        const filteredChildren = (node.children || [])
+            .map(c => filterNodeByDept(c, deptFilter))
+            .filter(Boolean);
+        
+        // Root node (Admin/CFO) should usually be kept if any child matches, 
+        // as they are the structural head even if not 'in' the department
+        const isStructuralRoot = (u.role === 'ADMIN' || u.role === 'CFO' || u.emp_id === 'ORG-ROOT');
+
+        if (selfMatch || filteredChildren.length > 0 || isStructuralRoot) {
+            return { ...node, children: filteredChildren };
+        }
+        return null;
+    };
+
     return (
         <div className="space-y-6 h-[calc(100vh-120px)] flex flex-col animate-fade-in mt-4">
             {/* Header */}
@@ -408,11 +450,48 @@ const OrgTreePage = () => {
                         </div>
                     </div>
 
-                    <button className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[13px] font-bold text-slate-600 shadow-sm hover:shadow-md transition-all">
-                        <Network size={16} className="text-violet-500" />
-                        Department
-                        <ChevronDown size={14} className="text-slate-400" />
-                    </button>
+                    <div className="relative">
+                        <button 
+                            onClick={() => setIsDeptOpen(v => !v)}
+                            className={`flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[13px] font-bold shadow-sm hover:shadow-md transition-all ${deptFilter !== 'ALL' ? 'text-violet-600 border-violet-200' : 'text-slate-600'}`}
+                        >
+                            <Network size={16} className="text-violet-500" />
+                            {deptFilter === 'ALL' ? 'Department' : deptFilter}
+                            <ChevronDown size={14} className={`text-slate-400 transition-transform ${isDeptOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {isDeptOpen && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setIsDeptOpen(false)} />
+                                <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in zoom-in-95 duration-200">
+                                    <button
+                                        onClick={() => { setDeptFilter('ALL'); setIsDeptOpen(false); }}
+                                        className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest mb-0.5 flex items-center justify-between ${
+                                            deptFilter === 'ALL' ? 'bg-violet-50 text-violet-600' : 'text-slate-400 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        All Departments
+                                        {deptFilter === 'ALL' && <Check size={14} />}
+                                    </button>
+                                    {departments.map((d, di) => {
+                                        const dName = d.name || d.dept_name || (typeof d === 'string' ? d : String(d));
+                                        const dId = d.department_id || d.id || dName;
+                                        return (
+                                            <button
+                                                key={dId || di}
+                                                onClick={() => { setDeptFilter(dName); setIsDeptOpen(false); }}
+                                                className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest mb-0.5 flex items-center justify-between ${
+                                                    deptFilter === dName ? 'bg-violet-50 text-violet-600' : 'text-slate-600 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                {dName}
+                                                {deptFilter === dName && <Check size={14} />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        )}
+                    </div>
 
                     <button 
                         onClick={fetchTree}
@@ -435,8 +514,14 @@ const OrgTreePage = () => {
                     <div className="m-auto min-w-fit flex flex-col items-center pb-24 pt-4 transition-transform duration-300 origin-top" style={{ transform: `scale(${zoom})` }}>
                         {/* Root Node Detection & Rendering */}
                         {(() => {
-                            const mainNode = treeData?.root || treeData?.cfo || (treeData?.children ? treeData : null);
-                            if (!mainNode) return null;
+                            const rawNode = treeData?.root || treeData?.cfo || (treeData?.children ? treeData : null);
+                            const mainNode = deptFilter !== 'ALL' ? filterNodeByDept(rawNode, deptFilter) : rawNode;
+                            if (!mainNode) return (
+                                <div className="m-auto flex flex-col items-center justify-center gap-3 text-slate-400 opacity-60">
+                                    <Network size={32} strokeWidth={1} />
+                                    <p className="text-sm font-bold">No nodes match the selected department filter.</p>
+                                </div>
+                            );
                             return (
                                 <div className="flex gap-16 justify-center">
                                     <OrgNode

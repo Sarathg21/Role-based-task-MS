@@ -153,7 +153,6 @@ const Sidebar = ({ isCollapsed, toggleSidebar, isMobileOpen, closeMobileSidebar 
                             <>
                                 <SectionLabel label="Team Management" />
                                 <NavItem to="/tasks/team" icon={Users}    label="Team Tasks" />
-                                <NavItem to="/performance-dashboard" icon={TrendingUp} label="Team Performance" />
                             </>
                         )}
 

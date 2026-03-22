@@ -1,8 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
 import {
-    X, KeyRound, ShieldOff, Trash2, Mail,
+    X, ShieldOff, Mail,
     Phone, Calendar, ChevronDown, Loader2, MoreHorizontal,
-    Eye, EyeOff, CheckCircle2, Shield
+    CheckCircle2, Shield
 } from 'lucide-react';
 
 // Removed OrgRowMenu as it's no longer needed for the single record view
@@ -11,12 +10,6 @@ import {
 const EmployeeDetailModal = ({ employee, departments = [], allEmployees = [], onClose, onResetPassword, onToggleStatus }) => {
     const [activeTab, setActiveTab] = useState('basic');
     const [openMenuId, setOpenMenuId] = useState(null);
-    const [resetting, setResetting] = useState(false);
-    const [toggling, setToggling] = useState(false);
-    const [showPasswordForm, setShowPasswordForm] = useState(false);
-    const [newPassword, setNewPassword] = useState('');
-    const [showPwd, setShowPwd] = useState(false);
-    const [pwdError, setPwdError] = useState('');
 
     if (!employee) return null;
 
@@ -28,49 +21,9 @@ const EmployeeDetailModal = ({ employee, departments = [], allEmployees = [], on
         .filter(e => (e.department_id && e.department_id === employee.department_id) || (e.department && e.department === employee.department))
         .slice(0, 8);
 
-    const handleConfirmReset = async () => {
-        setPwdError('');
-        if (!newPassword || newPassword.length < 6) {
-            setPwdError('Password must be at least 6 characters.');
-            return;
-        }
-        setResetting(true);
-        try {
-            await onResetPassword?.(employee, newPassword);
-            setShowPasswordForm(false);
-            setNewPassword('');
-        } catch (e) {
-            setPwdError('Reset failed. Please try again.');
-        } finally {
-            setResetting(false);
-        }
-    };
-
-    // Used by OrgRowMenu for row-level reset (opens password form on Access Actions tab)
-    const handleRowReset = (emp) => {
-        // Switch to access tab and open password form
-        setActiveTab('access');
-        setShowPasswordForm(true);
-    };
-
-    const handleRowToggle = async (emp) => {
-        await onToggleStatus?.(emp);
-    };
-
-    const handleToggle = async () => {
-        setToggling(true);
-        try {
-            await onToggleStatus?.(employee);
-            onClose();
-        } finally {
-            setToggling(false);
-        }
-    };
-
     const TABS = [
         { id: 'basic', label: 'Basic Info' },
         { id: 'org', label: 'Organization Info' },
-        { id: 'access', label: 'Access Actions' },
     ];
 
     return (
@@ -221,92 +174,6 @@ const EmployeeDetailModal = ({ employee, departments = [], allEmployees = [], on
                                 </div>
                             </div>
 
-                            <div className="pt-6 border-t border-slate-50 flex justify-end">
-                                <button 
-                                    onClick={() => setActiveTab('access')}
-                                    className="px-6 py-2.5 rounded-xl bg-slate-50 text-slate-600 text-xs font-bold hover:bg-slate-100 transition-all uppercase tracking-wider"
-                                >
-                                    Manage Access & Status
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ─── ACCESS ACTIONS TAB ─── */}
-                    {activeTab === 'access' && (
-                        <div className="bg-white rounded-[1.5rem] border border-violet-50 shadow-sm p-6 max-w-md mx-auto">
-                            <h3 className="text-[15px] font-semibold text-[#1E1B4B] mb-6">Access Actions</h3>
-                            <div className="flex flex-col gap-3">
-
-                                {/* Reset Password */}
-                                {!showPasswordForm ? (
-                                    <button
-                                        onClick={() => { setShowPasswordForm(true); setPwdError(''); setNewPassword(''); }}
-                                        className="flex items-center gap-3 w-full px-5 py-3.5 rounded-xl border border-orange-100 bg-orange-50/50 text-orange-600 hover:bg-orange-50 hover:border-orange-200 transition-all text-[13px] font-medium"
-                                    >
-                                        <KeyRound size={18} className="shrink-0" />
-                                        Reset Password
-                                    </button>
-                                ) : (
-                                    <div className="border border-orange-100 bg-orange-50/40 rounded-xl p-4 space-y-3">
-                                        <p className="text-[12px] font-semibold text-orange-700 flex items-center gap-2">
-                                            <KeyRound size={14} /> Set New Password for {employee.name}
-                                        </p>
-                                        <div className="relative">
-                                            <input
-                                                type={showPwd ? 'text' : 'password'}
-                                                value={newPassword}
-                                                onChange={e => { setNewPassword(e.target.value); setPwdError(''); }}
-                                                placeholder="New password (min. 6 chars)"
-                                                className="w-full px-4 py-2.5 pr-10 rounded-lg border border-orange-200 text-[13px] focus:outline-none focus:ring-2 focus:ring-orange-300/40 bg-white"
-                                                autoFocus
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowPwd(p => !p)}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                            >
-                                                {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
-                                            </button>
-                                        </div>
-                                        {pwdError && <p className="text-[11px] text-red-500 font-medium">{pwdError}</p>}
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={handleConfirmReset}
-                                                disabled={resetting}
-                                                className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-orange-500 text-white text-[12px] font-semibold hover:bg-orange-600 transition-colors"
-                                            >
-                                                {resetting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                                                Confirm Reset
-                                            </button>
-                                            <button
-                                                onClick={() => { setShowPasswordForm(false); setPwdError(''); setNewPassword(''); }}
-                                                className="px-4 py-2 rounded-lg border border-slate-200 text-[12px] text-slate-500 hover:bg-slate-50 transition-colors"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Deactivate / Activate */}
-                                <button
-                                    onClick={handleToggle}
-                                    disabled={toggling}
-                                    className={`flex items-center gap-3 w-full px-5 py-3.5 rounded-xl border transition-all text-[13px] font-medium ${
-                                        employee.active
-                                            ? 'border-red-100 bg-red-50/50 text-red-500 hover:bg-red-50 hover:border-red-200'
-                                            : 'border-emerald-100 bg-emerald-50/50 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200'
-                                    }`}
-                                >
-                                    {toggling
-                                        ? <Loader2 size={18} className="animate-spin shrink-0" />
-                                        : (employee.active ? <ShieldOff size={18} className="shrink-0" /> : <CheckCircle2 size={18} className="shrink-0" />)}
-                                    {employee.active ? 'Deactivate Account' : 'Activate Account'}
-                                </button>
-
-                                 {/* Terminate (Removed as per request) */}
-                            </div>
                         </div>
                     )}
                 </div>
@@ -318,12 +185,6 @@ const EmployeeDetailModal = ({ employee, departments = [], allEmployees = [], on
                         className="px-6 py-2.5 rounded-xl border border-slate-200 text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                     >
                         Go Back
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('access')}
-                        className="px-6 py-2.5 rounded-xl bg-[#7B51ED] text-white text-[13px] font-medium hover:bg-[#6d43e0] transition-colors shadow-lg shadow-violet-200"
-                    >
-                        Edit Info
                     </button>
                 </div>
             </div>

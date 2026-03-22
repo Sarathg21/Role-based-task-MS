@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import api from "../services/api";
-import { Building2, Plus, Edit3, MoreHorizontal, User, Users, RefreshCw, Loader2, Search, ArrowLeft, AlertCircle } from "lucide-react";
+import { Building2, Plus, Edit3, Trash2, MoreHorizontal, User, Users, RefreshCw, Loader2, Search, ArrowLeft, AlertCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import DepartmentFormModal from "../components/Modals/DepartmentFormModal";
 import ConfirmationModal from "../components/UI/ConfirmationModal";
@@ -12,6 +12,14 @@ const DepartmentsPage = () => {
     const [showFormModal, setShowFormModal] = useState(false);
     const [editingDept, setEditingDept] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [confirmConfig, setConfirmConfig] = useState({
+        isOpen: false,
+        title: "",
+        message: "",
+        type: "danger",
+        confirmText: "Delete",
+        onConfirm: () => {}
+    });
 
     const fetchData = async () => {
         setLoading(true);
@@ -36,13 +44,15 @@ const DepartmentsPage = () => {
 
     const handleSaveDepartment = async (deptData) => {
         try {
+            const payload = { ...deptData };
+            if (!payload.manager_emp_id) payload.manager_emp_id = null;
+
             if (editingDept) {
-                // Prioritize the internal database ID if available for the URL
                 const targetId = editingDept.id || editingDept.department_id || editingDept.dept_id;
-                await api.patch(`/admin/departments/${targetId}`, deptData);
+                await api.patch(`/admin/departments/${targetId}`, payload);
                 toast.success("Department reconfigured successfully!");
             } else {
-                await api.post('/admin/departments', deptData);
+                await api.post('/admin/departments', payload);
                 toast.success("Department created successfully!");
             }
             fetchData();
@@ -50,8 +60,44 @@ const DepartmentsPage = () => {
             setEditingDept(null);
         } catch (err) {
             console.error("Failed to save department", err);
-            toast.error("Failed to save department: " + (err.response?.data?.detail || "Unknown error"));
+            let errorMsg = "Unknown error";
+            if (err.response?.data?.detail) {
+                if (Array.isArray(err.response.data.detail)) {
+                    errorMsg = err.response.data.detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(", ");
+                } else {
+                    errorMsg = err.response.data.detail;
+                }
+            }
+            toast.error("Failed to save department: " + errorMsg);
         }
+    };
+
+    const handleDeleteDepartment = (dept) => {
+        setConfirmConfig({
+            isOpen: true,
+            title: "Deactivate Department?",
+            message: `Are you sure you want to deactivate "${dept.name}"? It will be removed from the active directory. Active employees will remain unaffected.`,
+            type: "danger",
+            confirmText: "DEACTIVATE",
+            onConfirm: async () => {
+                const targetId = dept.id || dept.dept_id || dept.department_id;
+                try {
+                    // Backend has no DELETE endpoint — use PATCH to set active=false (soft delete)
+                    await api.patch(`/admin/departments/${targetId}`, { active: false });
+                    toast.success(`"${dept.name}" has been deactivated.`);
+                    // Optimistically remove from local state for immediate UI feedback
+                    setDepartments(prev => prev.filter(d => (d.id || d.dept_id || d.department_id) !== targetId));
+                    setConfirmConfig(p => ({ ...p, isOpen: false }));
+                } catch (err) {
+                    console.error("Deactivation failed", err);
+                    const detail = err.response?.data?.detail;
+                    const errorMsg = Array.isArray(detail)
+                        ? detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(", ")
+                        : (detail || "Server error. Please try again.");
+                    toast.error("Deactivation failed: " + errorMsg);
+                }
+            }
+        });
     };
 
     const filteredDepts = departments.filter(d => 
@@ -101,6 +147,16 @@ const DepartmentsPage = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmationModal
+                isOpen={confirmConfig.isOpen}
+                onClose={() => setConfirmConfig(p => ({ ...p, isOpen: false }))}
+                onConfirm={confirmConfig.onConfirm}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                type={confirmConfig.type}
+                confirmText={confirmConfig.confirmText}
+            />
 
             {/* ── HEADER & SEARCH ── */}
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12 capitalize">
@@ -203,12 +259,20 @@ const DepartmentsPage = () => {
                                     <div className="w-14 h-14 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-all duration-500">
                                         <Building2 size={28} />
                                     </div>
-                                    <button 
-                                        onClick={() => setEditingDept(dept)}
-                                        className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 text-white hover:bg-white/20 transition-all active:scale-90"
-                                    >
-                                        <Edit3 size={18} />
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => setEditingDept(dept)}
+                                            className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 text-white hover:bg-white/20 transition-all active:scale-90"
+                                        >
+                                            <Edit3 size={18} />
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDeleteDepartment(dept)}
+                                            className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 text-white hover:bg-rose-500/40 transition-all active:scale-90"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="p-8 pb-10 flex-1 flex flex-col">

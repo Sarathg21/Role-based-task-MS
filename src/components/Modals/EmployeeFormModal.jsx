@@ -72,7 +72,7 @@ const EmployeeFormModal = ({ onClose, onAdd, onEdit, managers, departments, init
       };
 
       if (isEdit) {
-        await onEdit(payload);
+        await onEdit(payload, initialData?.emp_id || initialData?.id);
       } else {
         await onAdd(payload);
       }

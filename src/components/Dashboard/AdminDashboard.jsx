@@ -14,9 +14,7 @@ import {
     MoreHorizontal,
     CheckSquare,
     Calendar,
-    Loader2,
-    Download,
-    FileSpreadsheet
+    Loader2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -26,8 +24,6 @@ const AdminDashboard = () => {
     const [summary, setSummary] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
-    const [fromDate, setFromDate] = useState("");
-    const [toDate, setToDate] = useState("");
     const [openActionMenuId, setOpenActionMenuId] = useState(null);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
     const [editingEmployee, setEditingEmployee] = useState(null);
@@ -35,10 +31,7 @@ const AdminDashboard = () => {
     const fetchSummary = async () => {
         setLoading(true);
         try {
-            const params = {};
-            if (fromDate) params.fromDate = fromDate;
-            if (toDate) params.toDate = toDate;
-            const res = await api.get('/admin/summary', { params });
+            const res = await api.get('/admin/summary');
             setSummary(res.data);
         } catch (err) {
             console.error("Failed to fetch admin summary:", err);
@@ -50,7 +43,7 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         fetchSummary();
-    }, [fromDate, toDate]);
+    }, []);
 
     const handleResetPassword = async (emp) => {
         try {
@@ -140,44 +133,13 @@ const AdminDashboard = () => {
             {/* ── HEADER ── */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12 text-center md:text-left">
                 <h1 className="text-[32px] font-black text-[#1E1B4B] tracking-tight">Admin Dashboard</h1>
-                
-                <div className="flex flex-wrap items-center justify-center md:justify-end gap-3">
-                    <div className="flex items-center gap-2 bg-white/80 px-4 py-2 rounded-2xl border border-white shadow-sm">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">From</span>
-                        <input 
-                            type="date" 
-                            className="bg-transparent border-none text-[12px] font-bold text-slate-700 p-0 focus:ring-0 cursor-pointer"
-                            value={fromDate}
-                            onChange={(e) => setFromDate(e.target.value)}
-                        />
-                    </div>
-                    <div className="flex items-center gap-2 bg-white/80 px-4 py-2 rounded-2xl border border-white shadow-sm">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">To</span>
-                        <input 
-                            type="date" 
-                            className="bg-transparent border-none text-[12px] font-bold text-slate-700 p-0 focus:ring-0 cursor-pointer"
-                            value={toDate}
-                            onChange={(e) => setToDate(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="flex items-center gap-2 ml-2">
-                        <button 
-                            onClick={() => downloadFile('excel')}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-50 text-emerald-600 rounded-2xl font-black text-[11px] uppercase tracking-widest border border-emerald-100 hover:bg-emerald-100 transition-all shadow-sm"
-                        >
-                            <FileSpreadsheet size={16} />
-                            Excel
-                        </button>
-                        <button 
-                            onClick={() => downloadFile('pdf')}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-rose-50 text-rose-600 rounded-2xl font-black text-[11px] uppercase tracking-widest border border-rose-100 hover:bg-rose-100 transition-all shadow-sm"
-                        >
-                            <Download size={16} />
-                            PDF
-                        </button>
-                    </div>
-                </div>
+                <button
+                    onClick={fetchSummary}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-white/80 border border-white text-slate-500 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-white shadow-sm transition-all"
+                >
+                    <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                    Refresh
+                </button>
             </div>
 
             {/* ── STATS ROW ── */}

@@ -1113,15 +1113,6 @@ const handleReworkConfirm = async (comment) => {
           <span>Sync Data</span>
         </button>
 
-        {/* Excel Export Button */}
-        <button
-          onClick={handleExportExcel}
-          className="flex items-center gap-2 px-5 py-2.5 bg-white text-emerald-600 border border-emerald-100 text-xs font-bold rounded-xl hover:bg-emerald-50 transition-all shadow-sm active:scale-95 group shrink-0"
-        >
-          <FileSpreadsheet size={14} className="group-hover:scale-110 transition-transform" />
-          <span>Export Excel</span>
-        </button>
-
         {/* Reset Button */}
         {(filter.search || filter.fromDate || filter.toDate || filter.status !== 'All' || filter.severity !== 'All' || (isCFO && filter.department !== 'All')) && (
           <button

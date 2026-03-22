@@ -405,6 +405,27 @@ const EmployeeDashboard = () => {
         }
     };
 
+    const handleActivityClick = (act) => {
+        const taskId = act.task_id || act.taskId;
+        const recurringId = act.recurring_id || act.recurringId;
+        const msg = String(act.message || act.title || '').toLowerCase();
+
+        let target = '';
+        if (taskId) {
+            target = `/tasks?id=${taskId}`;
+        } else if (recurringId) {
+            target = `/recurring-tasks?id=${recurringId}`;
+        } else if (msg.includes('recurring') || msg.includes('automation')) {
+            target = '/recurring-tasks';
+        } else if (msg.includes('task') || msg.includes('directive')) {
+            target = '/tasks';
+        }
+
+        if (target) {
+            navigate(target);
+        }
+    };
+
     const fetchActivities = async () => {
         setLoadingActivities(true);
         try {
@@ -852,7 +873,11 @@ const EmployeeDashboard = () => {
                                 </div>
                             ) : (
                                 activities.map((act, idx) => (
-                                    <div key={act.id || idx} className="flex gap-3 group animate-fade-in">
+                                    <div 
+                                        key={act.id || idx} 
+                                        onClick={() => handleActivityClick(act)}
+                                        className="flex gap-3 group animate-fade-in cursor-pointer hover:bg-slate-50/80 p-1.5 -m-1.5 rounded-xl transition-all"
+                                    >
                                         <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${
                                             act.type?.includes('UPDATE') ? 'bg-amber-400' : 
                                             act.type?.includes('APPROVE') ? 'bg-emerald-400' : 'bg-violet-400'

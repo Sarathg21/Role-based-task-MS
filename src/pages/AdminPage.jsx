@@ -81,12 +81,23 @@ const AdminPage = () => {
     const filterDept = String(deptFilter || 'All');
     const isAllDept = filterDept.toUpperCase() === 'ALL';
     
-    const empDeptId = String(emp.department_id || emp.dept_id || '');
+    // Cross-reference filter value (ID/Slug) with department name from the master list
+    const selectedDeptObj = departments.find(d => 
+        String(d.department_id || d.id || d.dept_id) === filterDept ||
+        (typeof d === 'string' && d === filterDept) ||
+        (d.name && d.name === filterDept)
+    );
+    const selectedDeptId = (selectedDeptObj?.department_id || selectedDeptObj?.id || selectedDeptObj?.dept_id || '').toString().toLowerCase();
+    const selectedDeptName = (selectedDeptObj?.name || selectedDeptObj?.dept_name || (typeof selectedDeptObj === 'string' ? selectedDeptObj : '')).toLowerCase();
+
+    const empDeptId = String(emp.department_id || emp.dept_id || '').toLowerCase();
     const empDeptName = (emp.department_name || emp.department || '').toString().toLowerCase();
     
     const deptMatches = isAllDept || 
-                        empDeptId === filterDept || 
-                        empDeptName === filterDept.toLowerCase();
+                        empDeptId === filterDept.toLowerCase() || 
+                        empDeptName === filterDept.toLowerCase() ||
+                        (selectedDeptName && empDeptName.includes(selectedDeptName)) ||
+                        (selectedDeptId && empDeptId === selectedDeptId);
                         
     return nameMatches && roleMatches && deptMatches;
   });
@@ -122,14 +133,16 @@ const AdminPage = () => {
     }
   };
 
-  const handleUpdateEmployee = async (data) => {
+  const handleUpdateEmployee = async (data, originalId) => {
     try {
-      await api.put(`/employees/${data.emp_id}`, data);
+      const targetId = originalId || data.emp_id;
+      await api.put(`/employees/${targetId}`, data);
       toast.success("Profile updated.");
       fetchInitialData();
       setEditingEmployee(null);
     } catch (err) {
-      toast.error("Update failed.");
+      console.error("Update failed", err);
+      toast.error(err.response?.data?.message || err.response?.data?.detail || "Update failed.");
     }
   };
 
@@ -140,7 +153,8 @@ const AdminPage = () => {
       fetchInitialData();
       setShowAddModal(false);
     } catch (err) {
-      toast.error("Creation failed.");
+      console.error("Creation failed", err);
+      toast.error(err.response?.data?.message || err.response?.data?.detail || "Creation failed.");
     }
   };
 
@@ -161,7 +175,7 @@ const AdminPage = () => {
                 <EmployeeFormModal
                   onClose={() => { setShowAddModal(false); setEditingEmployee(null); }}
                   onAdd={handleAddEmployee}
-                  onEdit={handleUpdateEmployee}
+                  onEdit={(data) => handleUpdateEmployee(data, editingEmployee?.emp_id || editingEmployee?.id)}
                   initialData={editingEmployee}
                   managers={employees.filter(e => ['ADMIN', 'CFO', 'MANAGER'].includes(String(e.role || '').toUpperCase()))}
                   departments={departments}

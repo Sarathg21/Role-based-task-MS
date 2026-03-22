@@ -10,7 +10,7 @@ const DepartmentFormModal = ({ onClose, onSave, employees = [], initialData = nu
   const [formData, setFormData] = useState({
     name: initialData?.name || "",
     manager_emp_id: initialData?.manager_emp_id || "",
-    department_id: initialData?.department_id || initialData?.id || "",
+    dept_id: initialData?.dept_id || initialData?.department_id || initialData?.id || "",
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -24,7 +24,7 @@ const DepartmentFormModal = ({ onClose, onSave, employees = [], initialData = nu
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.department_id) {
+    if (!formData.name || !formData.dept_id) {
       alert("Department Name and ID are required");
       return;
     }
@@ -109,8 +109,8 @@ const DepartmentFormModal = ({ onClose, onSave, employees = [], initialData = nu
                     type="text"
                     className="w-full px-6 py-4 rounded-2xl border-2 border-slate-50 bg-slate-50 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-8 focus:ring-indigo-500/5 transition-all text-[15px] font-bold text-slate-800 placeholder:text-slate-300 shadow-sm font-mono"
                     placeholder="e.g. MKT-HQ, ENG-CORE"
-                    value={formData.department_id}
-                    onChange={(e) => setFormData(p => ({ ...p, department_id: e.target.value }))}
+                    value={formData.dept_id}
+                    onChange={(e) => setFormData(p => ({ ...p, dept_id: e.target.value }))}
                     required
                 />
             </div>

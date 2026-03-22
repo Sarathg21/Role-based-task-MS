@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000',
-    timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS) || 15000,
+    timeout: 12000, // 12s hard cap — prevents long hangs on slow endpoints
     headers: {
         'ngrok-skip-browser-warning': 'true',
     },

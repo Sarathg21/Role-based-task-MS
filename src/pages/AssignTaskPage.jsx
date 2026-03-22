@@ -24,7 +24,7 @@ const AssignTaskPage = () => {
         isRecurring: false,
         recurringFrequency: 'WEEKLY',
         recurringDay: 1, // Monthly Day
-        weeklyDay: 'MON',
+        weeklyDay: 1, // Integer 1-7 (Mon-Sun)
         yearlyMonth: 1,
         yearlyDay: 1,
         startDate: new Date().toISOString().split('T')[0],
@@ -41,11 +41,20 @@ const AssignTaskPage = () => {
             
             try {
                 const [empRes, deptRes] = await Promise.all([
-                    api.get(isAltRole ? '/employees' : '/employees/assignable'),
-                    api.get('/departments')
+                    api.get(isAltRole ? '/employees' : '/employees/assignable').catch(() => ({ data: [] })),
+                    api.get('/admin/departments').catch(() => api.get('/departments')).catch(() => ({ data: [] }))
                 ]);
-                setEligibleAssignees(Array.isArray(empRes.data) ? empRes.data : []);
-                setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
+                
+                const extract = (res) => {
+                    const raw = res.data;
+                    if (Array.isArray(raw)) return raw;
+                    if (Array.isArray(raw?.data)) return raw.data;
+                    if (Array.isArray(raw?.items)) return raw.items;
+                    return [];
+                };
+
+                setEligibleAssignees(extract(empRes));
+                setDepartments(extract(deptRes));
             } catch (err) {
                 console.error("Failed to fetch metadata", err);
                 toast.error('Failed to load metadata');
@@ -108,39 +117,49 @@ const AssignTaskPage = () => {
 
             if (formData.isRecurring) {
                 // Handle Recurring Task Creation
+                const WEEKDAY_MAP = { MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6, SUN: 7 };
+                const weeklyDayInt = typeof formData.weeklyDay === 'string' 
+                    ? (WEEKDAY_MAP[formData.weeklyDay.toUpperCase()] || 1)
+                    : (parseInt(formData.weeklyDay, 10) || 1);
+
                 const recurringPayload = {
                     title: formData.title,
                     description: formData.description,
                     department_id: resolvedDepartmentId,
                     assigned_to_emp_id: formData.assignee,
-                    assigned_by_emp_id: user?.id,
+                    assigned_by_emp_id: user?.emp_id || user?.id,
                     priority: formData.priority,
                     frequency: formData.recurringFrequency,
-                    weekly_day: formData.recurringFrequency === 'WEEKLY' ? formData.weeklyDay : null,
+                    interval_days: 1,
+                    weekly_day: formData.recurringFrequency === 'WEEKLY' ? weeklyDayInt : null,
                     monthly_day: formData.recurringFrequency === 'MONTHLY' ? parseInt(formData.recurringDay) : null,
                     yearly_month: formData.recurringFrequency === 'YEARLY' ? parseInt(formData.yearlyMonth) : null,
                     yearly_day: formData.recurringFrequency === 'YEARLY' ? parseInt(formData.yearlyDay) : null,
-                    start_date: formData.startDate,
+                    start_date: formData.startDate || new Date().toISOString().split('T')[0],
                     end_date: formData.endDate || null,
                     status: formData.status
                 };
 
                 const res = await api.post('/recurring-tasks', recurringPayload);
-                const recurringId = res.data.id || res.data.recurring_id;
+                const recurringId = res.data.id || res.data.recurring_id || res.data.data?.id || res.data.data?.recurring_id;
 
                 // Add subtasks one by one
-                if (subtasks.length > 0) {
+                if (recurringId && subtasks.length > 0) {
                     for (const st of subtasks) {
-                        await api.post(`/recurring-tasks/${recurringId}/subtasks`, {
-                            title: st.title,
-                            description: st.description,
-                            department_id: st.department_id,
-                            assigned_to_emp_id: st.assigned_to_emp_id,
-                            start_date: st.start_date || null,
-                            end_date: st.end_date || null,
-                            priority: st.priority,
-                            sequence_no: st.sequence_no
-                        });
+                        try {
+                            await api.post(`/recurring-tasks/${recurringId}/subtasks`, {
+                                title: st.title,
+                                description: st.description,
+                                department_id: st.department_id,
+                                assigned_to_emp_id: st.assigned_to_emp_id,
+                                start_date: st.start_date || null,
+                                end_date: st.end_date || null,
+                                priority: st.priority,
+                                sequence_no: st.sequence_no
+                            });
+                        } catch (stErr) {
+                            console.error("Subtask post failed", stErr);
+                        }
                     }
                 }
                 toast.success('Recurring task defined successfully!');
@@ -353,10 +372,10 @@ const AssignTaskPage = () => {
                                             <select 
                                                 className="w-full px-4 py-2.5 rounded-xl border border-indigo-100 bg-white font-bold text-[12px] focus:ring-4 focus:ring-indigo-400/10 outline-none transition-all"
                                                 value={formData.weeklyDay}
-                                                onChange={(e) => setFormData({ ...formData, weeklyDay: e.target.value })}
+                                                onChange={(e) => setFormData({ ...formData, weeklyDay: parseInt(e.target.value) })}
                                             >
-                                                {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(day => (
-                                                    <option key={day} value={day}>{day}</option>
+                                                {[['MON',1],['TUE',2],['WED',3],['THU',4],['FRI',5],['SAT',6],['SUN',7]].map(([label, val]) => (
+                                                    <option key={val} value={val}>{label}</option>
                                                 ))}
                                             </select>
                                         </div>

@@ -516,7 +516,7 @@ const PerformanceDashboard = () => {
     return (
         <div className="min-h-screen bg-[#F8FAFF] p-4 md:p-8 animate-in fade-in duration-700">
             {/* HEADER */}
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12 px-4 relative z-50">
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-12 px-4 relative z-10">
                 <div className="flex-1">
                     <div className="flex items-center gap-3 mb-4">
                         <span className="h-[2px] w-10 bg-indigo-600/40 rounded-full" />
@@ -664,8 +664,6 @@ const PerformanceDashboard = () => {
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
                             <p className="text-[32px] font-semibold text-indigo-950 leading-none">{deptMetrics.completion_pct}%</p>
                             <div className="mt-1 flex flex-col items-center">
-                                <p className="text-[11px] font-semibold text-indigo-500 tabular-nums">({deptMetrics.completed_tasks} ÷ {deptMetrics.total_tasks})</p>
-                                <div className="h-px w-8 bg-indigo-100 my-1" />
                                 <p className="text-[9px] text-slate-400 font-medium uppercase tracking-widest">Health Score</p>
                             </div>
                         </div>
@@ -678,7 +676,7 @@ const PerformanceDashboard = () => {
                         </div>
                         <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-2xl flex flex-col items-center">
                             <span className="text-emerald-600 font-black text-lg">{deptMetrics.completed_tasks}</span>
-                            <span className="text-[9px] uppercase font-bold text-emerald-400">Fixed</span>
+                            <span className="text-[9px] uppercase font-bold text-emerald-400">Approved</span>
                         </div>
                         <div className="bg-rose-50 border border-rose-100 p-3 rounded-2xl flex flex-col items-center">
                             <span className="text-rose-600 font-black text-lg">{deptMetrics.overdue_tasks}</span>

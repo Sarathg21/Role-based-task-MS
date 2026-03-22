@@ -12,13 +12,14 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
         title: '',
         description: '',
         frequency: 'WEEKLY',
-        weekly_day: 'MON',
+        weekly_day: 1,
         monthly_day: 1,
         yearly_month: 1,
         yearly_day: 1,
         status: 'ACTIVE',
         department_id: '',
-        assigned_to_emp_id: ''
+        assigned_to_emp_id: '',
+        start_date: new Date().toISOString().slice(0, 10)
     });
     const [subtasks, setSubtasks] = useState([]);
     const [departments, setDepartments] = useState([]);
@@ -33,13 +34,14 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                 title: template.title || '',
                 description: template.description || '',
                 frequency: template.frequency || 'WEEKLY',
-                weekly_day: template.weekly_day || 'MON',
+                weekly_day: template.weekly_day || 1,
                 monthly_day: template.monthly_day || 1,
                 yearly_month: template.yearly_month || 1,
                 yearly_day: template.yearly_day || 1,
                 status: template.status || 'ACTIVE',
-                department_id: template.department_id || '',
-                assigned_to_emp_id: template.assigned_to_emp_id || template.assigned_to || ''
+                department_id: template.department_id || template.dept_id || '',
+                assigned_to_emp_id: template.assigned_to_emp_id || template.assigned_to || '',
+                start_date: template.start_date || new Date().toISOString().slice(0, 10)
             });
             fetchSubtasks(rid);
             fetchMetadata();
@@ -52,17 +54,30 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
         try {
             const savedUser = JSON.parse(localStorage.getItem('pms_user') || '{}');
             const role = String(savedUser?.role || '').toUpperCase();
-            const isAltRole = role === 'ADMIN' || role === 'CFO';
+            const isAltRole = role === 'ADMIN' || role === 'CFO' || role === 'MANAGER';
 
             const [deptRes, empRes] = await Promise.all([
-                api.get('/departments').catch(() => ({ data: [] })),
+                api.get('/admin/departments').catch(() => ({ data: [] })),
                 api.get(isAltRole ? '/employees' : '/employees/assignable').catch(() => ({ data: [] }))
             ]);
             
             const depts = Array.isArray(deptRes.data?.data) ? deptRes.data.data : (Array.isArray(deptRes.data) ? deptRes.data : []);
-            const emps = Array.isArray(empRes.data?.data) ? empRes.data.data : (Array.isArray(empRes.data) ? empRes.data : []);
             
-            setDepartments(depts);
+            // Normalize depts to have dept_id
+            const normalizedDepts = depts.map(d => ({
+                ...d,
+                dept_id: d.dept_id || d.department_id || d.id
+            }));
+
+            // Extract employees — handle both wrapped and plain array responses
+            const emps = Array.isArray(empRes.data?.data) ? empRes.data.data
+                        : Array.isArray(empRes.data?.items) ? empRes.data.items
+                        : Array.isArray(empRes.data) ? empRes.data
+                        : [];
+
+            console.log(`AutomationModal: loaded ${normalizedDepts.length} depts, ${emps.length} employees`);
+
+            setDepartments(normalizedDepts);
             setEmployees(emps);
         } catch (err) {
             console.error("Meta fetch failed", err);
@@ -72,13 +87,8 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
     const fetchSubtasks = async (rid) => {
         setLoadingSubtasks(true);
         try {
-            const res = await api.get(`/recurring-tasks/${rid}/subtasks`);
+            const res = await api.get(`/recurring-tasks/${rid}/subtasks`, { timeout: 8000 });
             const data = (res.data?.data || res.data || []);
-            
-            // Log for debugging ID keys
-            if (Array.isArray(data) && data.length > 0) {
-                console.log("Subtask ID debug - keys:", Object.keys(data[0]));
-            }
 
             setSubtasks(
                 Array.isArray(data)
@@ -89,7 +99,12 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                     : []
             );
         } catch (err) {
-            console.error("Failed to fetch subtasks", err);
+            if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+                console.warn('Subtask fetch timed out — proceeding without subtasks');
+            } else {
+                console.error("Failed to fetch subtasks", err);
+            }
+            setSubtasks([]);
         } finally {
             setLoadingSubtasks(false);
         }
@@ -104,7 +119,8 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
         const newSt = {
             title: 'New Subtask',
             description: 'Description...',
-            department_id: defaultDept || null,
+            dept_id: defaultDept || null,
+            department_id: defaultDept || null, // Double field for compatibility
             assigned_to_emp_id: defaultEmp || null,
             priority: 'MEDIUM',
             sequence_no: subtasks.length + 1
@@ -113,9 +129,9 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
         if (!rid) {
             // Local mode for new recurring tasks
             setSubtasks(prev => [
-    ...prev,
-    { ...newSt, id: `local-${Date.now()}-${Math.random()}`}
-]);
+                ...prev,
+                { ...newSt, id: `local-${Date.now()}-${Math.random()}`}
+            ]);
             toast.success('Local subtask template added');
             return;
         }
@@ -176,6 +192,14 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
 
         try {
             const sanitizedUpdates = { ...updates };
+            // Standardize field names for backend compatibility
+            if (sanitizedUpdates.dept_id) {
+                sanitizedUpdates.department_id = sanitizedUpdates.dept_id;
+            }
+            if (sanitizedUpdates.department_id) {
+                sanitizedUpdates.dept_id = sanitizedUpdates.department_id;
+            }
+
             if (sanitizedUpdates.start_date === '') sanitizedUpdates.start_date = null;
             if (sanitizedUpdates.end_date === '') sanitizedUpdates.end_date = null;
 
@@ -227,7 +251,16 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
             const numericRid = isNaN(rid) ? rid : parseInt(rid, 10);
             const numericSid = isNaN(targetId) ? targetId : parseInt(targetId, 10);
 
-            await api.delete(`/recurring-tasks/${numericRid}/subtasks/${numericSid}`);
+            try {
+                await api.delete(`/recurring-tasks/${numericRid}/subtasks/${numericSid}`);
+            } catch (err) {
+                // FALLBACK: If DELETE is 405 Method Not Allowed, try POST /delete
+                if (err.response?.status === 405) {
+                    await api.post(`/recurring-tasks/${numericRid}/subtasks/${numericSid}/delete`);
+                } else {
+                    throw err;
+                }
+            }
             toast.success('Subtask removed');
         } catch (err) {
             console.error(err);
@@ -243,6 +276,16 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
         const rid = template?.id || template?.recurring_id;
         setSubmitting(true);
         try {
+            // Map day-name strings to integers (backend requires integer for weekly_day)
+            const WEEKDAY_MAP = { MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6, SUN: 7 };
+            const weeklyDayInt = typeof formData.weekly_day === 'string'
+                ? (WEEKDAY_MAP[formData.weekly_day.toUpperCase()] || 1)
+                : (parseInt(formData.weekly_day, 10) || 1);
+
+            // Get current user ID for assigned_by_emp_id
+            const savedUser = JSON.parse(localStorage.getItem('pms_user') || '{}');
+            const currentEmpId = savedUser?.id || savedUser?.emp_id || savedUser?.id || '';
+
             const payload = {
                 title: formData.title,
                 description: formData.description,
@@ -250,10 +293,13 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                 status: formData.status,
                 department_id: formData.department_id || null,
                 assigned_to_emp_id: formData.assigned_to_emp_id || null,
-                weekly_day: formData.frequency === 'WEEKLY' ? formData.weekly_day : null,
-                monthly_day: formData.frequency === 'MONTHLY' ? (parseInt(formData.monthly_day, 10) || null) : null,
-                yearly_month: formData.frequency === 'YEARLY' ? (parseInt(formData.yearly_month, 10) || null) : null,
-                yearly_day: formData.frequency === 'YEARLY' ? (parseInt(formData.yearly_day, 10) || null) : null
+                assigned_by_emp_id: currentEmpId || null,
+                interval_days: 1,
+                start_date: formData.start_date || new Date().toISOString().slice(0, 10),
+                weekly_day: formData.frequency === 'WEEKLY' ? weeklyDayInt : null,
+                monthly_day: formData.frequency === 'MONTHLY' ? (parseInt(formData.monthly_day, 10) || 1) : null,
+                yearly_month: formData.frequency === 'YEARLY' ? (parseInt(formData.yearly_month, 10) || 1) : null,
+                yearly_day: formData.frequency === 'YEARLY' ? (parseInt(formData.yearly_day, 10) || 1) : null
             };
 
             let res;
@@ -278,11 +324,21 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                 toast.success('Recurring task created with subtasks!');
             }
             
-            onSave(res.data?.data || res.data);
+            if (res?.data) {
+                onSave(res.data?.data || res.data);
+            }
             onClose();
         } catch (err) {
             console.error('Submission failed', err);
-            toast.error(`Failed to ${rid ? 'update' : 'create'} configuration`);
+            let errorMsg = "Unknown error";
+            if (err.response?.data?.detail) {
+                if (Array.isArray(err.response.data.detail)) {
+                    errorMsg = err.response.data.detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(", ");
+                } else {
+                    errorMsg = err.response.data.detail;
+                }
+            }
+            toast.error(`Failed to ${rid ? 'update' : 'create'} configuration: ${errorMsg}`);
         } finally {
             setSubmitting(false);
         }
@@ -336,7 +392,7 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                                 >
                                     <option value="">Select Department</option>
                                     {departments.map((d, dik) => (
-                                        <option key={d.department_id || d.id || `dept-${dik}`} value={d.department_id || d.id}>{d.name}</option>
+                                        <option key={d.dept_id || `dept-${dik}`} value={d.dept_id}>{d.name}</option>
                                     ))}
                                 </select>
                             </div>
@@ -363,8 +419,10 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                                     value={formData.frequency}
                                     onChange={(e) => setFormData({...formData, frequency: e.target.value})}
                                 >
+                                    <option value="DAILY">Daily</option>
                                     <option value="WEEKLY">Weekly</option>
                                     <option value="MONTHLY">Monthly</option>
+                                    <option value="QUARTERLY">Quarterly</option>
                                     <option value="YEARLY">Yearly</option>
                                 </select>
                             </div>
@@ -375,9 +433,11 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                                         <select 
                                             className="w-full px-5 py-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-bold transition-all text-sm"
                                             value={formData.weekly_day}
-                                            onChange={(e) => setFormData({...formData, weekly_day: e.target.value})}
+                                            onChange={(e) => setFormData({...formData, weekly_day: parseInt(e.target.value)})}
                                         >
-                                            {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(d => <option key={d} value={d}>{d}</option>)}
+                                            {[['MON',1],['TUE',2],['WED',3],['THU',4],['FRI',5],['SAT',6],['SUN',7]].map(([label, val]) => (
+                                                <option key={val} value={val}>{label}</option>
+                                            ))}
                                         </select>
                                     </>
                                 )}
@@ -421,14 +481,26 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                             </div>
                         )}
 
-                        <div>
-                            <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Task Goal (Description)</label>
-                            <textarea 
-                                rows="3"
-                                className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-medium transition-all text-sm"
-                                value={formData.description}
-                                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                            />
+                        <div className="grid grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Start Date</label>
+                                <input 
+                                    type="date"
+                                    required
+                                    className="w-full px-5 py-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-bold transition-all text-sm"
+                                    value={formData.start_date}
+                                    onChange={(e) => setFormData({...formData, start_date: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Task Goal (Description)</label>
+                                <textarea 
+                                    rows="2"
+                                    className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-medium transition-all text-sm"
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -496,14 +568,17 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/50 p-4 rounded-2xl">
                                                             <div className="space-y-1">
                                                                 <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Responsible Dept</label>
-                                                                <select 
-                                                                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                                                    value={st.department_id}
-                                                                    onChange={(e) => handleUpdateSubtask(subtaskId, { department_id: e.target.value })}
-                                                                >
-                                                                    <option value="">Select Dept</option>
-                                                                    {departments.map((d, dk) => <option key={d.department_id || d.id || `st-dept-${dk}`} value={d.department_id || d.id}>{d.name}</option>)}
-                                                                </select>
+                                                                    <select 
+                                                                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                                        value={st.department_id || st.dept_id || ''}
+                                                                        onChange={(e) => handleUpdateSubtask(subtaskId, { department_id: e.target.value })}
+                                                                    >
+                                                                        <option value="">Select Dept</option>
+                                                                        {departments.map((d, dk) => {
+                                                                            const dId = d.department_id || d.id || d.dept_id;
+                                                                            return <option key={dId || `st-dept-${dk}`} value={dId}>{d.name || d.dept_name}</option>;
+                                                                        })}
+                                                                    </select>
                                                             </div>
                                                             <div className="space-y-1">
                                                                 <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Assignee</label>

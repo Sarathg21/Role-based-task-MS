@@ -30,11 +30,7 @@ const LoginPage = () => {
             
             if (result.success) {
                 console.log(`[Login] Success! Role: ${result.role}`);
-                if (result.role === 'Admin') {
-                    navigate('/admin');
-                } else {
-                    navigate('/dashboard');
-                }
+                navigate('/dashboard');
             } else {
                 console.error(`[Login] Failed: ${result.message}`);
                 setError(result.message);

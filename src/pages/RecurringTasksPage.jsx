@@ -9,9 +9,12 @@ import {
     ListTodo, Info, Edit2, Check
 } from 'lucide-react';
 import AutomationConfigModal from '../components/Modals/AutomationConfigModal';
+import { useAuth } from '../context/AuthContext';
 
 const RecurringTasksPage = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const isAdminOrCFO = ['admin', 'cfo', 'Admin', 'CFO', 'ADMIN'].includes(user?.role);
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(null);
@@ -38,13 +41,22 @@ const RecurringTasksPage = () => {
 
     const fetchSubtasks = async (rid) => {
         try {
-            const res = await api.get(`/recurring-tasks/${rid}/subtasks`);
+            // Use a short per-request timeout so a slow endpoint doesn't time out the whole page
+            const res = await api.get(`/recurring-tasks/${rid}/subtasks`, { timeout: 8000 });
             const data = res.data?.data || res.data;
             setTemplates(prev => prev.map(t => 
                 (t.id || t.recurring_id) === rid ? { ...t, subtasks: Array.isArray(data) ? data : [] } : t
             ));
         } catch (err) {
-            console.error("Subtask fetch failed", err);
+            if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+                console.warn(`Subtask fetch timed out for task ${rid} — skipping`);
+            } else {
+                console.error("Subtask fetch failed", err);
+            }
+            // Set empty subtasks so the row still renders cleanly
+            setTemplates(prev => prev.map(t => 
+                (t.id || t.recurring_id) === rid ? { ...t, subtasks: [] } : t
+            ));
         }
     };
 
@@ -53,33 +65,89 @@ const RecurringTasksPage = () => {
         return t;
     }, [templates, selectedTemplateId]);
 
+    // Lazy-load subtasks only when a row is actually expanded
     useEffect(() => {
-        if (selectedTemplateId) {
-            fetchSubtasks(selectedTemplateId);
+        if (expandedRowId) {
+            fetchSubtasks(expandedRowId);
         }
-    }, [selectedTemplateId]); // Selected ID change triggers fetch
+    }, [expandedRowId]);
 
-    const fetchTemplates = async () => {
-        setLoading(true);
-        try {
-            const res = await api.get('/recurring-tasks');
-            const data = (res.data?.data || res.data || []);
-            const templateList = Array.isArray(data) ? data : [];
-            setTemplates(templateList);
-            if (templateList.length > 0 && !selectedTemplateId) {
-                const initialId = templateList[0].id || templateList[0].recurring_id;
-                setSelectedTemplateId(initialId);
+    useEffect(() => {
+        const fetchInitial = async () => {
+            const params = new URLSearchParams(window.location.search);
+            const urlId = params.get('id') || params.get('taskId');
+            
+            setLoading(true);
+            try {
+                // Single call with large limit — avoids sending redundant parallel requests
+                const endpointCalls = [
+                    api.get('/recurring-tasks', { params: { limit: 200 } }), // Standard (Personal or Default)
+                ];
+
+                if (isAdminOrCFO) {
+                    // Try scope=org (standard for Admin/CFO in this backend)
+                    endpointCalls.push(api.get('/recurring-tasks', { params: { scope: 'org', limit: 200 } }).catch(() => ({ data: [] })));
+                    endpointCalls.push(api.get('/recurring-tasks', { params: { scope: 'all', limit: 200 } }).catch(() => ({ data: [] })));
+                } else if (user?.role?.toUpperCase() === 'MANAGER') {
+                    // Try department scope for managers
+                    endpointCalls.push(api.get('/recurring-tasks', { params: { scope: 'department', limit: 200 } }).catch(() => ({ data: [] })));
+                }
+
+                const results = await Promise.allSettled(endpointCalls);
+
+                // Helper to extract array from any response shape
+                const extractList = (res) => {
+                    if (!res || res.status !== 'fulfilled' || !res.value) return [];
+                    const body = res.value.data;
+                    if (!body) return [];
+                    
+                    // Direct array
+                    if (Array.isArray(body)) return body;
+                    
+                    // Unwrap if backend sends { data: [], status: 200 } or { items: [] }
+                    const raw = body.data || body.items || body.results || body.recurring_tasks || body.tasks || body;
+                    if (Array.isArray(raw)) return raw;
+                    
+                    // Deep extract for legacy shapes
+                    if (body.data && Array.isArray(body.data.items)) return body.data.items;
+                    if (body.data && Array.isArray(body.data.data)) return body.data.data;
+                    
+                    return [];
+                };
+
+                // Merge all results and de-duplicate by ID
+                const merged = [];
+                results.forEach(r => {
+                    extractList(r).forEach(t => {
+                        const tid = t.id || t.recurring_id;
+                        if (!merged.some(m => (m.id || m.recurring_id) === tid)) merged.push(t);
+                    });
+                });
+
+                const templateList = merged;
+                console.log(`Recurring tasks loaded: ${templateList.length}`, templateList.map(t => t.title));
+
+                setTemplates(templateList);
+                
+                if (urlId) {
+                    const numericId = isNaN(urlId) ? urlId : parseInt(urlId, 10);
+                    const matching = templateList.find(t => (t.id || t.recurring_id) == urlId || (t.id || t.recurring_id) == numericId);
+                    if (matching) {
+                        setSelectedTemplateId(matching.id || matching.recurring_id);
+                    } else if (templateList.length > 0) {
+                        setSelectedTemplateId(templateList[0].id || templateList[0].recurring_id);
+                    }
+                } else if (templateList.length > 0) {
+                    setSelectedTemplateId(templateList[0].id || templateList[0].recurring_id);
+                }
+            } catch (err) {
+                console.error("Failed to fetch recurring templates", err);
+                toast.error("Failed to load recurring tasks.");
+            } finally {
+                setLoading(false);
             }
-        } catch (err) {
-            console.error("Failed to fetch recurring task templates", err);
-            toast.error("Failed to load recurring tasks");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchTemplates();
+        };
+        fetchInitial();
     }, []);
 
     const handleToggleStatus = async (template) => {
@@ -104,18 +172,50 @@ const RecurringTasksPage = () => {
 
     const handleDelete = async (template) => {
         const id = template.id || template.recurring_id;
-        if (!window.confirm("Are you sure you want to delete this recurring template?")) return;
+        if (!window.confirm("Are you sure you want to permanently delete this recurring template? This will stop all future task generations.")) return;
+        
         setActionLoading(id);
-        try {
-            await api.delete(`/recurring-tasks/${id}`);
+        const numericId = !isNaN(id) ? parseInt(id, 10) : id;
+        
+        // Define deletion attempts in order of probability
+        const attempts = [
+            () => api.delete(`/recurring-tasks/${numericId}`),
+            () => api.post(`/recurring-tasks/${numericId}/delete`),
+            () => api.post(`/recurring-tasks/delete/${numericId}`),
+            () => api.delete(`/recurring-task/${numericId}`), // Singular fallback
+            () => api.patch(`/recurring-tasks/${numericId}`, { status: 'DELETED', active: false }) // Soft-delete fallback
+        ];
+
+        let success = false;
+        let lastError = null;
+
+        for (const attempt of attempts) {
+            try {
+                await attempt();
+                success = true;
+                break;
+            } catch (err) {
+                lastError = err;
+                // If it's a 403 (Forbidden), stop immediately as it's a permission issue not a route issue
+                if (err.response?.status === 403) break;
+                // Otherwise continue to next fallback (404, 405, etc.)
+                continue;
+            }
+        }
+
+        if (success) {
             setTemplates(prev => prev.filter(t => (t.id || t.recurring_id) !== id));
             if (selectedTemplateId === id) setSelectedTemplateId(null);
-            toast.success("Template deleted");
-        } catch (err) {
-            toast.error("Failed to delete template");
-        } finally {
-            setActionLoading(null);
+            toast.success("Template deleted successfully");
+        } else {
+            console.error("All delete attempts failed", lastError);
+            const detail = lastError?.response?.data?.detail;
+            const errorMsg = Array.isArray(detail) 
+                ? detail.map(d => `${d.loc?.join('.') || 'body'}: ${d.msg}`).join(", ") 
+                : (detail || "Server endpoint not found (404/405). The template might still have history dependencies.");
+            toast.error("Delete failed: " + errorMsg);
         }
+        setActionLoading(null);
     };
 
     const formatFrequency = (template) => {

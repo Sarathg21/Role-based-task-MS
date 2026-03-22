@@ -131,6 +131,38 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
         }
     };
 
+    const handleNotificationClick = async (n) => {
+        const id = n.id || n.notification_id || n.notificationId;
+        const isRead = n.is_read || n.read || n.isRead;
+        
+        // Mark as read if it's not already
+        if (!isRead) {
+            markAsRead(id);
+        }
+
+        // Determine target URL based on notification metadata
+        const taskId = n.task_id || n.taskId;
+        const recurringId = n.recurring_id || n.recurringId;
+        const type = String(n.type || '').toUpperCase();
+        const msg = String(n.message || n.title || '').toLowerCase();
+
+        let target = '';
+        if (taskId) {
+            target = `/tasks?id=${taskId}`;
+        } else if (recurringId) {
+            target = `/recurring-tasks?id=${recurringId}`;
+        } else if (msg.includes('recurring') || msg.includes('automation')) {
+            target = '/recurring-tasks';
+        } else if (msg.includes('task') || msg.includes('directive') || type.includes('TASK')) {
+            target = '/tasks';
+        }
+
+        setShowNotifications(false);
+        if (target) {
+            navigate(target);
+        }
+    };
+
     const safeNotifs  = Array.isArray(notifications) ? notifications : [];
     const unreadCount = safeNotifs.filter(n => !(n.is_read || n.read || n.isRead)).length;
 
@@ -162,8 +194,8 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
                         >
                             {(() => {
                                 if (roleUpper === 'CFO') {
-                                    if (location.pathname === '/reports')      return 'CFO Reports';
-                                    if (location.pathname === '/tasks/team')   return 'CFO Team Tasks';
+                                    if (location.pathname === '/reports') return 'CFO Reports';
+                                    if (location.pathname === '/task/team' || location.pathname === '/tasks/team') return 'CFO Team Tasks';
                                     return 'CFO Dashboard';
                                 }
                                 if (roleUpper === 'ADMIN') return 'Admin Control';
@@ -182,7 +214,7 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
 
                 {/* ── Center: Search (non-CFO) or Date filters (CFO dashboard) ── */}
                 <div className="flex-1 flex items-center justify-center gap-3 max-w-2xl navbar-search-hide-mobile">
-                    {roleUpper !== 'CFO' ? (
+                    {roleUpper !== 'CFO' && location.pathname !== '/departments' ? (
                         <div className="w-full relative group">
                             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                 <Search size={16} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" strokeWidth={2.5} />
@@ -196,7 +228,7 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
                                 onKeyDown={handleSearch}
                             />
                         </div>
-                    ) : isDashboard ? (
+                    ) : isDashboard && roleUpper === 'CFO' ? (
                         <div className="flex items-center gap-2">
                             <span className="text-[11px] font-[650] text-slate-400 uppercase tracking-wider whitespace-nowrap">Filter</span>
                             <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
@@ -257,7 +289,7 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
 
                         {showNotifications && (
                             <div
-                                className="absolute right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 flex flex-col animate-scale-in overflow-hidden notif-panel"
+                                className="absolute right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 z-[300] flex flex-col animate-scale-in overflow-hidden notif-panel"
                                 style={{ width: '340px', maxHeight: '440px' }}
                             >
                                 <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
@@ -284,7 +316,7 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
                                             return (
                                                 <div
                                                     key={n.id || n.notification_id || idx}
-                                                    onClick={() => !isRead && markAsRead(n.id || n.notification_id)}
+                                                    onClick={() => handleNotificationClick(n)}
                                                     className={`flex gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all ${
                                                         !isRead
                                                             ? 'bg-indigo-50/70 hover:bg-indigo-50 border border-indigo-100/60'

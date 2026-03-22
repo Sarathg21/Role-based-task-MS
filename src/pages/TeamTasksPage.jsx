@@ -481,7 +481,7 @@ const TeamTasksPage = () => {
                         >
                             <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-violet-600 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-500" />
                             <Plus size={18} strokeWidth={3} className="relative z-10" />
-                            <span className="relative z-10 uppercase tracking-widest">Assign Directive</span>
+                            <span className="relative z-10 uppercase tracking-widest">Assign Task</span>
                         </button>
                         
                         <button 
