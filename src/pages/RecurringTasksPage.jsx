@@ -124,7 +124,14 @@ const RecurringTasksPage = () => {
                     });
                 });
 
-                const templateList = merged;
+                // ✅ Normalise: if backend sends `active: true/false` without a `status` string,
+                // synthesise a status so the UI always has one canonical field to check.
+                const templateList = merged.map(t => ({
+                    ...t,
+                    status: t.status ||
+                            (t.active === true  ? 'ACTIVE'   :
+                             t.active === false ? 'INACTIVE' : 'INACTIVE')
+                }));
                 console.log(`Recurring tasks loaded: ${templateList.length}`, templateList.map(t => t.title));
 
                 setTemplates(templateList);
@@ -152,7 +159,8 @@ const RecurringTasksPage = () => {
 
     const handleToggleStatus = async (template) => {
         const id = template.id || template.recurring_id;
-        const isActive = template.status === 'ACTIVE';
+        // Handle both `status: 'ACTIVE'` (string) and `active: true` (boolean)
+        const isActive = template.status === 'ACTIVE' || template.active === true;
         const newStatus = isActive ? 'INACTIVE' : 'ACTIVE';
         const endpoint = isActive ? 'deactivate' : 'activate';
         
@@ -160,7 +168,7 @@ const RecurringTasksPage = () => {
         try {
             await api.post(`/recurring-tasks/${id}/${endpoint}`);
             setTemplates(prev => prev.map(t => 
-                (t.id || t.recurring_id) === id ? { ...t, status: newStatus } : t
+                (t.id || t.recurring_id) === id ? { ...t, status: newStatus, active: !isActive } : t
             ));
             toast.success(`Task ${isActive ? 'paused' : 'activated'} successfully`);
         } catch (err) {
@@ -355,7 +363,8 @@ const RecurringTasksPage = () => {
                             ) : (
                                 filteredTemplates.map((t) => {
                                     const id = t.id || t.recurring_id;
-                                    const isActive = t.status === 'ACTIVE';
+                                    // Handle both `status: 'ACTIVE'` and `active: true` from backend
+                                    const isActive = t.status === 'ACTIVE' || t.active === true;
                                     const isSelected = selectedTemplateId === id;
                                     return (
                                         <React.Fragment key={id}>

@@ -373,39 +373,51 @@ const OrgTreePage = () => {
         calculatedEmployees = stats.employees;
     }
 
+    // Helper: resolve a dept filter value (ID or name) against the departments list
+    const getDeptLabelForFilter = (filterVal) => {
+        if (!filterVal || filterVal === 'ALL') return 'All Departments';
+        const match = departments.find(d => {
+            const dId = String(d.department_id || d.dept_id || d.id || '').toUpperCase();
+            const dName = (d.name || d.dept_name || (typeof d === 'string' ? d : '')).toUpperCase();
+            return dId === filterVal.toUpperCase() || dName === filterVal.toUpperCase();
+        });
+        return match ? (match.name || match.dept_name || filterVal) : filterVal;
+    };
+
     // Helper to filter tree nodes by department
     const filterNodeByDept = (node, deptFilter) => {
         if (!node) return null;
         if (deptFilter === 'ALL') return node;
         
         const u = node.user || node;
-        const empDeptId = String(u.department_id || u.dept_id || '').toUpperCase();
-        const empDeptName = String(u.department || u.department_name || '').toUpperCase();
-        const currentFilter = deptFilter.toUpperCase();
+        // Nodes can store dept as department_id (e.g. "CASH") or department (name string)
+        const empDeptId   = String(u.department_id || u.dept_id || '').toUpperCase().trim();
+        const empDeptName = String(u.department || u.department_name || '').toUpperCase().trim();
+        const filterUp    = deptFilter.toUpperCase().trim();
 
-        // Check if the node itself matches by ID or Name
-        // We also check against our departments list to see if the filter represents a name that maps to this node's ID
-        const matchingBaseDepts = departments.filter(d => {
+        // Also resolve the filter value against the departments master list
+        const matchingDepts = departments.filter(d => {
+            const dId   = String(d.department_id || d.dept_id || d.id || '').toUpperCase();
             const dName = (d.name || d.dept_name || (typeof d === 'string' ? d : '')).toUpperCase();
-            const dId = (d.department_id || d.dept_id || d.id || '').toString().toUpperCase();
-            return dName === currentFilter || dId === currentFilter;
+            return dId === filterUp || dName === filterUp;
         });
+        const validIds   = matchingDepts.map(d => String(d.department_id || d.dept_id || d.id || '').toUpperCase());
+        const validNames = matchingDepts.map(d => (d.name || d.dept_name || (typeof d === 'string' ? d : '')).toUpperCase());
 
-        const validIds = matchingBaseDepts.map(d => (d.department_id || d.dept_id || d.id || '').toString().toUpperCase());
-        const validNames = matchingBaseDepts.map(d => (d.name || d.dept_name || (typeof d === 'string' ? d : '')).toUpperCase());
-
-        const selfMatch = (empDeptId && (empDeptId === currentFilter || validIds.includes(empDeptId))) || 
-                          (empDeptName && (empDeptName === currentFilter || validNames.includes(empDeptName))) ||
-                          (empDeptName.includes(currentFilter)) || (empDeptId.includes(currentFilter));
+        const selfMatch =
+            (empDeptId   && (empDeptId === filterUp   || validIds.includes(empDeptId)))   ||
+            (empDeptName && (empDeptName === filterUp || validNames.includes(empDeptName))) ||
+            empDeptId.includes(filterUp) || empDeptName.includes(filterUp);
         
         // Recursively filter children
         const filteredChildren = (node.children || [])
             .map(c => filterNodeByDept(c, deptFilter))
             .filter(Boolean);
         
-        // Root node (Admin/CFO) should usually be kept if any child matches, 
-        // as they are the structural head even if not 'in' the department
-        const isStructuralRoot = (u.role === 'ADMIN' || u.role === 'CFO' || u.emp_id === 'ORG-ROOT');
+        // Admin/CFO/ORG-ROOT is always kept as structural head if any child matches
+        const isStructuralRoot = ['ADMIN', 'CFO', 'SYSTEM', 'ORGANIZATION'].includes(
+            String(u.role || '').toUpperCase()
+        ) || u.emp_id === 'ORG-ROOT';
 
         if (selfMatch || filteredChildren.length > 0 || isStructuralRoot) {
             return { ...node, children: filteredChildren };
@@ -453,42 +465,49 @@ const OrgTreePage = () => {
                     <div className="relative">
                         <button 
                             onClick={() => setIsDeptOpen(v => !v)}
-                            className={`flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[13px] font-bold shadow-sm hover:shadow-md transition-all ${deptFilter !== 'ALL' ? 'text-violet-600 border-violet-200' : 'text-slate-600'}`}
+                            className={`flex items-center gap-2 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-[13px] font-bold shadow-sm hover:shadow-md transition-all ${
+                                deptFilter !== 'ALL' ? 'text-violet-600 border-violet-200' : 'text-slate-600'
+                            }`}
                         >
                             <Network size={16} className="text-violet-500" />
-                            {deptFilter === 'ALL' ? 'Department' : deptFilter}
+                            {deptFilter === 'ALL' ? 'Department' : getDeptLabelForFilter(deptFilter)}
                             <ChevronDown size={14} className={`text-slate-400 transition-transform ${isDeptOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {isDeptOpen && (
                             <>
                                 <div className="fixed inset-0 z-40" onClick={() => setIsDeptOpen(false)} />
-                                <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in zoom-in-95 duration-200">
-                                    <button
-                                        onClick={() => { setDeptFilter('ALL'); setIsDeptOpen(false); }}
-                                        className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest mb-0.5 flex items-center justify-between ${
-                                            deptFilter === 'ALL' ? 'bg-violet-50 text-violet-600' : 'text-slate-400 hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        All Departments
-                                        {deptFilter === 'ALL' && <Check size={14} />}
-                                    </button>
-                                    {departments.map((d, di) => {
-                                        const dName = d.name || d.dept_name || (typeof d === 'string' ? d : String(d));
-                                        const dId = d.department_id || d.id || dName;
-                                        return (
-                                            <button
-                                                key={dId || di}
-                                                onClick={() => { setDeptFilter(dName); setIsDeptOpen(false); }}
-                                                className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest mb-0.5 flex items-center justify-between ${
-                                                    deptFilter === dName ? 'bg-violet-50 text-violet-600' : 'text-slate-600 hover:bg-slate-50'
-                                                }`}
-                                            >
-                                                {dName}
-                                                {deptFilter === dName && <Check size={14} />}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                                <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in zoom-in-95 duration-200 max-h-72 overflow-y-auto">
+                                        <button
+                                            onClick={() => { setDeptFilter('ALL'); setIsDeptOpen(false); }}
+                                            className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest mb-0.5 flex items-center justify-between ${
+                                                deptFilter === 'ALL' ? 'bg-violet-50 text-violet-600' : 'text-slate-400 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            All Departments
+                                            {deptFilter === 'ALL' && <Check size={14} />}
+                                        </button>
+                                        {departments.length === 0 && (
+                                            <p className="px-4 py-3 text-[10px] text-slate-400 italic">No departments found</p>
+                                        )}
+                                        {departments.map((d, di) => {
+                                            const dName = d.name || d.dept_name || (typeof d === 'string' ? d : String(d));
+                                            // Use dept_id as filter value — this matches what nodes store in department_id
+                                            const dId = String(d.department_id || d.dept_id || d.id || dName);
+                                            const isSelected = deptFilter === dId;
+                                            return (
+                                                <button
+                                                    key={dId || di}
+                                                    onClick={() => { setDeptFilter(dId); setIsDeptOpen(false); }}
+                                                    className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest mb-0.5 flex items-center justify-between ${
+                                                        isSelected ? 'bg-violet-50 text-violet-600' : 'text-slate-600 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    <span>{dName}</span>
+                                                    {isSelected && <Check size={14} />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                             </>
                         )}
                     </div>
@@ -535,15 +554,17 @@ const OrgTreePage = () => {
                             );
                         })()}
 
-                        {/* Orphans */}
+                        {/* Orphan managers — also apply dept filter */}
                         {treeData?.orphan_managers?.length > 0 && (
                             <div className="mt-16">
                                 <p className="text-xs text-slate-400 font-semibold capitalize tracking-wider text-center mb-6">Unlinked Departments</p>
                                 <div className="flex gap-12 justify-center flex-wrap">
-                                    {treeData.orphan_managers.map(node => (
+                                    {treeData.orphan_managers
+                                        .filter(node => deptFilter === 'ALL' || filterNodeByDept(node, deptFilter) !== null)
+                                        .map(node => (
                                         <OrgNode
                                             key={node.emp_id || node.user?.id || node.id || Math.random()}
-                                            node={node}
+                                            node={deptFilter !== 'ALL' ? filterNodeByDept(node, deptFilter) : node}
                                             departments={depts}
                                             onAddNode={handleAddNode}
                                         />
@@ -552,11 +573,14 @@ const OrgTreePage = () => {
                             </div>
                         )}
 
+                        {/* Orphan employees — also apply dept filter */}
                         {treeData?.orphan_employees?.length > 0 && (
                             <div className="mt-16">
                                 <p className="text-xs text-slate-400 font-semibold capitalize tracking-wider text-center mb-6">Unassigned Staff</p>
                                 <div className="flex gap-8 justify-center flex-wrap">
-                                    {treeData.orphan_employees.map(node => (
+                                    {treeData.orphan_employees
+                                        .filter(node => deptFilter === 'ALL' || filterNodeByDept(node, deptFilter) !== null)
+                                        .map(node => (
                                         <OrgNode
                                             key={node.emp_id || node.user?.id || node.id || Math.random()}
                                             node={node}

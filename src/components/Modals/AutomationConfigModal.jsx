@@ -116,6 +116,7 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
         const defaultDept = formData.department_id || (departments[0]?.department_id || departments[0]?.id || '');
         const defaultEmp = formData.assigned_to_emp_id || (employees[0]?.emp_id || '');
         
+        const maxSeq = subtasks.reduce((max, s) => Math.max(max, s.sequence_no ?? 0), 0);
         const newSt = {
             title: 'New Subtask',
             description: 'Description...',
@@ -123,7 +124,7 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
             department_id: defaultDept || null, // Double field for compatibility
             assigned_to_emp_id: defaultEmp || null,
             priority: 'MEDIUM',
-            sequence_no: subtasks.length + 1
+            sequence_no: maxSeq + 1
         };
 
         if (!rid) {
@@ -539,23 +540,44 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                                                     <div className="flex flex-col gap-4">
                                                         <div className="flex items-center justify-between gap-4">
                                                             <div className="flex items-center gap-3 flex-1">
-                                                                <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-[10px] shrink-0">
-                                                                    {idx + 1}
+                                                                {/* Sequence Number Field */}
+                                                                <div className="flex flex-col items-center gap-0.5 shrink-0">
+                                                                    <label className="text-[8px] font-black text-indigo-400 uppercase tracking-widest leading-none">#</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        className="w-10 h-8 rounded-lg bg-indigo-50 border border-indigo-100 text-center text-indigo-600 font-black text-[11px] focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-300 transition-all [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                                                        value={st.sequence_no ?? idx + 1}
+                                                                        onChange={(e) => {
+                                                                            const val = parseInt(e.target.value, 10) || 1;
+                                                                            setSubtasks(prev => prev.map(s => {
+                                                                                const sid = getSubtaskId(s);
+                                                                                const tid = getSubtaskId(st);
+                                                                                return String(sid) === String(tid) ? { ...s, sequence_no: val } : s;
+                                                                            }));
+                                                                        }}
+                                                                        onBlur={() => handleUpdateSubtask(subtaskId, { sequence_no: st.sequence_no ?? idx + 1 })}
+                                                                        title="Sequence Number"
+                                                                    />
                                                                 </div>
-                                                                <input 
-                                                                    type="text"
-                                                                    className="flex-1 bg-transparent border-none p-0 text-[14px] font-black text-slate-800 focus:ring-0 placeholder:text-slate-300 uppercase tracking-tight"
-                                                                    value={st.title}
-                                                                    placeholder="Subtask Title"
-                                                                    onChange={(e) => setSubtasks(subtasks.map(s => {
-                                                                        const sid = getSubtaskId(s);
-                                                                        const tid = getSubtaskId(st);
-                                                                        return String(sid) === String(tid) ? {...s, title: e.target.value} : s;
-                                                                    }))}
-                                                                    onBlur={() => handleUpdateSubtask(subtaskId, { title: st.title })}
-                                                                />
+                                                                {/* Subtask Name Field */}
+                                                                <div className="flex flex-col gap-0.5 flex-1">
+                                                                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none ml-1">Subtask Name</label>
+                                                                    <input 
+                                                                        type="text"
+                                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[13px] font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400/20 focus:border-indigo-300 placeholder:text-slate-300 tracking-tight transition-all"
+                                                                        value={st.title}
+                                                                        placeholder="Enter subtask name..."
+                                                                        onChange={(e) => setSubtasks(prev => prev.map(s => {
+                                                                            const sid = getSubtaskId(s);
+                                                                            const tid = getSubtaskId(st);
+                                                                            return String(sid) === String(tid) ? {...s, title: e.target.value} : s;
+                                                                        }))}
+                                                                        onBlur={() => handleUpdateSubtask(subtaskId, { title: st.title })}
+                                                                    />
+                                                                </div>
                                                             </div>
-                                                            <div className="flex items-center gap-2">
+                                                            <div className="flex items-center gap-2 self-end pb-0.5">
                                                                 <button 
                                                                     type="button"
                                                                     onClick={async () => {
