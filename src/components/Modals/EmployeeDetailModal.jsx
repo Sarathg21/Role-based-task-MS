@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
     X, ShieldOff, Mail,
     Phone, Calendar, ChevronDown, Loader2, MoreHorizontal,

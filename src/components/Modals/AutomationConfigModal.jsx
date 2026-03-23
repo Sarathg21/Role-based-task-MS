@@ -629,9 +629,16 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
 
                 {/* Footer */}
                 <div className="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${formData.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Status: {formData.status}</span>
+                    <div 
+                        className="flex items-center gap-3 cursor-pointer group"
+                        onClick={() => setFormData(prev => ({ ...prev, status: prev.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' }))}
+                    >
+                        <div className={`w-10 h-5 rounded-full relative transition-all duration-300 ${formData.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${formData.status === 'ACTIVE' ? 'right-1' : 'left-1'}`} />
+                        </div>
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover:text-indigo-600 transition-colors">
+                            {formData.status === 'ACTIVE' ? 'Status: Active' : 'Status: Inactive'}
+                        </span>
                     </div>
                     <div className="flex gap-3">
                         <button 
