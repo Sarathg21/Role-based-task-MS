@@ -75,26 +75,61 @@ const DepartmentsPage = () => {
     const handleDeleteDepartment = (dept) => {
         setConfirmConfig({
             isOpen: true,
-            title: "Deactivate Department?",
-            message: `Are you sure you want to deactivate "${dept.name}"? It will be removed from the active directory. Active employees will remain unaffected.`,
+            title: "Delete Department?",
+            message: `Are you sure you want to permanently delete "${dept.name}"? This action cannot be undone.`,
             type: "danger",
-            confirmText: "DEACTIVATE",
+            confirmText: "DELETE",
             onConfirm: async () => {
                 const targetId = dept.id || dept.dept_id || dept.department_id;
+                
                 try {
-                    // Backend has no DELETE endpoint — use PATCH to set active=false (soft delete)
-                    await api.patch(`/admin/departments/${targetId}`, { active: false });
-                    toast.success(`"${dept.name}" has been deactivated.`);
-                    // Optimistically remove from local state for immediate UI feedback
+                    let success = false;
+                    let lastError = null;
+
+                    // Aggressive fallback to catch misconfigured nested backend routes
+                    const attempts = [
+                        () => api.delete(`/departments/departments/${targetId}`), // Precautionary fix for potential nesting
+                        () => api.delete(`/departments/${targetId}`),
+                        () => api.delete(`/admin/departments/${targetId}`),
+                        () => api.delete(`/departments/${targetId}/`),
+                        () => api.post(`/departments/${targetId}/delete`)
+                    ];
+
+                    for (const attempt of attempts) {
+                        try {
+                            await attempt();
+                            success = true;
+                            break;
+                        } catch (err) {
+                            lastError = err;
+                            if (err.response?.status === 400 || err.response?.status === 403 || err.response?.status === 422) {
+                                break; // Stop retrying if strictly blocked by logic
+                            }
+                            continue; // 404, 405 -> Keep trying next route
+                        }
+                    }
+
+                    if (!success) throw lastError;
+
+                    toast.success(`"${dept.name}" has been deleted successfully.`);
                     setDepartments(prev => prev.filter(d => (d.id || d.dept_id || d.department_id) !== targetId));
                     setConfirmConfig(p => ({ ...p, isOpen: false }));
                 } catch (err) {
-                    console.error("Deactivation failed", err);
-                    const detail = err.response?.data?.detail;
-                    const errorMsg = Array.isArray(detail)
-                        ? detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(", ")
-                        : (detail || "Server error. Please try again.");
-                    toast.error("Deactivation failed: " + errorMsg);
+                    console.error("Deletion failed", err);
+                    let errorMsg = "Server error. Please try again.";
+                    if (err?.response?.status === 404) {
+                        errorMsg = "404 Not Found - Route missing on server (Check backend).";
+                    } else if (err?.response?.data?.detail) {
+                        const detail = err.response.data.detail;
+                        errorMsg = Array.isArray(detail)
+                            ? detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(", ")
+                            : detail;
+                    } else if (err?.response?.data?.message) {
+                        errorMsg = err.response.data.message;
+                    } else if (err?.message) {
+                        errorMsg = err.message;
+                    }
+                    toast.error("Deletion blocked: " + errorMsg, { duration: 6000 });
                 }
             }
         });

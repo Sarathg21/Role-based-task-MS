@@ -502,10 +502,11 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                             <div>
                                 <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Task Goal (Description)</label>
                                 <textarea 
-                                    rows="2"
+                                    rows="3"
                                     className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-medium transition-all text-sm"
                                     value={formData.description}
                                     onChange={(e) => setFormData({...formData, description: e.target.value})}
+                                    placeholder="Define the primary objective and high-level requirements..."
                                 />
                             </div>
                         </div>
@@ -591,6 +592,22 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                                                                     <Trash2 size={16} />
                                                                 </button>
                                                             </div>
+                                                        </div>
+
+                                                        <div className="flex flex-col gap-2 px-1 py-1">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none ml-1">Subtask Goal & Instructions</label>
+                                                            <textarea 
+                                                                rows="3"
+                                                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[13px] font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-400/20 focus:border-indigo-300 placeholder:text-slate-300 transition-all resize-none custom-scrollbar"
+                                                                value={st.description || ''}
+                                                                placeholder="Describe the specific steps, benchmarks, or expectations for this subtask..."
+                                                                onChange={(e) => setSubtasks(prev => prev.map(s => {
+                                                                    const sid = getSubtaskId(s);
+                                                                    const tid = getSubtaskId(st);
+                                                                    return String(sid) === String(tid) ? {...s, description: e.target.value} : s;
+                                                                }))}
+                                                                onBlur={(e) => handleUpdateSubtask(subtaskId, { description: e.target.value })}
+                                                            />
                                                         </div>
 
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/50 p-4 rounded-2xl">

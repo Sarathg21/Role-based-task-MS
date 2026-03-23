@@ -33,43 +33,43 @@ const SubtaskRow = ({ task, renderStatusBadge, renderSeverityTag, isLast, taskTi
 
     return (
         <tr className="bg-slate-50/30 group hover:bg-violet-50/10 transition-colors duration-200">
-            <td className="p-3 pl-12 relative text-left">
-                <div className="absolute left-14 top-0 bottom-0 w-[2px] bg-slate-100"></div>
-                <div className={`absolute left-14 ${isLast ? 'h-5' : 'h-full'} w-[10px] border-l-2 border-b-2 border-slate-100 rounded-bl-lg`}></div>
+            <td className="py-4 pl-12 relative text-left">
+                <div className="absolute left-14 top-0 bottom-0 w-[2.5px] bg-slate-100"></div>
+                <div className={`absolute left-14 ${isLast ? 'h-6' : 'h-full'} w-[12px] border-l-[2.5px] border-b-[2.5px] border-slate-100 rounded-bl-xl`}></div>
                 <div className="flex items-center gap-2 ml-6 relative z-10">
-                    <span className="text-[14px] font-medium text-slate-400">↳</span>
-                    <span className="text-[9px] font-medium text-slate-400 capitalize tracking-tighter">#Sub-{taskId}</span>
+                    <span className="text-[16px] font-bold text-slate-400">↳</span>
+                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest bg-white/80 px-1.5 py-0.5 rounded border border-slate-100 shadow-sm">#Sub-{taskId}</span>
                 </div>
             </td>
-            <td className="p-3 text-left">
-                <div className="flex flex-col">
-                    <span className="text-[13px] font-semibold text-slate-600 tracking-tight">{title}</span>
+            <td className="py-4 text-left">
+                <div className="flex flex-col gap-0.5">
+                    <span className="text-[14.5px] font-bold text-slate-700 tracking-tight leading-tight">{title}</span>
                     {parentTitle && (
-                        <span className="text-[9px] text-slate-400 truncate max-w-[200px]">Parent: {parentTitle}</span>
+                        <span className="text-[11px] font-medium text-slate-400 truncate max-w-[200px] uppercase tracking-wider">Parent: {parentTitle}</span>
                     )}
                 </div>
             </td>
-            <td className="p-3 text-left">
-                <span className="text-slate-400 text-[10px] font-medium capitalize px-2 py-0.5 bg-slate-50 rounded border border-slate-100">{String(task?.department_name || 'N/A').toLowerCase()}</span>
+            <td className="py-4 text-left">
+                <span className="text-slate-500 text-[11.5px] font-bold uppercase tracking-widest px-2.5 py-1 bg-white rounded-lg border border-slate-100 shadow-sm">{String(task?.department_name || 'N/A')}</span>
             </td>
-            <td className="p-3 text-left">
-                <span className="text-slate-400 text-[10px] font-medium italic">-</span>
+            <td className="py-4 text-left">
+                <span className="text-slate-400 text-[11px] font-medium italic">-</span>
             </td>
-            <td className="p-3 text-left">
-                <span className="text-[11px] font-semibold text-slate-500">{assignedTo}</span>
+            <td className="py-4 text-left">
+                <span className="text-[13.5px] font-bold text-slate-600">{assignedTo}</span>
             </td>
-            <td className="p-3 text-left">
-                <span className="text-[10px] font-semibold text-slate-400 capitalize tracking-widest">{dueDate}</span>
+            <td className="py-4 text-left">
+                <span className="text-[11.5px] font-black text-slate-500 uppercase tracking-widest">{dueDate}</span>
             </td>
-            <td className="p-3 text-center">
+            <td className="py-4 text-center">
                 {renderStatusBadge?.(status)}
             </td>
-            <td className="p-3 text-left">
+            <td className="py-4 text-left">
                 {renderSeverityTag?.(severity)}
             </td>
-            <td className="p-3 text-right pr-8">
-                <button className="text-slate-300 hover:text-violet-500 transition-colors">
-                    <ArrowRight size={14} />
+            <td className="py-4 text-right pr-8">
+                <button className="text-slate-300 hover:text-violet-500 transition-colors scale-110">
+                    <ArrowRight size={16} />
                 </button>
             </td>
         </tr>
@@ -113,71 +113,71 @@ const TaskRow = ({
     return (
         <>
             <tr className="group hover:bg-violet-50/20 transition-all duration-300">
-                <td className="p-5 pl-8 text-left">
-                    <div className="flex items-center gap-3">
+                <td className="py-6 pl-8 text-left">
+                    <div className="flex items-center gap-4">
                         {isParent ? (
                             <button
                                 onClick={onToggle}
-                                className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all ${expanded ? 'bg-violet-600 text-white shadow-lg shadow-violet-200' : 'bg-slate-100 text-slate-400 group-hover:bg-violet-100 group-hover:text-violet-600 hover:shadow-sm'}`}
+                                className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${expanded ? 'bg-violet-600 text-white shadow-lg shadow-violet-200' : 'bg-slate-100 text-slate-400 group-hover:bg-violet-100 group-hover:text-violet-600 hover:shadow-sm'}`}
                             >
                                 <ChevronRight
-                                    size={10}
+                                    size={12}
                                     strokeWidth={4}
                                     className={`transition-transform duration-300 ${expanded ? 'rotate-90' : 'rotate-0'}`}
                                 />
                             </button>
                         ) : (
-                            <div className="w-5 h-5" />
+                            <div className="w-6 h-6" />
                         )}
-                        <span className="text-[10px] font-semibold text-violet-600 tracking-tighter">#{taskId}</span>
+                        <span className="text-[11.5px] font-black text-violet-600 tracking-widest uppercase">#{taskId}</span>
                     </div>
                 </td>
-                <td className="p-5 text-left">
-                    <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2 text-left">
-                            <h4 className="font-semibold text-slate-800 text-[13px] tracking-tight truncate max-w-[220px]">
+                <td className="py-6 text-left">
+                    <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2.5 text-left">
+                            <h4 className="font-bold text-[#1E1B4B] text-[15.5px] tracking-tight truncate max-w-[280px]">
                                 {title}
                             </h4>
-                            {task?.has_attachments && <Paperclip size={12} className="text-slate-300" />}
+                            {task?.has_attachments && <Paperclip size={14} className="text-slate-400" />}
                         </div>
                         {parentTitle && (
-                            <p className="text-[10px] text-slate-400 truncate max-w-[260px] text-left">
+                            <p className="text-[11px] font-semibold text-slate-400 truncate max-w-[300px] text-left uppercase tracking-wider">
                                 {parentTitle}
                             </p>
                         )}
                     </div>
                 </td>
-                <td className="p-5 text-left">
-                    <span className="text-[10px] font-medium text-slate-400 capitalize px-2 py-0.5 bg-slate-50 rounded border border-slate-100">{dept}</span>
+                <td className="py-6 text-left">
+                    <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.1em] px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100 shadow-sm">{dept}</span>
                 </td>
-                <td className="p-5 text-left">
-                    <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-violet-50 border border-violet-100 flex items-center justify-center text-[10px] font-semibold text-violet-600 shrink-0">
+                <td className="py-6 text-left">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-violet-100 border border-violet-200 flex items-center justify-center text-[12px] font-bold text-violet-700 shrink-0 shadow-sm">
                             {assignedBy?.charAt(0) || 'S'}
                         </div>
-                        <span className="text-[11px] font-semibold text-slate-500 truncate max-w-[100px]">{assignedBy}</span>
+                        <span className="text-[14px] font-bold text-slate-700 truncate max-w-[120px]">{assignedBy}</span>
                     </div>
                 </td>
-                <td className="p-5 text-left">
-                    <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-black text-slate-500 overflow-hidden shrink-0">
-                            {assignedTo?.charAt(0) || <User size={12} />}
+                <td className="py-6 text-left">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-[12px] font-black text-slate-500 overflow-hidden shrink-0 shadow-sm">
+                            {assignedTo?.charAt(0) || <User size={14} />}
                         </div>
                         <div className="flex flex-col min-w-0">
-                            <span className="text-[12px] font-bold text-slate-700 truncate max-w-[100px]">{assignedTo}</span>
+                            <span className="text-[14.5px] font-black text-[#1E1B4B] truncate max-w-[130px] tracking-tight">{assignedTo}</span>
                             {(task.is_reassigned || task.reassigned_from || (task.reassignment_count > 0)) && (
-                                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 mt-0.5 w-fit">
-                                    <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 6h10M7 2l4 4-4 4"/></svg>
+                                <span className="inline-flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-0.5 w-fit uppercase tracking-widest">
+                                    <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 6h10M7 2l4 4-4 4"/></svg>
                                     Reassigned
                                 </span>
                             )}
                         </div>
                     </div>
                 </td>
-                <td className="p-5 text-left">
-                    <div className={`flex items-center gap-2 px-2 py-1 rounded-lg border ${isOverdue ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
-                        <Calendar size={10} />
-                        <span className="text-[10px] font-bold tracking-tight">{dueDate}</span>
+                <td className="py-6 text-left">
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 shadow-sm ${isOverdue ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-slate-50 border-slate-100 text-slate-700'}`}>
+                        <Calendar size={14} strokeWidth={3} />
+                        <span className="text-[12px] font-black tracking-tight uppercase">{dueDate}</span>
                     </div>
                 </td>
                 <td className="p-5 text-center">
@@ -446,29 +446,29 @@ const TeamTasksPage = () => {
     return (
         <div className="p-4 lg:p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700 text-left">
             {/* ── PREMIUM HEADER SECTION ── */}
-            <div className="relative overflow-hidden bg-white/60 backdrop-blur-xl rounded-[2.5rem] border border-white shadow-sm p-8 group transition-all duration-700 hover:shadow-xl hover:shadow-indigo-500/5">
+            <div className="relative overflow-hidden bg-[#1E1B4B] rounded-[2.5rem] border border-white/10 shadow-xl shadow-indigo-900/20 p-8 group transition-all duration-700 hover:shadow-2xl hover:shadow-indigo-500/10">
                 {/* Decorative Accents */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/50 rounded-full blur-3xl -mr-32 -mt-32 group-hover:scale-110 transition-transform duration-1000" />
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-violet-50/30 rounded-full blur-2xl -ml-24 -mb-24 group-hover:scale-125 transition-transform duration-1000 delay-150" />
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-32 -mt-32 group-hover:scale-110 transition-transform duration-1000" />
+                <div className="absolute bottom-0 left-0 w-48 h-48 bg-violet-500/10 rounded-full blur-2xl -ml-24 -mb-24 group-hover:scale-125 transition-transform duration-1000 delay-150" />
                 
                 <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                    <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-indigo-500 uppercase tracking-[0.2em]">
+                    <div className="space-y-3 text-left">
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-indigo-300 uppercase tracking-[0.2em]">
                             <Layout size={12} strokeWidth={3} />
                             <span>Executive Intelligence</span>
-                            <ChevronRight size={10} className="text-slate-300" strokeWidth={3} />
-                            <span className="text-slate-400">Team oversight</span>
+                            <ChevronRight size={10} className="text-white/20" strokeWidth={3} />
+                            <span className="text-white/40">Team oversight</span>
                         </div>
                         
                         <div>
-                            <h1 className="text-3xl lg:text-4xl font-black text-[#1E1B4B] tracking-tight flex items-center gap-4">
-                                Team Task Control
+                            <h1 className="text-3xl lg:text-4xl font-black text-white tracking-tight flex items-center gap-4">
+                                Team tasks
                                 <div className="hidden sm:flex items-center gap-2 px-4 py-1.5 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-200">
                                     <Users size={16} className="text-white" />
                                     <span className="text-[12px] font-black text-white">{pagination.total} Live</span>
                                 </div>
                             </h1>
-                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.15em] mt-1 ml-0.5">
+                            <p className="text-[11px] font-bold text-white/40 uppercase tracking-[0.15em] mt-1 ml-0.5 whitespace-nowrap">
                                 Unified Performance Monitoring & Strategic Workload Management
                             </p>
                         </div>
@@ -537,8 +537,16 @@ const TeamTasksPage = () => {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left capitalize">
                         <thead>
-                            <tr className="text-[10px] font-bold text-slate-400 capitalize tracking-tight border-b border-slate-100 bg-slate-50/50">
-                                <th className="p-5 pl-8">Task ID</th><th className="p-5">Task</th><th className="p-5">Department</th><th className="p-5">Assigned By</th><th className="p-5">Assigned To</th><th className="p-5">Due Date</th><th className="p-5 text-center">Status</th><th className="p-5">Severity</th><th className="p-5 text-right pr-8">Actions</th>
+                            <tr className="text-[12px] font-black text-slate-400 uppercase tracking-[0.1em] border-b border-slate-100 bg-slate-50/30">
+                                <th className="p-6 pl-8">Task ID</th>
+                                <th className="p-6">Task</th>
+                                <th className="p-6">Department</th>
+                                <th className="p-6">Assigned By</th>
+                                <th className="p-6">Assigned To</th>
+                                <th className="p-6">Due Date</th>
+                                <th className="p-6 text-center">Status</th>
+                                <th className="p-6">Severity</th>
+                                <th className="p-6 text-right pr-8">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">

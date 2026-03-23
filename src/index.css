@@ -82,18 +82,21 @@
     box-sizing: border-box;
   }
 
+  html {
+    font-size: 112.5%; /* Increases base from 16px to 18px globally */
+  }
+
   html, body, #root {
     height: 100%;
     width: 100%;
   }
 
   body {
-    
-  font-family: 'Aptos', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-
+    font-family: 'Aptos', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 1.08rem;
     background-color: var(--color-bg-body);
     color: var(--color-text-primary);
-    line-height: 1.6;
+    line-height: 1.7; /* Increased for better readability */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     letter-spacing: -0.01em;
@@ -104,10 +107,18 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system;
+    font-family: inherit;
     letter-spacing: -0.025em;
-    line-height: 1.25;
+    line-height: 1.2;
+    color: var(--color-text-primary);
   }
+
+  h1 { font-size: 2.6rem; font-weight: 900; }
+  h2 { font-size: 2.1rem; font-weight: 800; }
+  h3 { font-size: 1.6rem; font-weight: 800; }
+  h4 { font-size: 1.3rem; font-weight: 700; }
+  h5 { font-size: 1.15rem; font-weight: 700; }
+  h6 { font-size: 1.05rem; font-weight: 700; }
 }
 
 /* ─── Keyframes ─────────────────────────────────────────────────── */
@@ -314,7 +325,7 @@
     margin: 0.125rem 0.625rem;
     border-radius: var(--radius-lg);
     color: rgba(199, 210, 254, 0.65);
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 550;
     letter-spacing: 0.01em;
     transition: all 0.18s ease;
@@ -435,7 +446,7 @@
     padding: 0.625rem 1.375rem;
     background: linear-gradient(135deg, #6366f1, #4f46e5);
     color: white;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 700;
     border-radius: var(--radius-lg);
     border: none;

@@ -109,20 +109,22 @@ const AdminDashboard = () => {
     };
 
     const StatCard = ({ icon: Icon, title, value, subValue, iconColor, iconBg }) => (
-        <div className="bg-white/80 backdrop-blur-xl p-6 rounded-[2rem] border border-white shadow-sm flex flex-col justify-between hover:shadow-md transition-all group flex-1 min-w-[200px]">
-            <div className="flex items-center gap-3 mb-6">
-                <div className={`w-9 h-9 rounded-full ${iconBg} ${iconColor} flex items-center justify-center`}>
-                    <Icon size={18} />
-                </div>
-                <span className="text-slate-500 font-bold text-[13px] tracking-tight">{title}</span>
+        <div className="bg-white/80 backdrop-blur-xl p-3.5 sm:p-4 rounded-[1.75rem] border border-white shadow-sm flex items-center gap-3 hover:shadow-md transition-all group flex-1 min-w-0 overflow-hidden">
+            <div className={`w-10 h-10 rounded-2xl ${iconBg} ${iconColor} flex items-center justify-center flex-shrink-0 shadow-sm border border-white/50 backdrop-blur-md`}>
+                <Icon size={20} />
             </div>
-            <div className="flex items-baseline gap-3">
-                <span className="text-[36px] font-black text-slate-800 leading-none">{value}</span>
-                {subValue && (
-                    <span className="text-[13px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-lg">
-                        {subValue}
-                    </span>
-                )}
+            <div className="flex flex-col min-w-0">
+                <span className="text-slate-400 font-black text-[9px] sm:text-[10px] uppercase tracking-[0.12em] whitespace-nowrap mb-1">
+                    {title}
+                </span>
+                <div className="flex items-baseline gap-2">
+                    <span className="text-[24px] sm:text-[28px] font-black text-slate-800 leading-none tracking-tighter drop-shadow-sm">{value}</span>
+                    {subValue && (
+                        <span className="text-[9px] font-black text-emerald-500 bg-emerald-100/30 px-1.5 py-0.5 rounded border border-emerald-100/50 shadow-sm">
+                            {subValue}
+                        </span>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -143,7 +145,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* ── STATS ROW ── */}
-            <div className="flex flex-wrap gap-6 mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6 mb-12">
                 <StatCard 
                     icon={Users} 
                     title="Total Employees" 

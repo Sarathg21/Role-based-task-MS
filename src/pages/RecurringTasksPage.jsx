@@ -14,7 +14,7 @@ import { useAuth } from '../context/AuthContext';
 const RecurringTasksPage = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const isAdminOrCFO = ['admin', 'cfo', 'Admin', 'CFO', 'ADMIN'].includes(user?.role);
+    const isAdminOrCFO = user?.role?.toUpperCase() === 'ADMIN' || user?.role?.toUpperCase() === 'CFO';
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(null);
@@ -27,6 +27,36 @@ const RecurringTasksPage = () => {
     const [isTempOpen, setIsTempOpen] = useState(false);
     const [rowMenuId, setRowMenuId] = useState(null);
     const [expandedRowId, setExpandedRowId] = useState(null);
+    const [isRunning, setIsRunning] = useState(false);
+
+    const handleRunRecurring = async () => {
+        if (!window.confirm("Run the recurring task generator for today? This will manually trigger the generation of all scheduled tasks.")) return;
+        
+        setIsRunning(true);
+        const toastId = toast.loading("Executing recurring task generator...");
+        try {
+            const today = new Date().toISOString().slice(0, 10);
+            const res = await api.post('/recurring-tasks/run', { run_date: today });
+            const { generated_count, skipped_count } = res.data;
+            
+            toast.success(
+                <div className="flex flex-col gap-1">
+                    <p className="font-bold">Generator Execution Complete</p>
+                    <p className="text-xs">{generated_count} tasks generated, {skipped_count} skipped.</p>
+                </div>, 
+                { id: toastId, duration: 5000 }
+            );
+            
+            // Refresh the OKR dashboard or relevant lists if needed
+            // But here we just refresh the local template list to show status updates if any
+            fetchInitial(); 
+        } catch (err) {
+            console.error("Manual trigger failed", err);
+            toast.error("Failed to run recurring tasks: " + (err.response?.data?.detail || err.message), { id: toastId });
+        } finally {
+            setIsRunning(false);
+        }
+    };
 
     // Filter templates based on status, search, and frequency
     const filteredTemplates = useMemo(() => {
@@ -72,90 +102,91 @@ const RecurringTasksPage = () => {
         }
     }, [expandedRowId]);
 
-    useEffect(() => {
-        const fetchInitial = async () => {
-            const params = new URLSearchParams(window.location.search);
-            const urlId = params.get('id') || params.get('taskId');
-            
-            setLoading(true);
-            try {
-                // Single call with large limit — avoids sending redundant parallel requests
-                const endpointCalls = [
-                    api.get('/recurring-tasks', { params: { limit: 200 } }), // Standard (Personal or Default)
-                ];
+    const fetchInitial = async () => {
+        const params = new URLSearchParams(window.location.search);
+        const urlId = params.get('id') || params.get('taskId');
+        
+        setLoading(true);
+        try {
+            // Single call with large limit — avoids sending redundant parallel requests
+            const endpointCalls = [
+                api.get('/recurring-tasks', { params: { limit: 200 } }), // Standard (Personal or Default)
+            ];
 
-                if (isAdminOrCFO) {
-                    // Try scope=org (standard for Admin/CFO in this backend)
-                    endpointCalls.push(api.get('/recurring-tasks', { params: { scope: 'org', limit: 200 } }).catch(() => ({ data: [] })));
-                    endpointCalls.push(api.get('/recurring-tasks', { params: { scope: 'all', limit: 200 } }).catch(() => ({ data: [] })));
-                } else if (user?.role?.toUpperCase() === 'MANAGER') {
-                    // Try department scope for managers
-                    endpointCalls.push(api.get('/recurring-tasks', { params: { scope: 'department', limit: 200 } }).catch(() => ({ data: [] })));
-                }
+            if (isAdminOrCFO) {
+                // Try scope=org (standard for Admin/CFO in this backend)
+                endpointCalls.push(api.get('/recurring-tasks', { params: { scope: 'org', limit: 200 } }).catch(() => ({ data: [] })));
+                endpointCalls.push(api.get('/recurring-tasks', { params: { scope: 'all', limit: 200 } }).catch(() => ({ data: [] })));
+            } else if (user?.role?.toUpperCase() === 'MANAGER') {
+                // Try department scope for managers
+                endpointCalls.push(api.get('/recurring-tasks', { params: { scope: 'department', limit: 200 } }).catch(() => ({ data: [] })));
+            }
 
-                const results = await Promise.allSettled(endpointCalls);
+            const results = await Promise.allSettled(endpointCalls);
 
-                // Helper to extract array from any response shape
-                const extractList = (res) => {
-                    if (!res || res.status !== 'fulfilled' || !res.value) return [];
-                    const body = res.value.data;
-                    if (!body) return [];
-                    
-                    // Direct array
-                    if (Array.isArray(body)) return body;
-                    
-                    // Unwrap if backend sends { data: [], status: 200 } or { items: [] }
-                    const raw = body.data || body.items || body.results || body.recurring_tasks || body.tasks || body;
-                    if (Array.isArray(raw)) return raw;
-                    
-                    // Deep extract for legacy shapes
-                    if (body.data && Array.isArray(body.data.items)) return body.data.items;
-                    if (body.data && Array.isArray(body.data.data)) return body.data.data;
-                    
-                    return [];
-                };
-
-                // Merge all results and de-duplicate by ID
-                const merged = [];
-                results.forEach(r => {
-                    extractList(r).forEach(t => {
-                        const tid = t.id || t.recurring_id;
-                        if (!merged.some(m => (m.id || m.recurring_id) === tid)) merged.push(t);
-                    });
-                });
-
-                // ✅ Normalise: if backend sends `active: true/false` without a `status` string,
-                // synthesise a status so the UI always has one canonical field to check.
-                const templateList = merged.map(t => ({
-                    ...t,
-                    status: t.status ||
-                            (t.active === true  ? 'ACTIVE'   :
-                             t.active === false ? 'INACTIVE' : 'INACTIVE')
-                }));
-                console.log(`Recurring tasks loaded: ${templateList.length}`, templateList.map(t => t.title));
-
-                setTemplates(templateList);
+            // Helper to extract array from any response shape
+            const extractList = (res) => {
+                if (!res || res.status !== 'fulfilled' || !res.value) return [];
+                const body = res.value.data;
+                if (!body) return [];
                 
-                if (urlId) {
-                    const numericId = isNaN(urlId) ? urlId : parseInt(urlId, 10);
-                    const matching = templateList.find(t => (t.id || t.recurring_id) == urlId || (t.id || t.recurring_id) == numericId);
-                    if (matching) {
-                        setSelectedTemplateId(matching.id || matching.recurring_id);
-                    } else if (templateList.length > 0) {
-                        setSelectedTemplateId(templateList[0].id || templateList[0].recurring_id);
-                    }
+                // Direct array
+                if (Array.isArray(body)) return body;
+                
+                // Unwrap if backend sends { data: [], status: 200 } or { items: [] }
+                const raw = body.data || body.items || body.results || body.recurring_tasks || body.tasks || body;
+                if (Array.isArray(raw)) return raw;
+                
+                // Deep extract for legacy shapes
+                if (body.data && Array.isArray(body.data.items)) return body.data.items;
+                if (body.data && Array.isArray(body.data.data)) return body.data.data;
+                
+                return [];
+            };
+
+            // Merge all results and de-duplicate by ID
+            const merged = [];
+            results.forEach(r => {
+                extractList(r).forEach(t => {
+                    const tid = t.id || t.recurring_id;
+                    if (!merged.some(m => (m.id || m.recurring_id) === tid)) merged.push(t);
+                });
+            });
+
+            // ✅ Normalise
+            const templateList = merged.map(t => ({
+                ...t,
+                status: String(t.status || '').toUpperCase() === 'ACTIVE' || 
+                        String(t.status || '').toUpperCase() === 'INACTIVE' 
+                        ? String(t.status).toUpperCase()
+                        : (t.active === true || t.is_active === true ? 'ACTIVE' :
+                           t.active === false || t.is_active === false ? 'INACTIVE' : 'ACTIVE')
+            }));
+
+            setTemplates(templateList);
+            
+            if (urlId) {
+                const numericId = isNaN(urlId) ? urlId : parseInt(urlId, 10);
+                const matching = templateList.find(t => (t.id || t.recurring_id) == urlId || (t.id || t.recurring_id) == numericId);
+                if (matching) {
+                    setSelectedTemplateId(matching.id || matching.recurring_id);
                 } else if (templateList.length > 0) {
                     setSelectedTemplateId(templateList[0].id || templateList[0].recurring_id);
                 }
-            } catch (err) {
-                console.error("Failed to fetch recurring templates", err);
-                toast.error("Failed to load recurring tasks.");
-            } finally {
-                setLoading(false);
+            } else if (templateList.length > 0) {
+                setSelectedTemplateId(templateList[0].id || templateList[0].recurring_id);
             }
-        };
+        } catch (err) {
+            console.error("Fetch failed", err);
+            toast.error("Failed to load automation configurations");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchInitial();
-    }, []);
+    }, [user, isAdminOrCFO]);
 
     const handleToggleStatus = async (template) => {
         const id = template.id || template.recurring_id;
@@ -180,61 +211,123 @@ const RecurringTasksPage = () => {
 
     const handleDelete = async (template) => {
         const id = template.id || template.recurring_id;
-        if (!window.confirm("Are you sure you want to permanently delete this recurring template? This will stop all future task generations.")) return;
+        if (!window.confirm("Are you sure you want to permanently delete this recurring template? This action will destroy the template and its associated subtasks, preventing future generations.")) return;
         
         setActionLoading(id);
         const numericId = !isNaN(id) ? parseInt(id, 10) : id;
         
-        // Define deletion attempts in order of probability
-        const attempts = [
-            () => api.delete(`/recurring-tasks/${numericId}`),
-            () => api.post(`/recurring-tasks/${numericId}/delete`),
-            () => api.post(`/recurring-tasks/delete/${numericId}`),
-            () => api.delete(`/recurring-task/${numericId}`), // Singular fallback
-            () => api.patch(`/recurring-tasks/${numericId}`, { status: 'DELETED', active: false }) // Soft-delete fallback
-        ];
+        try {
+            let success = false;
+            let lastError = null;
 
-        let success = false;
-        let lastError = null;
+            // Aggressive fallback to catch misconfigured nested backend routes
+            const attempts = [
+                () => api.delete(`/recurring-tasks/recurring-tasks/${numericId}`), // ✅ User verified Swagger route
+                () => api.delete(`/recurring-tasks/${numericId}`),
+                () => api.delete(`/admin/recurring-tasks/${numericId}`),
+                () => api.delete(`/recurring-tasks/${numericId}/`),
+                () => api.post(`/recurring-tasks/${numericId}/delete`)
+            ];
 
-        for (const attempt of attempts) {
-            try {
-                await attempt();
-                success = true;
-                break;
-            } catch (err) {
-                lastError = err;
-                // If it's a 403 (Forbidden), stop immediately as it's a permission issue not a route issue
-                if (err.response?.status === 403) break;
-                // Otherwise continue to next fallback (404, 405, etc.)
-                continue;
+            for (const attempt of attempts) {
+                try {
+                    await attempt();
+                    success = true;
+                    break;
+                } catch (err) {
+                    lastError = err;
+                    if (err.response?.status === 400 || err.response?.status === 403 || err.response?.status === 422) {
+                        break; // Stop retrying if strictly blocked
+                    }
+                    continue; // 404, 405 -> Keep trying next route
+                }
             }
-        }
 
-        if (success) {
+            if (!success) throw lastError;
+
             setTemplates(prev => prev.filter(t => (t.id || t.recurring_id) !== id));
             if (selectedTemplateId === id) setSelectedTemplateId(null);
-            toast.success("Template deleted successfully");
-        } else {
-            console.error("All delete attempts failed", lastError);
-            const detail = lastError?.response?.data?.detail;
-            const errorMsg = Array.isArray(detail) 
-                ? detail.map(d => `${d.loc?.join('.') || 'body'}: ${d.msg}`).join(", ") 
-                : (detail || "Server endpoint not found (404/405). The template might still have history dependencies.");
-            toast.error("Delete failed: " + errorMsg);
+            toast.success("Recurring template and its subtasks deleted successfully");
+        } catch (err) {
+            console.error("Deletion failed", err);
+            let errorMsg = "Server error. Please try again.";
+            if (err?.response?.status === 404) {
+                errorMsg = "404 Not Found - Server Route missing (Check backend).";
+            } else if (err?.response?.status === 405) {
+                errorMsg = "Method Not Allowed - Check backend DELETE mapping.";
+            } else if (err?.response?.data?.detail) {
+                const detail = err.response.data.detail;
+                errorMsg = Array.isArray(detail)
+                    ? detail.map(d => `${d.loc?.join('.') || 'body'}: ${d.msg}`).join(", ")
+                    : detail;
+            } else if (err?.response?.data?.message) {
+                errorMsg = err.response.data.message;
+            } else if (err?.message) {
+                errorMsg = err.message;
+            }
+            toast.error("Delete blocked: " + errorMsg, { duration: 6000 });
+        } finally {
+            setActionLoading(null);
         }
-        setActionLoading(null);
     };
 
     const formatFrequency = (template) => {
         if (!template) return '—';
         const freq = String(template.frequency || '').toUpperCase();
-        if (freq === 'WEEKLY') return `Every ${template.weekly_day || 'Monday'}`;
+        if (freq === 'DAILY') return 'Daily';
+        if (freq === 'WEEKLY') return `Weekly (${template.weekly_day || 'Monday'})`;
         if (freq === 'MONTHLY') return 'Monthly';
         if (freq === 'QUARTERLY') return 'Quarterly';
         if (freq === 'YEARLY') return 'Yearly';
+        // Numeric values like '1' stored by backend — treat as Weekly
+        if (/^\d+$/.test(freq)) return 'Weekly';
         return freq || 'Daily';
     };
+
+    const handleRunRecurringTasks = async () => {
+        if (!window.confirm("Manually trigger task generation for today? This will execute the automation engine now.")) return;
+        
+        const tid = toast.loading('Executing automation engine...', { duration: 10000 });
+        setIsRunning(true);
+        try {
+            const today = new Date().toISOString().slice(0, 10);
+            const res = await api.post('/recurring-tasks/run', { run_date: today });
+            const data = res.data || {};
+            const generated = data.generated_count ?? 0;
+            const skipped = data.skipped_count ?? 0;
+            const taskList = data.generated_tasks || [];
+
+            toast.success(
+                <div className="flex flex-col gap-1 items-start text-left">
+                    <p className="font-black text-[13px]">Automation Complete</p>
+                    <p className="text-[11px] font-medium opacity-90 leading-tight">
+                        <span className="text-emerald-300 font-bold">{generated} tasks</span> created successfully.<br/>
+                        <span className="text-orange-200 font-bold">{skipped} tasks</span> were skipped/duplicate.
+                    </p>
+                    {taskList.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                            {taskList.slice(0, 3).map((t, i) => (
+                                <span key={i} className="px-1.5 py-0.5 bg-white/10 rounded text-[9px] font-bold">
+                                    {t.title || t}
+                                </span>
+                            ))}
+                            {taskList.length > 3 && <span className="text-[9px] opacity-60">+{taskList.length - 3} more</span>}
+                        </div>
+                    )}
+                </div>, 
+                { id: tid, duration: 6000 }
+            );
+            
+            // Re-fetch everything to show the updated state (last_run, etc)
+            fetchInitial();
+        } catch (err) {
+            console.error("Manual trigger failed", err);
+            toast.error('Failed to execute recurring tasks engine: ' + (err.response?.data?.detail || err.message), { id: tid });
+        } finally {
+            setIsRunning(false);
+        }
+    };
+
 
     return (
         <div className="min-h-screen bg-[#f3edfd] p-8 md:p-12 animate-in fade-in duration-1000 selection:bg-indigo-100 selection:text-indigo-900 rounded-[3rem] mx-2 my-2 shadow-[inset_0_0_80px_rgba(139,92,246,0.05)]">
@@ -247,6 +340,15 @@ const RecurringTasksPage = () => {
                 </div>
                 
                 <div className="flex items-center gap-4">
+                    {isAdminOrCFO && (
+                        <button 
+                            onClick={handleRunRecurringTasks}
+                            className="bg-white text-indigo-600 px-6 py-3.5 rounded-2xl font-black text-[13px] shadow-sm hover:shadow-md border border-indigo-100/50 hover:bg-indigo-50 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2"
+                            title="Manually trigger recurring tasks engine for today"
+                        >
+                            <Play size={16} strokeWidth={3} className="text-emerald-500" /> Run Recurring Tasks
+                        </button>
+                    )}
                     <button 
                         onClick={() => setConfigModal({ isOpen: true, template: null })}
                         className="bg-indigo-600 text-white px-8 py-3.5 rounded-2xl font-black text-[13px] shadow-xl shadow-indigo-200 hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-3"
@@ -343,7 +445,9 @@ const RecurringTasksPage = () => {
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-[#fbfcff]/50 text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-indigo-50/50">
                             <tr>
+                                <th className="px-6 py-5">ID</th>
                                 <th className="px-10 py-5">Template</th>
+                                <th className="px-8 py-5">Assigned By</th>
                                 <th className="px-8 py-5">Frequency</th>
                                 <th className="px-8 py-5">Status</th>
                                 <th className="px-10 py-5 text-right">Actions</th>
@@ -352,13 +456,13 @@ const RecurringTasksPage = () => {
                         <tbody className="divide-y divide-indigo-50/40">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={4} className="py-20 text-center">
+                                    <td colSpan={5} className="py-20 text-center">
                                         <Loader2 className="animate-spin text-indigo-500 mx-auto" size={32} />
                                     </td>
                                 </tr>
                             ) : filteredTemplates.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="py-12 text-center text-slate-400 italic font-medium uppercase tracking-[0.2em] text-[10px]">No matches found for active filters.</td>
+                                    <td colSpan={5} className="py-12 text-center text-slate-400 italic font-medium uppercase tracking-[0.2em] text-[10px]">No matches found for active filters.</td>
                                 </tr>
                             ) : (
                                 filteredTemplates.map((t) => {
@@ -375,14 +479,28 @@ const RecurringTasksPage = () => {
                                                 }}
                                                 className={`group cursor-pointer transition-all duration-300 ${isSelected ? 'bg-indigo-100/40' : 'hover:bg-white/60'}`}
                                             >
+                                                {/* ID Badge Column */}
+                                                <td className="px-6 py-5">
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-lg text-[10px] font-black font-mono tracking-widest shadow-sm">
+                                                        RT-{t.id || t.recurring_id}
+                                                    </span>
+                                                </td>
                                                 <td className="px-10 py-5">
                                                     <div className="flex items-center gap-3">
                                                         <div className={`transition-transform duration-300 ${expandedRowId === id ? 'rotate-90' : ''}`}>
                                                             <ChevronRight size={16} className="text-slate-400 group-hover:text-indigo-600" />
                                                         </div>
-                                                        <span className={`text-[15px] font-bold ${isSelected ? 'text-indigo-700' : 'text-slate-700'} tracking-tight`}>
-                                                            {t.title}
-                                                        </span>
+                                                        <div className="flex flex-col">
+                                                            <span className={`text-[15px] font-bold ${isSelected ? 'text-indigo-700' : 'text-slate-700'} tracking-tight`}>
+                                                                {t.title}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[13px] font-bold text-slate-700">{t.assigned_by_name || 'System Admin'}</span>
+                                                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-0.5">Executor</span>
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-5">
@@ -441,7 +559,7 @@ const RecurringTasksPage = () => {
                                             </tr>
                                             {expandedRowId === id && (
                                                 <tr className="bg-slate-50/50">
-                                                    <td colSpan={4} className="px-10 py-6 border-b border-indigo-100/30 animate-in slide-in-from-top-2 duration-300">
+                                                    <td colSpan={6} className="px-10 py-6 border-b border-indigo-100/30 animate-in slide-in-from-top-2 duration-300">
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                             <div className="space-y-4">
                                                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -460,10 +578,20 @@ const RecurringTasksPage = () => {
                                                                 <div className="space-y-2">
                                                                     {t.subtasks?.length > 0 ? (
                                                                         t.subtasks.map((st, sidx) => (
-                                                                            <div key={sidx} className="flex items-center gap-3 px-4 py-2 bg-white rounded-xl border border-slate-100 shadow-sm">
-                                                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-                                                                                <span className="text-[12px] font-bold text-slate-700">{st.title}</span>
-                                                                                <span className="ml-auto text-[9px] font-black text-slate-300 uppercase tracking-widest">{st.priority}</span>
+                                                                            <div key={sidx} className="flex items-start px-4 py-3 bg-white rounded-xl border border-slate-100 shadow-sm transition-colors hover:shadow-md gap-3">
+                                                                                {/* Subtask ID Badge */}
+                                                                                <span className="shrink-0 inline-flex items-center px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-500 rounded-md text-[9px] font-black font-mono tracking-widest mt-0.5">
+                                                                                    SR-{st.id || st.subtask_template_id || st.subtask_id}
+                                                                                </span>
+                                                                                <div className="flex flex-col flex-1 min-w-0">
+                                                                                    <span className="text-[12px] font-bold text-slate-700 leading-snug">{st.title}</span>
+                                                                                    {st.description && (
+                                                                                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed border-l-2 border-indigo-100 pl-2">
+                                                                                            {st.description}
+                                                                                        </p>
+                                                                                    )}
+                                                                                </div>
+                                                                                <span className="ml-auto shrink-0 text-[9px] font-black text-slate-300 uppercase tracking-widest self-center">{st.priority}</span>
                                                                             </div>
                                                                         ))
                                                                     ) : (
@@ -493,8 +621,12 @@ const RecurringTasksPage = () => {
             {/* ── SELECTION DETAILS SECTION ── */}
             {selectedTemplate && (
                 <div className="animate-in slide-in-from-bottom-6 duration-700">
-                    <h2 className="text-[14px] font-black text-slate-500 mb-6 flex items-center gap-2">
-                        Selected Template: <span className="text-indigo-600 uppercase tracking-tight ml-2">{selectedTemplate.title}</span>
+                    <h2 className="text-[14px] font-black text-slate-500 mb-6 flex items-center gap-3 flex-wrap">
+                        Selected Template:
+                        <span className="text-indigo-600 uppercase tracking-tight">{selectedTemplate.title}</span>
+                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white rounded-full text-[10px] font-black font-mono tracking-widest shadow-sm">
+                            RT-{selectedTemplate.id || selectedTemplate.recurring_id}
+                        </span>
                     </h2>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -508,14 +640,15 @@ const RecurringTasksPage = () => {
                             </div>
 
                             <div className="space-y-6 flex-1">
-                                <div className="grid grid-cols-1 gap-1">
-                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Template</label>
-                                    <p className="text-[15px] font-bold text-slate-700">{selectedTemplate.title}</p>
-                                </div>
-                                
-                                <div className="grid grid-cols-1 gap-1">
-                                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Frequency</label>
-                                    <p className="text-[15px] font-bold text-slate-700">{formatFrequency(selectedTemplate)}</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 gap-1">
+                                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Template ID</label>
+                                        <p className="text-[15px] font-black text-indigo-600 font-mono">RT-{selectedTemplate.id || selectedTemplate.recurring_id}</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-1">
+                                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Frequency</label>
+                                        <p className="text-[15px] font-bold text-slate-700">{formatFrequency(selectedTemplate)}</p>
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-3">
@@ -543,7 +676,12 @@ const RecurringTasksPage = () => {
                                     <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-sm">
                                         <ListTodo size={20} />
                                     </div>
-                                    <h3 className="text-[18px] font-black text-slate-800">Recurring Subtasks</h3>
+                                    <div className="flex flex-col">
+                                        <h3 className="text-[18px] font-black text-slate-800">Recurring Subtasks</h3>
+                                        <span className="text-[10px] font-black text-slate-400 font-mono tracking-widest mt-0.5">
+                                            Parent: RT-{selectedTemplate.id || selectedTemplate.recurring_id}
+                                        </span>
+                                    </div>
                                 </div>
                                 <button 
                                     onClick={() => setConfigModal({ isOpen: true, template: selectedTemplate })}
@@ -557,30 +695,46 @@ const RecurringTasksPage = () => {
                             <div className="space-y-3 flex-1">
                                 {selectedTemplate.subtasks?.length > 0 ? (
                                     selectedTemplate.subtasks.map((st, i) => (
-                                        <div key={i} className="group p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition-all hover:border-indigo-100">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-5 h-5 rounded border-2 border-indigo-200 bg-indigo-50 flex items-center justify-center shadow-inner">
-                                                    <Check size={14} className="text-indigo-600" strokeWidth={3} />
-                                                </div>
-                                                <span className="text-[14px] font-bold text-slate-700 tracking-tight group-hover:text-indigo-600 transition-colors">{st.title}</span>
+                                        <div key={i} className="group p-4 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-all hover:border-indigo-100">
+                                            {/* ID badges row */}
+                                            <div className="flex items-center gap-2 mb-2.5">
+                                                <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-500 rounded-md text-[9px] font-black font-mono tracking-widest">
+                                                    SR-{st.id || st.subtask_template_id || st.subtask_id || (i + 1)}
+                                                </span>
+                                                <span className="inline-flex items-center px-2 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-400 rounded-md text-[9px] font-black font-mono tracking-widest">
+                                                    RT-{selectedTemplate.id || selectedTemplate.recurring_id}
+                                                </span>
                                             </div>
-                                            <div className="flex items-center gap-4">
-                                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{formatFrequency(selectedTemplate)}</span>
-                                                <div className="flex items-center gap-1">
-                                                    <button 
-                                                        onClick={() => setConfigModal({ isOpen: true, template: selectedTemplate })}
-                                                        className="p-1.5 rounded-lg text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
-                                                        title="Edit Subtask"
-                                                    >
-                                                        <Edit2 size={14} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => setConfigModal({ isOpen: true, template: selectedTemplate })}
-                                                        className="p-1.5 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-all"
-                                                        title="Delete Subtask"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                    <div className="w-5 h-5 rounded border-2 border-indigo-200 bg-indigo-50 flex items-center justify-center shadow-inner shrink-0 mt-0.5">
+                                                        <Check size={14} className="text-indigo-600" strokeWidth={3} />
+                                                    </div>
+                                                    <div className="flex flex-col gap-1 min-w-0">
+                                                        <span className="text-[14px] font-bold text-slate-700 tracking-tight group-hover:text-indigo-600 transition-colors leading-snug">{st.title}</span>
+                                                        {st.description && (
+                                                            <p className="text-[12px] text-slate-400 font-medium italic leading-snug line-clamp-2">{st.description}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3 shrink-0">
+                                                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">{formatFrequency(selectedTemplate)}</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <button 
+                                                            onClick={() => setConfigModal({ isOpen: true, template: selectedTemplate })}
+                                                            className="p-1.5 rounded-lg text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                                                            title="Edit Subtask"
+                                                        >
+                                                            <Edit2 size={14} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setConfigModal({ isOpen: true, template: selectedTemplate })}
+                                                            className="p-1.5 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                                                            title="Delete Subtask"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>

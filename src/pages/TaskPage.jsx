@@ -72,15 +72,15 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
   }
 
   return (
-    <div className="overflow-x-auto bg-white rounded-[1.5rem] shadow-sm border border-slate-100 mt-6">
-      <table className="w-full text-left border-collapse text-xs">
-        <thead className="bg-slate-50/30 text-slate-400 text-[12px] capitalize font-medium border-b border-slate-100">
+    <div className="overflow-x-auto bg-white rounded-[1.5rem] shadow-sm border border-slate-100 mt-6 overflow-hidden">
+      <table className="w-full text-left border-collapse text-[15px]">
+        <thead className="bg-slate-50/10 text-slate-400 text-[13px] uppercase tracking-wider font-bold border-b border-slate-100/80">
           <tr>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Task Id</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task Id</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task</th>
-            <th className="py-3 px-4">Employee</th>
-            <th className="py-3 px-4">Role</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Task Id</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Parent Task Id</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Parent Task</th>
+            <th className="py-4 px-5">Employee</th>
+            <th className="py-4 px-5 font-bold uppercase tracking-widest text-[11px]">Role</th>
             <th className="py-3 px-4">Dept</th>
             <th className="py-3 px-4">Job Assignment</th>
             <th className="py-3 px-4">Assigned By</th>
@@ -104,21 +104,21 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
 
             return (
               <tr key={taskKey} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => onViewDetails(task)}>
-                <td className="py-2 px-4 font-bold text-violet-600">#{task.id}</td>
-                <td className="py-2 px-4 text-slate-500 font-medium">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</td>
-                <td className="py-2 px-4 text-slate-500 font-medium truncate max-w-[150px]">{task.parent_task_title || task.parent_task_name || '-'}</td>
+                <td className="py-4 px-5 font-bold text-violet-600">#{task.id}</td>
+                <td className="py-4 px-5 text-slate-500 font-medium">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</td>
+                <td className="py-4 px-5 text-slate-500 font-medium truncate max-w-[150px]">{task.parent_task_title || task.parent_task_name || '-'}</td>
 
                 {/* Employee */}
-                <td className="py-2 px-4">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-sm border border-white">
+                <td className="py-4 px-5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[12px] font-bold flex-shrink-0 shadow-sm border border-white">
                       {(task.assigneeName || task.employee_id || '?').charAt(0)}
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="truncate font-semibold text-[13px]">{task.assigneeName || task.employee_id}</span>
+                      <span className="truncate font-bold text-[14.5px] text-slate-800 tracking-tight">{task.assigneeName || task.employee_id}</span>
                       {(task.is_reassigned || task.reassigned_from || (task.reassignment_count > 0)) && (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 mt-0.5 w-fit">
-                          <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 6h10M7 2l4 4-4 4"/></svg>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-0.5 w-fit uppercase tracking-wider">
+                          <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 6h10M7 2l4 4-4 4"/></svg>
                           Reassigned
                         </span>
                       )}
@@ -127,10 +127,10 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                 </td>
 
                 {/* Role */}
-                <td className="py-2 px-4">
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full capitalize tracking-tighter ${(assignee?.role || task.assignee_role || '').toUpperCase() === 'MANAGER' ? 'bg-indigo-100 text-indigo-700' :
+                <td className="py-4 px-5">
+                  <span className={`text-[11px] font-black px-3 py-1 rounded-full capitalize tracking-widest ${(assignee?.role || task.assignee_role || '').toUpperCase() === 'MANAGER' ? 'bg-indigo-100 text-indigo-700' :
                     (assignee?.role || task.assignee_role || '').toUpperCase() === 'EMPLOYEE' ? 'bg-slate-100 text-slate-600' :
-                      (assignee?.role || task.assignee_role || '').toUpperCase() === 'CFO' || (assignee?.role || task.assignee_role || '').toUpperCase() === 'ADMIN' ? 'bg-[#9B51E0] text-white' :
+                    (assignee?.role || task.assignee_role || '').toUpperCase() === 'CFO' || (assignee?.role || task.assignee_role || '').toUpperCase() === 'ADMIN' ? 'bg-[#9B51E0] text-white' :
                         'bg-slate-100 text-slate-400'
                     }`}>
                     {String(assignee?.role || task.assignee_role || task.role || '-').toLowerCase()}
@@ -143,25 +143,25 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                 </td>
 
                 {/* Job Assignment Name */}
-                <td className="py-2 px-4 max-w-[160px]">
-                  <div className="font-semibold text-[13px] truncate">{task.title}</div>
-                  <div className="text-[11px] text-slate-400 truncate mt-0.5">{task.description}</div>
+                <td className="py-4 px-5 max-w-[200px]">
+                  <div className="font-bold text-[14.5px] text-slate-800 truncate tracking-tight">{task.title}</div>
+                  <div className="text-[12px] font-medium text-slate-400 truncate mt-0.5">{task.description}</div>
                 </td>
 
                 {/* Assigned By */}
-                <td className="py-2 px-4 text-slate-500 truncate font-medium">
+                <td className="py-4 px-5 text-slate-600 truncate font-semibold">
                   {task.assignerName || task.assigned_by || 'System'}
                 </td>
 
                 {/* Date Assigned */}
-                <td className="py-2 px-4 text-slate-500 whitespace-nowrap font-medium">
+                <td className="py-4 px-5 text-slate-500 whitespace-nowrap font-medium">
                   {task.assigned_date || task.created_at
                     ? new Date(task.assigned_date || task.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
                     : '-'}
                 </td>
 
                 {/* Due Date */}
-                <td className={`p-4 whitespace-nowrap font-semibold text-[13px] ${isOverdue ? 'text-red-500' : 'text-slate-600'}`}>
+                <td className={`py-4 px-5 whitespace-nowrap font-bold text-[14.5px] ${isOverdue ? 'text-red-500' : 'text-slate-600'}`}>
                   {task.due_date}
                 </td>
 
@@ -263,54 +263,54 @@ const ActionTaskTable = ({
   }
 
   return (
-    <div className="overflow-x-auto bg-white rounded-[1.5rem] shadow-sm border border-slate-100 mt-6">
+    <div className="overflow-x-auto bg-white rounded-[1.5rem] shadow-sm border border-slate-100 mt-6 overflow-hidden">
       <table className="w-full text-left border-collapse">
-        <thead className="bg-slate-50/30 text-slate-400 text-[12px] capitalize font-medium border-b border-slate-100">
+        <thead className="bg-slate-50/10 text-slate-400 text-[13px] uppercase tracking-wider font-bold border-b border-slate-100/80">
           <tr>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Task Id</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task Id</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent Task</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Task</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Assignee</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Assigned By</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px] text-center">Status</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px] text-center">Severity</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Due Date</th>
-            <th className="py-3 px-4 text-slate-400 font-bold capitalize tracking-widest text-[10px] text-right">Actions</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Task Id</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Parent Task Id</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Parent Task</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Task</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Assignee</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Assigned By</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px] text-center">Status</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px] text-center">Severity</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Due Date</th>
+            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px] text-right">Actions</th>
           </tr>
         </thead>
 
-        <tbody className="divide-y divide-slate-50 text-[13px] text-slate-700">
+        <tbody className="divide-y divide-slate-50 text-[15px] text-slate-700">
           {tasks.map((task) => {
             const assigneeName = task.assigneeName || task.employee_id;
             const assignerName = task.assignerName || task.assigned_by || "System";
 
             return (
               <tr key={task.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => onViewDetails(task)}>
-                <td className="p-4 font-bold text-violet-600">#{task.id}</td>
-                <td className="p-4 text-slate-500 font-medium">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</td>
-                <td className="p-4 text-slate-500 font-medium truncate max-w-[150px]">{task.parent_task_title || task.parent_task_name || '-'}</td>
-                <td className="p-4 min-w-0">
+                <td className="p-5 font-bold text-violet-600">#{task.id}</td>
+                <td className="p-5 text-slate-500 font-medium">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</td>
+                <td className="p-5 text-slate-500 font-medium truncate max-w-[150px]">{task.parent_task_title || task.parent_task_name || '-'}</td>
+                <td className="p-5 min-w-0">
                   <div className="flex items-center gap-3">
                     <div>
-                      <div className="font-semibold text-slate-800 text-[13.5px] truncate max-w-[200px]">{task.title}</div>
-                      <div className="text-[11.5px] text-slate-400 truncate mt-0.5 max-w-[200px]">
+                      <div className="font-bold text-slate-800 text-[15.5px] truncate max-w-[200px] tracking-tight">{task.title}</div>
+                      <div className="text-[12.5px] font-medium text-slate-400 truncate mt-0.5 max-w-[200px]">
                         {task.description}
                       </div>
                     </div>
                   </div>
                 </td>
 
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-sm border border-white">
+                <td className="p-5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[12px] font-bold flex-shrink-0 shadow-sm border border-white">
                       {(assigneeName || '?').charAt(0)}
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="truncate font-medium">{assigneeName}</span>
+                      <span className="truncate font-bold text-slate-800 text-[14.5px] tracking-tight">{assigneeName}</span>
                       {(task.is_reassigned || task.reassigned_from || (task.reassignment_count > 0)) && (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 mt-0.5 w-fit">
-                          <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 6h10M7 2l4 4-4 4"/></svg>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-0.5 w-fit uppercase tracking-widest">
+                          <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 6h10M7 2l4 4-4 4"/></svg>
                           Reassigned
                         </span>
                       )}
@@ -318,7 +318,7 @@ const ActionTaskTable = ({
                   </div>
                 </td>
 
-                <td className="p-4 font-medium text-slate-600 truncate">{assignerName}</td>
+                <td className="p-5 font-bold text-slate-600 truncate">{assignerName}</td>
 
                 <td className="p-4 text-center">
                   <StatusCell task={task} />

@@ -134,7 +134,6 @@ const Sidebar = ({ isCollapsed, toggleSidebar, isMobileOpen, closeMobileSidebar 
                         <NavItem to="/dashboard"    icon={LayoutDashboard} label="Dashboard" />
                         <NavItem to="/performance-dashboard" icon={TrendingUp} label="Performance" />
                         <NavItem to="/tasks/team"   icon={Users}           label="Team Tasks" />
-                        <NavItem to="/departments"  icon={Building2}       label="Departments" />
                         <NavItem to="/org-tree"     icon={Network}         label="Organization Tree" />
                         <SectionLabel label="Strategic OKRs" />
                         <NavItem to="/okr-dashboard"   icon={Target}     label="OKR Dashboard" />

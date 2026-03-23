@@ -302,6 +302,7 @@ const PerformanceDashboard = () => {
                 setDeptMetrics({
                     total_tasks: Number(m.total_tasks || 0),
                     completed_tasks: Number(m.completed_tasks || 0),
+                    submitted_tasks: Number(m.submitted_tasks || m.pending_tasks || m.pending || m.pending_approval || 0),
                     overdue_tasks: Number(m.overdue_tasks || 0),
                     active_tasks: Number(m.active_tasks || 0),
                     completion_pct: Number(m.completion_pct || 0)
@@ -668,18 +669,21 @@ const PerformanceDashboard = () => {
                             </div>
                         </div>
                     </div>
-                    
-                    <div className="grid grid-cols-3 gap-3 w-full mt-8">
-                        <div className="bg-slate-50 border border-slate-100 p-3 rounded-2xl flex flex-col items-center">
-                            <span className="text-slate-900 font-black text-lg">{deptMetrics.total_tasks}</span>
+                    <div className="grid grid-cols-4 gap-2 w-full mt-8">
+                        <div className="bg-slate-50 border border-slate-100 p-2 sm:p-3 rounded-2xl flex flex-col items-center">
+                            <span className="text-slate-900 font-black text-lg">{deptMetrics.total_tasks || 0}</span>
                             <span className="text-[9px] uppercase font-bold text-slate-400">Total</span>
                         </div>
-                        <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-2xl flex flex-col items-center">
-                            <span className="text-emerald-600 font-black text-lg">{deptMetrics.completed_tasks}</span>
+                        <div className="bg-emerald-50 border border-emerald-100 p-2 sm:p-3 rounded-2xl flex flex-col items-center">
+                            <span className="text-emerald-600 font-black text-lg">{deptMetrics.completed_tasks || 0}</span>
                             <span className="text-[9px] uppercase font-bold text-emerald-400">Approved</span>
                         </div>
-                        <div className="bg-rose-50 border border-rose-100 p-3 rounded-2xl flex flex-col items-center">
-                            <span className="text-rose-600 font-black text-lg">{deptMetrics.overdue_tasks}</span>
+                        <div className="bg-amber-50 border border-amber-100 p-2 sm:p-3 rounded-2xl flex flex-col items-center">
+                            <span className="text-amber-600 font-black text-lg">{deptMetrics.submitted_tasks || 0}</span>
+                            <span className="text-[9px] uppercase font-bold text-amber-500">Pending</span>
+                        </div>
+                        <div className="bg-rose-50 border border-rose-100 p-2 sm:p-3 rounded-2xl flex flex-col items-center">
+                            <span className="text-rose-600 font-black text-lg">{deptMetrics.overdue_tasks || 0}</span>
                             <span className="text-[9px] uppercase font-bold text-rose-400">Overdue</span>
                         </div>
                     </div>

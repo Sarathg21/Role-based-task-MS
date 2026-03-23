@@ -73,7 +73,7 @@ const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
             <div className="relative z-10 flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] font-bold text-white/70 uppercase tracking-[0.1em] drop-shadow-sm whitespace-nowrap">
+                        <span className="text-[10px] font-bold text-white/70 capitalize tracking-tight drop-shadow-sm whitespace-nowrap">
                             {label}
                         </span>
                     </div>
@@ -125,7 +125,212 @@ const OKRDashboard = () => {
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/trends').catch(() => ({ data: {} })),
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/today').catch(() => ({ data: {} }))
             ]);
-            const data = res.data?.data || res.data || {};
+            let data = res.data?.data || res.data || {};
+
+            // ✅ COMPREHENSIVE TASK FETCH - catches recurring-generated tasks + standard tasks
+            try {
+                // Fetch from all available scopes to ensure recurring-generated tasks are included
+                const [tasksReq, orgTasksReq] = await Promise.allSettled([
+                    api.get('/tasks', { params: { limit: 200 } }),
+                    api.get('/tasks', { params: { limit: 200, scope: 'org' } }).catch(() => null)
+                ]);
+
+                const extractTasks = (res) => {
+                    if (!res || res.status !== 'fulfilled' || !res.value) return [];
+                    const d = res.value?.data;
+                    if (!d) return [];
+                    if (Array.isArray(d)) return d;
+                    return d.data || d.items || d.tasks || d.results || [];
+                };
+
+                // Merge and deduplicate by task ID
+                const rawMerged = [...extractTasks(tasksReq), ...extractTasks(orgTasksReq)];
+                const seenIds = new Set();
+                const allTasks = rawMerged.filter(t => {
+                    const id = t.id || t.task_id;
+                    if (!id || seenIds.has(id)) return false;
+                    seenIds.add(id);
+                    return true;
+                });
+
+                // Build parent->subtask map
+                const subtaskMap = {};
+                const parentSet = new Set();
+                const potentialParents = new Map();
+
+                allTasks.forEach(t => {
+                    const id = t.id || t.task_id;
+                    const parentId = t.parent_task_id || t.parent_id;
+                    if (parentId) {
+                        if (!subtaskMap[parentId]) subtaskMap[parentId] = [];
+                        subtaskMap[parentId].push(t);
+                        parentSet.add(String(parentId));
+                    }
+                    potentialParents.set(String(id), t);
+                });
+
+                // Identify parent tasks:
+                // 1. Tasks that have subtasks referencing them
+                // 2. Tasks explicitly flagged as parent
+                // 3. Tasks generated from recurring templates (have recurring_task_id)
+                const parents = allTasks.filter(t => {
+                    const id = String(t.id || t.task_id);
+                    const isParentByChildren = parentSet.has(id);
+                    const isParentByFlag = t.is_parent || t.task_type === 'PARENT' || (t.subtask_count && t.subtask_count > 0);
+                    const isRecurring = !!(t.recurring_task_id || t.recurring_id || t.automation_id);
+                    const hasNoParent = !t.parent_task_id && !t.parent_id;
+                    return hasNoParent && (isParentByChildren || isParentByFlag || isRecurring);
+                });
+
+                // Helper: extract department name from any task object
+                const getDeptName = (item) => {
+                    if (!item) return null;
+                    const candidates = [
+                        item.department_name,
+                        item.department,
+                        item.dept_name,
+                        item.dept,
+                        item.owner_dept,
+                        item.assigned_dept,
+                        item.department_id ? `Dept-${item.department_id}` : null
+                    ];
+                    for (const c of candidates) {
+                        if (c && c !== 'N/A' && c !== 'undefined' && c !== 'null') {
+                            return typeof c === 'object' ? (c.name || JSON.stringify(c)) : String(c).trim();
+                        }
+                    }
+                    return null;
+                };
+
+                const manualObjs = parents.map(p => {
+                    const pid = p.id || p.task_id;
+                    const directSubs = Array.isArray(p.subtasks) ? p.subtasks : [];
+                    const subs = [...(subtaskMap[pid] || []), ...directSubs];
+
+                    // Deduplicate subtasks
+                    const uniqueSubs = Array.from(
+                        new Map(subs.filter(Boolean).map(s => [s.id || s.task_id || Math.random(), s])).values()
+                    );
+
+                    const totalSub = uniqueSubs.length;
+                    const completedSub = uniqueSubs.filter(s =>
+                        ['APPROVED', 'COMPLETED'].includes((s.status || '').toUpperCase())
+                    ).length;
+                    const activeSub = uniqueSubs.filter(s =>
+                        ['IN_PROGRESS', 'SUBMITTED', 'STARTED'].includes((s.status || '').toUpperCase())
+                    ).length;
+                    const progress = totalSub > 0
+                        ? Math.round((completedSub / totalSub) * 100)
+                        : (['APPROVED', 'COMPLETED'].includes((p.status || '').toUpperCase()) ? 100 : 0);
+
+                    // Collect all departments from parent + subtasks
+                    const depts = new Set();
+                    const pDept = getDeptName(p);
+                    if (pDept) depts.add(pDept);
+                    uniqueSubs.forEach(s => {
+                        const sDept = getDeptName(s);
+                        if (sDept) depts.add(sDept);
+                    });
+
+                    // If still no dept found, use a meaningful fallback
+                    const deptsArray = depts.size > 0 ? Array.from(depts) : ['Corporate'];
+
+                    const isOverdue = p.due_date && new Date(p.due_date) < new Date() &&
+                        !['APPROVED', 'COMPLETED'].includes((p.status || '').toUpperCase());
+                    let riskLabel = 'Low';
+                    let score = 100 - (isOverdue ? 40 : 0) -
+                        (activeSub === 0 && progress < 100 && totalSub > 0 ? 10 : 0);
+                    if (progress < 40 && isOverdue) riskLabel = 'High';
+                    else if (isOverdue || (progress > 0 && progress < 50)) riskLabel = 'Medium';
+
+                    return {
+                        id: pid,
+                        objective_title: p.title || p.objective_title || 'Strategic Objective',
+                        progress_pct: progress,
+                        completed_subtasks: completedSub,
+                        total_subtasks: totalSub,
+                        department_count: Math.max(1, deptsArray.length),
+                        health_score: Math.max(0, score),
+                        risk_rating: riskLabel,
+                        deptsArray
+                    };
+                });
+
+                // Merge manual objectives with server objectives (server is authoritative for existing, manual fills gaps)
+                const serverObjs = Array.isArray(data.objective_completion) ? [...data.objective_completion] : [];
+
+                manualObjs.forEach(mObj => {
+                    const existing = serverObjs.find(s =>
+                        String(s.parent_task_id || s.id) === String(mObj.id)
+                    );
+                    if (!existing) {
+                        serverObjs.push(mObj);
+                    } else {
+                        // Patch missing data fields
+                        if (!existing.department_count || existing.department_count === 0)
+                            existing.department_count = mObj.department_count;
+                        if (!existing.total_subtasks || existing.total_subtasks === 0)
+                            existing.total_subtasks = mObj.total_subtasks;
+                        if (!existing.completed_subtasks || !existing.completed_subtasks)
+                            existing.completed_subtasks = mObj.completed_subtasks;
+                        if (existing.progress_pct === 0 && mObj.progress_pct > 0)
+                            existing.progress_pct = mObj.progress_pct;
+                        existing.deptsArray = mObj.deptsArray;
+                        // Always enforce minimum department count of 1
+                        existing.department_count = Math.max(1, existing.department_count || 0);
+                    }
+                });
+
+                // Force minimum dept_count=1 on all server objectives too
+                serverObjs.forEach(o => {
+                    if (!o.department_count || o.department_count === 0) o.department_count = 1;
+                    if (!o.deptsArray) o.deptsArray = ['Corporate'];
+                });
+
+                data.objective_completion = serverObjs;
+                data.total_objectives = serverObjs.length;
+
+                // Global KPI recalculation
+                data.total_subtasks = serverObjs.reduce((acc, o) => acc + Math.max(o.total_subtasks || 0, 1), 0);
+                data.completed_tasks = serverObjs.reduce((acc, o) => {
+                    const done = o.completed_subtasks || 0;
+                    const total = o.total_subtasks || 0;
+                    if (total === 0) return acc + (o.progress_pct >= 100 ? 1 : 0);
+                    return acc + done;
+                }, 0);
+                data.overall_progress = data.total_subtasks > 0
+                    ? Math.round((data.completed_tasks / data.total_subtasks) * 100)
+                    : 0;
+                data.at_risk = serverObjs.filter(o => o.risk_rating === 'High' || o.risk_rating === 'Medium').length;
+                data.avg_health_score = serverObjs.length > 0
+                    ? Math.round(serverObjs.reduce((acc, o) => acc + (o.health_score || 100), 0) / serverObjs.length)
+                    : 0;
+
+                // Rebuild department contribution from actual data
+                const deptMap = {};
+                serverObjs.forEach(o => {
+                    (o.deptsArray || ['Corporate']).forEach(d => {
+                        deptMap[d] = (deptMap[d] || 0) + Math.max(o.total_subtasks || 0, 1);
+                    });
+                });
+                data.department_contribution = Object.entries(deptMap)
+                    .map(([name, count]) => ({ department_name: name, subtask_count: count }))
+                    .sort((a, b) => b.subtask_count - a.subtask_count);
+
+                // Rebuild risk overview
+                if (!data.risk_overview || data.risk_overview.length === 0) {
+                    data.risk_overview = serverObjs.map(o => ({
+                        objective_title: o.objective_title,
+                        risk_rating: o.risk_rating,
+                        health_score: o.health_score
+                    }));
+                }
+
+            } catch (fallbackErr) {
+                console.warn('OKR Dashboard fallback data compilation failed', fallbackErr);
+            }
+
+
 
             setMetrics([
                 { label: 'Total Objectives', value: data.total_objectives || 0, color: 'blue', icon: Target },
@@ -169,7 +374,7 @@ const OKRDashboard = () => {
                     progress: o.progress_pct || o.progress || 0,
                     subComp: o.completed_subtasks || o.sub_comp || 0,
                     subTotal: o.total_subtasks || o.sub_total || 0,
-                    depts: o.department_count || o.dept_count || o.depts || 0,
+                    depts: Math.max(1, Number(o.department_count || o.dept_count || o.depts || 0)),
                     days: o.total_days || o.days_total || 45,
                     left: o.days_left || o.days_remaining || 0,
                     score: o.health_score || o.score || 0,
@@ -236,16 +441,16 @@ const OKRDashboard = () => {
     return (
         <div className="flex flex-col gap-4 bg-[#f1f5f9] min-h-screen p-4 sm:p-6 text-slate-800 font-sans">
             {/* ── HEADER ── */}
-            <div className="bg-[#1e3a8a] text-white py-3 px-6 rounded-xl flex justify-between items-center shadow-lg border border-white/10 mb-2">
+            <div className="bg-[#1E1B4B] text-white py-4 px-6 rounded-2xl flex justify-between items-center shadow-xl border border-white/10 mb-2">
                  <div className="flex items-center gap-4">
-                    <div className="bg-white/10 p-2 rounded-lg backdrop-blur-md">
-                        <ShieldCheck className="text-blue-200" size={24} />
+                    <div className="bg-indigo-500/20 p-2.5 rounded-xl backdrop-blur-md border border-white/20">
+                        <ShieldCheck className="text-indigo-200" size={26} strokeWidth={2.5} />
                     </div>
-                    <h1 className="text-xl font-medium tracking-tight capitalize">FJ Group — OKR Execution Dashboard</h1>
+                    <h1 className="text-2xl font-black text-white tracking-tight capitalize">FJ Group — OKR Execution Dashboard</h1>
                  </div>
-                 <div className="hidden lg:flex items-center gap-3 text-xs font-medium text-blue-100/60 capitalize tracking-widest">
-                    <Calendar size={14} />
-                    <span>Real-time Strategic Insights</span>
+                 <div className="hidden lg:flex items-center gap-3 text-xs font-black text-indigo-200/60 capitalize tracking-tight">
+                    <Calendar size={14} strokeWidth={3} />
+                    <span>Executive Real-time Intelligence</span>
                  </div>
             </div>
 
@@ -265,14 +470,14 @@ const OKRDashboard = () => {
             {/* ── MAIN CHARTS ── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Objective Progress */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col h-[400px]">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-sm font-medium text-slate-700 capitalize tracking-widest flex items-center gap-2">
-                            <Target size={16} className="text-blue-600" />
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[420px] overflow-hidden">
+                    <div className="bg-[#1E1B4B] px-6 py-4 flex justify-between items-center">
+                        <h3 className="text-[14px] font-black text-white capitalize tracking-tight flex items-center gap-2">
+                            <Target size={18} className="text-indigo-400" />
                             Objective Achievement
                         </h3>
                     </div>
-                    <div className="flex-1 min-h-0">
+                    <div className="p-6 flex-1 min-h-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={objCompletionData} layout="vertical" margin={{ left: -10, right: 60 }}>
                                 <XAxis type="number" hide domain={[0, 100]} />
@@ -297,14 +502,14 @@ const OKRDashboard = () => {
                 </div>
 
                 {/* Departmental Load */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col h-[400px]">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-sm font-medium text-slate-700 capitalize tracking-widest flex items-center gap-2">
-                            <Users size={16} className="text-teal-600" />
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[420px] overflow-hidden">
+                    <div className="bg-[#1E1B4B] px-6 py-4 flex justify-between items-center">
+                        <h3 className="text-[14px] font-black text-white capitalize tracking-tight flex items-center gap-2">
+                            <Users size={18} className="text-emerald-400" />
                             Departmental Load
                         </h3>
                     </div>
-                    <div className="flex-1 relative">
+                    <div className="p-6 flex-1 relative">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
@@ -334,12 +539,14 @@ const OKRDashboard = () => {
                 </div>
 
                 {/* Risk Overview */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col h-[400px]">
-                    <h3 className="text-sm font-medium text-slate-700 capitalize tracking-widest flex items-center gap-2 mb-6">
-                        <AlertTriangle size={16} className="text-rose-500" />
-                        Risk Overview
-                    </h3>
-                    <div className="space-y-3 overflow-y-auto pr-1 flex-1 custom-scrollbar">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[420px] overflow-hidden">
+                    <div className="bg-[#1E1B4B] px-6 py-4 flex justify-between items-center">
+                        <h3 className="text-[14px] font-black text-white capitalize tracking-tight flex items-center gap-2">
+                            <AlertTriangle size={18} className="text-rose-400" />
+                            Risk Overview
+                        </h3>
+                    </div>
+                    <div className="p-6 space-y-3 overflow-y-auto pr-2 flex-1 custom-scrollbar">
                         {riskOverview.map((r, i) => (
                             <div key={i} className="flex justify-between items-center p-3 border border-slate-100 rounded-xl bg-slate-50/50 hover:bg-white transition-all group border-l-4 border-l-transparent hover:border-l-blue-500">
                                 <span className="text-[11px] font-medium text-slate-700 truncate flex-1 capitalize tracking-tight" title={r.label}>{r.label}</span>
@@ -356,10 +563,10 @@ const OKRDashboard = () => {
             </div>
 
             {/* ── TABLE VIEW ── */}
-            <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
-                <div className="bg-[#1e1b4b] text-white px-6 py-4 flex justify-between items-center">
-                    <h3 className="text-sm font-medium capitalize tracking-[0.15em] flex items-center gap-3">
-                        <Target size={18} className="text-indigo-400" />
+            <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
+                <div className="bg-[#1E1B4B] text-white px-8 py-5 flex justify-between items-center">
+                    <h3 className="text-[14px] font-black text-white capitalize tracking-tight flex items-center gap-3">
+                        <Target size={20} className="text-indigo-400" strokeWidth={3} />
                         Objective Progress Matrix
                     </h3>
                     <div className="flex items-center gap-4">
@@ -383,7 +590,7 @@ const OKRDashboard = () => {
 
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
-                        <thead className="bg-[#f8fafc] text-[10px] font-medium text-slate-400 capitalize tracking-widest border-b border-slate-100">
+                        <thead className="bg-[#f8fafc] text-[10px] font-bold text-slate-400 capitalize tracking-tight border-b border-slate-100">
                             <tr>
                                 <th className="py-4 px-6">Obj Id</th>
                                 <th className="py-4 px-4 w-[30%]">Objective</th>
@@ -435,7 +642,7 @@ const OKRDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Heatmap/Overdue Summary */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col h-[280px]">
-                     <h3 className="text-sm font-medium text-slate-700 capitalize tracking-widest flex items-center gap-2 mb-6">
+                     <h3 className="text-sm font-bold text-slate-700 capitalize tracking-tight flex items-center gap-2 mb-6">
                         <Clock size={16} className="text-rose-500" />
                         Executive Criticals
                     </h3>
@@ -454,7 +661,7 @@ const OKRDashboard = () => {
 
                 {/* Completion Trend */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col h-[280px] col-span-1 md:col-span-2">
-                    <h3 className="text-sm font-medium text-slate-700 capitalize tracking-widest flex items-center gap-2 mb-4">
+                    <h3 className="text-sm font-bold text-slate-700 capitalize tracking-tight flex items-center gap-2 mb-4">
                         <TrendingUp size={16} className="text-blue-600" />
                         Enterprise Completion Trend
                     </h3>
