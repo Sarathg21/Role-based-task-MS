@@ -273,6 +273,12 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        if (!formData.title || !formData.department_id || !formData.assigned_to_emp_id) {
+            toast.error("Process Title, Department and Process Owner are required.");
+            return;
+        }
+
         const rid = template?.id || template?.recurring_id;
         setSubmitting(true);
         try {
@@ -284,16 +290,16 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
 
             // Get current user ID for assigned_by_emp_id
             const savedUser = JSON.parse(localStorage.getItem('pms_user') || '{}');
-            const currentEmpId = savedUser?.id || savedUser?.emp_id || savedUser?.id || '';
+            const currentEmpId = savedUser?.id || savedUser?.emp_id || '';
 
             const payload = {
                 title: formData.title,
                 description: formData.description,
                 frequency: formData.frequency,
                 status: formData.status,
-                department_id: formData.department_id || null,
-                assigned_to_emp_id: formData.assigned_to_emp_id || null,
-                assigned_by_emp_id: currentEmpId || null,
+                department_id: formData.department_id,
+                assigned_to_emp_id: formData.assigned_to_emp_id,
+                assigned_by_emp_id: currentEmpId,
                 interval_days: 1,
                 start_date: formData.start_date || new Date().toISOString().slice(0, 10),
                 weekly_day: formData.frequency === 'WEEKLY' ? weeklyDayInt : null,

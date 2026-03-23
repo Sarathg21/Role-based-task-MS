@@ -214,7 +214,7 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
 
                 {/* ── Center: Search (non-CFO) or Date filters (CFO dashboard) ── */}
                 <div className="flex-1 flex items-center justify-center gap-3 max-w-2xl navbar-search-hide-mobile">
-                    {roleUpper !== 'CFO' && location.pathname !== '/departments' ? (
+                    {roleUpper !== 'CFO' && roleUpper !== 'ADMIN' && location.pathname !== '/departments' ? (
                         <div className="w-full relative group">
                             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                                 <Search size={16} className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" strokeWidth={2.5} />
@@ -256,7 +256,7 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
                 <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
 
                     {/* Mobile search toggle (non-CFO only) */}
-                    {roleUpper !== 'CFO' && (
+                    {roleUpper !== 'CFO' && roleUpper !== 'ADMIN' && (
                         <button
                             onClick={() => setShowMobileSearch(!showMobileSearch)}
                             className="flex md:hidden p-2 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50/60 transition-all"
@@ -374,7 +374,7 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
             </header>
 
             {/* ── Mobile Search Bar (slides down) ── */}
-            {showMobileSearch && roleUpper !== 'CFO' && (
+            {showMobileSearch && roleUpper !== 'CFO' && roleUpper !== 'ADMIN' && (
                 <div className="flex md:hidden px-3 py-2 bg-white border-b border-slate-100 shadow-sm z-30 sticky top-[70px]">
                     <div className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus-within:bg-white focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
                         <Search size={15} className="text-slate-400 shrink-0" strokeWidth={2.2} />

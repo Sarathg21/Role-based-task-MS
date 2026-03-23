@@ -136,7 +136,7 @@ const AdminPage = () => {
   const handleUpdateEmployee = async (data, originalId) => {
     try {
       const targetId = originalId || data.emp_id;
-      await api.put(`/employees/${targetId}`, data);
+      await api.patch(`/employees/${targetId}`, data);
       toast.success("Profile updated.");
       fetchInitialData();
       setEditingEmployee(null);
