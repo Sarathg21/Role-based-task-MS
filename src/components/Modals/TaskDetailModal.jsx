@@ -39,20 +39,40 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
     const [activeTab, setActiveTab] = useState('history'); // 'history', 'attachments', 'subtasks'
     const [history, setHistory] = useState([]);
     const [attachments, setAttachments] = useState([]);
-    const [subtasks, setSubtasks] = useState([]);
+    const [fullTask, setFullTask] = useState(task);
     const [loading, setLoading] = useState(false);
     const [newSubtask, setNewSubtask] = useState({ title: '', description: '', due_date: '' });
     const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
         if (isOpen && task) {
+            setFullTask(task); // Re-sync when prop changes
             fetchDetails();
         }
-    }, [isOpen, task, activeTab]);
+    }, [isOpen, task]);
 
     const fetchDetails = async () => {
         setLoading(true);
         try {
+            // First, fetch the full task data to get description and other hidden fields
+            const taskRes = await api.get(`/tasks/${task.id}`);
+            const taskData = taskRes.data?.data || taskRes.data;
+            // Only update if we got a valid plain object (not an array, null, or string)
+            if (taskData && typeof taskData === 'object' && !Array.isArray(taskData)) {
+                // Merge new detail data with the existing normalized prop data
+                // This ensures we keep details like description, but don't lose UI fields due to mismatched backend keys
+                setFullTask(prev => ({
+                    ...prev,
+                    ...taskData,
+                    id: taskData.task_id || taskData.id || prev.id,
+                    department: taskData.department_name || taskData.department || prev.department,
+                    severity: taskData.priority || taskData.severity || prev.severity,
+                    employee_id: taskData.assigned_to_name || taskData.employee_name || taskData.assigned_to_emp_id || prev.assigneeName || prev.employee_id,
+                    assigned_by: taskData.assigned_by_name || taskData.assigned_by_emp_id || prev.assignerName || prev.assigned_by,
+                    title: taskData.title || taskData.task_title || taskData.name || prev.title
+                }));
+            }
+
             if (activeTab === 'history') {
                 const res = await api.get(`/tasks/${task.id}/history`);
                 setHistory(res.data);
@@ -119,6 +139,8 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
     };
 
     if (!isOpen || !task) return null;
+    // Guard against fullTask not yet hydrated (race condition between prop and fetch)
+    if (!fullTask) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -127,10 +149,10 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
                 <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50">
                     <div>
                         <div className="flex items-center gap-3 mb-1">
-                            <h2 className="text-xl font-bold text-slate-800">{task.title}</h2>
-                            <Badge variant={task.status}>{task.status.replace(/_/g, ' ')}</Badge>
+                            <h2 className="text-xl font-bold text-slate-800">{fullTask.title}</h2>
+                            <Badge variant={fullTask.status}>{(fullTask.status || '').replace(/_/g, ' ')}</Badge>
                         </div>
-                        <p className="text-sm text-slate-500">Task ID: {task.id}</p>
+                        <p className="text-sm text-slate-500">Task ID: {fullTask.id}</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
                         <X size={20} className="text-slate-400" />
@@ -145,7 +167,7 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
                             <FileText size={14} /> Description
                         </h3>
                         <p className="text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 italic">
-                            {task.description || "No description provided."}
+                            {fullTask.description || "No description provided."}
                         </p>
                     </div>
 
@@ -154,38 +176,42 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
                         <div className="space-y-1">
                             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Department</p>
                             <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                <Building2 size={14} className="text-indigo-400" /> {task.department}
+                                <Building2 size={14} className="text-indigo-400" /> {fullTask.department}
                             </p>
                         </div>
                         <div className="space-y-1">
                             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Priority</p>
-                            <Badge variant={task.severity}>{task.severity}</Badge>
+                            <Badge variant={fullTask.severity}>{fullTask.severity}</Badge>
                         </div>
                         <div className="space-y-1">
                             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Assignee</p>
                             <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                <User size={14} className="text-violet-400" /> {task.employee_id}
+                                <User size={14} className="text-violet-400" /> {fullTask.employee_id}
                             </p>
                         </div>
                         <div className="space-y-1">
                             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Due Date</p>
                             <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                                <CalendarDays size={14} className="text-rose-400" /> {task.due_date}
+                                <CalendarDays size={14} className="text-rose-400" /> {fullTask.due_date}
                             </p>
                         </div>
                         <div className="space-y-1">
                             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Assigned By</p>
-                            <p className="text-sm font-semibold text-slate-700">{task.assigned_by || "System"}</p>
+                            <p className="text-sm font-semibold text-slate-700">{fullTask.assigned_by || "System"}</p>
                         </div>
                         <div className="space-y-1">
                             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Assigned Date</p>
-                            <p className="text-sm font-semibold text-slate-700">{task.assigned_date}</p>
+                            <p className="text-sm font-semibold text-slate-700">
+                                {fullTask.assigned_at 
+                                    ? new Date(fullTask.assigned_at).toISOString().split('T')[0] 
+                                    : (fullTask.assigned_date || "-")}
+                            </p>
                         </div>
-                        {task.parent_task_id && (
+                        {fullTask.parent_task_id && (
                             <div className="space-y-1">
                                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Parent Task</p>
                                 <p className="text-sm font-semibold text-slate-700 truncate max-w-[250px]">
-                                    <span className="text-violet-500 font-bold">#{task.parent_task_id}</span> {task.parent_task_title || task.parent_task_name || "Untitled Parent"}
+                                    <span className="text-violet-500 font-bold">#{fullTask.parent_task_id}</span> {fullTask.parent_task_title || fullTask.parent_task_name || "Untitled Parent"}
                                 </p>
                             </div>
                         )}

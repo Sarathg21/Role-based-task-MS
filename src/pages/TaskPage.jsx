@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { toast } from "react-hot-toast";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -63,6 +63,43 @@ const StatusCell = ({ task }) => {
 /* ========================================================= */
 
 const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRework, onReassign, onCancel, onViewDetails }) => {
+  // Cache of taskId -> assigned_at date string fetched from detail endpoint
+  const [assignedDates, setAssignedDates] = useState({});
+  const fetchingRef = useRef(new Set());
+
+  // Batch-fetch assigned_at for tasks that don't have it from the list endpoint
+  useEffect(() => {
+    if (!tasks || tasks.length === 0) return;
+    const missingIds = tasks
+      .filter(t => !t.assigned_date && t.id && !fetchingRef.current.has(t.id))
+      .map(t => t.id);
+
+    if (missingIds.length === 0) return;
+
+    // Mark as in-flight to avoid duplicate fetches on re-renders
+    missingIds.forEach(id => fetchingRef.current.add(id));
+
+    Promise.allSettled(
+      missingIds.map(id =>
+        api.get(`/tasks/${id}`)
+          .then(res => {
+            const d = res.data?.data || res.data;
+            const dateVal =
+              d?.assigned_at ||
+              d?.assigned_date ||
+              d?.date_assigned ||
+              d?.assignment_date ||
+              d?.created_at ||
+              null;
+            if (dateVal) {
+              setAssignedDates(prev => ({ ...prev, [id]: dateVal }));
+            }
+          })
+          .catch(() => { /* silently skip if detail fetch fails */ })
+      )
+    );
+  }, [tasks]);
+
   if (!tasks || tasks.length === 0) {
     return (
       <div className="p-8 text-center text-slate-500 bg-white rounded-xl border border-slate-200">
@@ -155,9 +192,13 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
 
                 {/* Date Assigned */}
                 <td className="py-4 px-5 text-slate-500 whitespace-nowrap font-medium">
-                  {task.assigned_date || task.created_at
-                    ? new Date(task.assigned_date || task.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                    : '-'}
+                  {(() => {
+                    const dateVal = task.assigned_date || assignedDates[task.id];
+                    if (!dateVal) return <span className="text-slate-300 text-xs">Loading…</span>;
+                    try {
+                      return new Date(dateVal).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                    } catch { return dateVal; }
+                  })()}
                 </td>
 
                 {/* Due Date */}
@@ -598,9 +639,24 @@ const TaskPage = () => {
           assignee_role: t.assignee_role || t.role,
           parent_task_id: parentId,
           parent_task_title: inlineParentTitle,
+          // Normalize all possible "date assigned" field names from the API
+          assigned_date:
+            t.assigned_date ||
+            t.assigned_at ||
+            t.date_assigned ||
+            t.assignment_date ||
+            t.task_assigned_date ||
+            t.task_created_at ||
+            t.created_at ||
+            null,
         };
       });
-      setTasks(normalised);
+      const sorted = normalised.sort((a, b) => {
+        const dateA = new Date(a.assigned_date || a.created_at || 0);
+        const dateB = new Date(b.assigned_date || b.created_at || 0);
+        return dateB - dateA;
+      });
+      setTasks(sorted);
     } catch (err) {
       console.error("Failed to fetch tasks", err);
     } finally {
@@ -685,6 +741,9 @@ const TaskPage = () => {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
+      // Exclude manager's own tasks from Team View
+      const isSelf = String(task.employee_id) === String(user?.id);
+      if (viewMode === 'team' && (user?.role?.toUpperCase() === 'MANAGER') && isSelf) return false;
       // If an exact taskId is provided via URL AND no other filters are set, prioritize it
       const hasOtherFilters = filter.search || (filter.status !== "All") || (filter.severity !== "All") || filter.fromDate || filter.toDate;
 
@@ -751,8 +810,13 @@ const TaskPage = () => {
       await api.post(`/tasks/${taskId}/transition`, payload, {
         headers: { 'X-EMP-ID': user.id }
       });
-      const actionLabel = action.charAt(0).toUpperCase() + action.slice(1).toLowerCase();
-      toast.success(`Task ${actionLabel}d successfully!`);
+      const getActionPastTense = (act) => {
+        const label = act.charAt(0).toUpperCase() + act.slice(1).toLowerCase();
+        if (label.endsWith('e')) return label + 'd';
+        if (label.endsWith('t')) return label + 'ed';
+        return label + 'ed';
+      };
+      toast.success(`Task ${getActionPastTense(action)} successfully!`);
       fetchTasks();
     } catch (err) {
       console.error('[TaskPage] Transition error:', {
@@ -885,7 +949,7 @@ const handleReworkConfirm = async (comment) => {
           </div>
           <div>
             <span className="text-[12px] font-black text-violet-500 capitalize tracking-widest block mb-1">Active Tasks</span>
-            <span className="text-4xl font-black text-slate-900 leading-none tabular-nums">{tasks.filter(t => !['APPROVED', 'CANCELLED', 'SUBMITTED'].includes(t.status)).length}</span>
+            <span className="text-4xl font-black text-slate-900 leading-none tabular-nums">{tasks.filter(t => !['APPROVED', 'CANCELLED', 'SUBMITTED'].includes(String(t.status || '').toUpperCase())).length}</span>
           </div>
         </div>
 
@@ -896,7 +960,7 @@ const handleReworkConfirm = async (comment) => {
           </div>
           <div>
             <span className="text-[12px] font-black text-orange-500 capitalize tracking-widest block mb-1">In Progress</span>
-            <span className="text-4xl font-black text-slate-900 leading-none tabular-nums">{tasks.filter(t => t.status === 'IN_PROGRESS').length}</span>
+            <span className="text-4xl font-black text-slate-900 leading-none tabular-nums">{tasks.filter(t => String(t.status || '').toUpperCase() === 'IN_PROGRESS').length}</span>
           </div>
         </div>
 
@@ -907,7 +971,7 @@ const handleReworkConfirm = async (comment) => {
           </div>
           <div>
             <span className="text-[12px] font-black text-amber-500 capitalize tracking-widest block mb-1">Pending Submission</span>
-            <span className="text-4xl font-black text-slate-900 leading-none tabular-nums">{tasks.filter(t => t.status === 'NEW' || t.status === 'REWORK').length}</span>
+            <span className="text-4xl font-black text-slate-900 leading-none tabular-nums">{tasks.filter(t => { const s = String(t.status || '').toUpperCase(); return s === 'NEW' || s === 'REWORK'; }).length}</span>
           </div>
         </div>
 
@@ -922,7 +986,7 @@ const handleReworkConfirm = async (comment) => {
               {tasks.filter(t => {
                 const today = new Date().toLocaleDateString('en-CA');
                 const dueDateKey = toDateKey(t.due_date);
-                return dueDateKey && dueDateKey < today && !['APPROVED', 'CANCELLED'].includes(t.status);
+                return dueDateKey && dueDateKey < today && !['APPROVED', 'CANCELLED'].includes(String(t.status || '').toUpperCase());
               }).length}
             </span>
           </div>
@@ -1057,8 +1121,8 @@ const handleReworkConfirm = async (comment) => {
             />
           </div>
 
-          {/* Departments Filter - inside the bar if isCFO or Manager in Team View */}
-          {(isCFO || (isManager && viewMode === 'team')) && (
+          {/* Departments Filter - ONLY for CFO/Admin */}
+          {isCFO && (
             <>
               <div className="w-px h-6 bg-slate-200 mx-1 shrink-0" />
               <div className="shrink-0 relative">
@@ -1075,6 +1139,28 @@ const handleReworkConfirm = async (comment) => {
                   onChange={(val) => setFilter({ ...filter, department: val, taskId: "" })}
                   variant="borderless"
                   style={{ minWidth: '120px' }}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Employee Filter - for Manager in Team View */}
+          {isManager && viewMode === 'team' && (
+            <>
+              <div className="w-px h-6 bg-slate-200 mx-1 shrink-0" />
+              <div className="shrink-0 relative">
+                <CustomSelect
+                  options={[
+                    { value: 'All', label: 'Employee: All' },
+                    ...users.map((u, idx) => ({ 
+                      value: String(u.emp_id || u.id || `emp-${idx}`), 
+                      label: u.name || 'Unknown' 
+                    }))
+                  ]}
+                  value={filter.employeeId}
+                  onChange={(val) => setFilter({ ...filter, employeeId: val, taskId: "" })}
+                  variant="borderless"
+                  style={{ minWidth: '160px' }}
                 />
               </div>
             </>

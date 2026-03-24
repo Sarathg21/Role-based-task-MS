@@ -91,6 +91,8 @@ const OKRSubTaskPage = () => {
                 const allTasks = [...rawA, ...rawB].filter(t => {
                     const id = t.id || t.task_id;
                     if (!id || seenIds.has(String(id))) return false;
+                    // ✅ EXCLUDE CANCELLED TASKS/OBJECTIVES
+                    if ((t.status || '').toUpperCase() === 'CANCELLED') return false;
                     seenIds.add(String(id));
                     return true;
                 });
@@ -182,6 +184,8 @@ const OKRSubTaskPage = () => {
             const rawTasks = [...rawA, ...rawB].filter(t => {
                 const id = t.id || t.task_id;
                 if (!id || seenSubs.has(String(id))) return false;
+                // ✅ EXCLUDE CANCELLED TASKS
+                if ((t.status || '').toUpperCase() === 'CANCELLED') return false;
                 seenSubs.add(String(id));
                 return true;
             });

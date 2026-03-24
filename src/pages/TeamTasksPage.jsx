@@ -56,6 +56,9 @@ const SubtaskRow = ({ task, renderStatusBadge, renderSeverityTag, isLast, taskTi
                 <span className="text-slate-400 text-[11px] font-medium italic">-</span>
             </td>
             <td className="py-4 text-left">
+                <span className="text-slate-400 text-[11.5px] font-bold uppercase tracking-widest">{task.assigned_date || task.created_at ? format(new Date(task.assigned_date || task.created_at), 'yyyy-MM-dd') : '-'}</span>
+            </td>
+            <td className="py-4 text-left">
                 <span className="text-[13.5px] font-bold text-slate-600">{assignedTo}</span>
             </td>
             <td className="py-4 text-left">
@@ -86,7 +89,8 @@ const TaskRow = ({
     onAction,
     onReassign,
     onRework,
-    taskTitles = {}
+    taskTitles = {},
+    user
 }) => {
     if (!task) return null;
 
@@ -159,6 +163,9 @@ const TaskRow = ({
                     </div>
                 </td>
                 <td className="py-6 text-left">
+                    <span className="text-[11.5px] font-black text-slate-500 uppercase tracking-widest">{task.assigned_date || task.created_at ? format(new Date(task.assigned_date || task.created_at), 'yyyy-MM-dd') : '-'}</span>
+                </td>
+                <td className="py-6 text-left">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-[12px] font-black text-slate-500 overflow-hidden shrink-0 shadow-sm">
                             {assignedTo?.charAt(0) || <User size={14} />}
@@ -188,7 +195,7 @@ const TaskRow = ({
                 </td>
                 <td className="p-5 text-right pr-8">
                     <div className="flex justify-end gap-2">
-                        {status === 'SUBMITTED' ? (
+                        {status === 'SUBMITTED' && String(task?.employee_id || task?.assigned_to_emp_id || task?.assigned_to_id) !== String(user?.id) ? (
                             <>
                                 <button
                                     onClick={() => onAction?.(taskId, 'APPROVE')}
@@ -259,7 +266,8 @@ const TeamTasksPage = () => {
         status: '',
         severity: '',
         from_date: '',
-        to_date: ''
+        to_date: '',
+        assigned_to_emp_id: ''
     });
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0 });
     const [metrics, setMetrics] = useState({ activeTasks: 0, inProgress: 0, pendingSubmission: 0, overdue: 0 });
@@ -291,9 +299,19 @@ const TeamTasksPage = () => {
             const res = await api.get('/tasks/team', { params });
             const rawData = res.data?.data || res.data || {};
             const items = Array.isArray(rawData) ? rawData : (rawData.items || rawData.data || []);
-            // Exclude CANCELLED tasks from the team view as requested
-            const filteredItems = items.filter(t => (t.status || '').toUpperCase() !== 'CANCELLED');
-            setTasks(filteredItems);
+            // Exclude CANCELLED tasks and MANAGER's own tasks from the team view
+            const filteredItems = items.filter(t => {
+                const isCancelled = (t.status || '').toUpperCase() === 'CANCELLED';
+                const isSelf = String(t.assigned_to_emp_id || t.employee_id || t.id) === String(user?.id);
+                if (user?.role?.toUpperCase() === 'MANAGER' && isSelf) return false;
+                return !isCancelled;
+            });
+            const sorted = filteredItems.sort((a, b) => {
+                const dateA = new Date(a.assigned_date || a.created_at || a.assigned_at || 0);
+                const dateB = new Date(b.assigned_date || b.created_at || b.assigned_at || 0);
+                return dateB - dateA;
+            });
+            setTasks(sorted);
             const totalCount = rawData.total || items.length;
             setPagination({
                 page: rawData.page || page,
@@ -413,8 +431,11 @@ const TeamTasksPage = () => {
         if (confirmMsg && !window.confirm(confirmMsg)) return;
 
         try {
-            await api.post(`/tasks/${taskId}/transition`, { action, ...extra });
-            toast.success(`Task ${action.toLowerCase()}ed`);
+            const pastTense = (act) => {
+                const label = act.charAt(0).toUpperCase() + act.slice(1).toLowerCase();
+                return label.endsWith('e') ? label + 'd' : label + 'ed';
+            };
+            toast.success(`Task ${pastTense(action)} successfully!`);
             fetchTasks(pagination.page); fetchMetrics();
             window.dispatchEvent(new Event('refresh-notifications'));
             setIsReviewModalOpen(false); setIsReworkModalOpen(false);
@@ -511,10 +532,29 @@ const TeamTasksPage = () => {
                         </div>
                     </div>
                     <div className="lg:col-span-5 grid grid-cols-3 gap-3">
-                        <div className={`space-y-1.5 flex flex-col ${!(user?.role?.toUpperCase() === 'CFO' || user?.role?.toUpperCase() === 'ADMIN') ? 'hidden' : ''}`}>
-                            <label className="text-[10px] font-bold text-slate-400 ml-1">Department</label>
-                            <CustomSelect value={filters.department_id} onChange={(v) => setFilters(p => ({ ...p, department_id: v }))} options={[{ value: '', label: 'All Dept' }, ...departments.map(d => ({ value: d.department_id || d.id, label: d.name || d.department_id }))]} />
-                        </div>
+                        {/* Department Filter for CFO/Admin */}
+                        {(user?.role?.toUpperCase() === 'CFO' || user?.role?.toUpperCase() === 'ADMIN') && (
+                            <div className="space-y-1.5 flex flex-col">
+                                <label className="text-[10px] font-bold text-slate-400 ml-1">Department</label>
+                                <CustomSelect 
+                                    value={filters.department_id} 
+                                    onChange={(v) => setFilters(p => ({ ...p, department_id: v }))} 
+                                    options={[{ value: '', label: 'All Dept' }, ...departments.map(d => ({ value: d.department_id || d.id, label: d.name || d.department_id }))]} 
+                                />
+                            </div>
+                        )}
+
+                        {/* Employee Filter for Manager */}
+                        {user?.role?.toUpperCase() === 'MANAGER' && (
+                            <div className="space-y-1.5 flex flex-col">
+                                <label className="text-[10px] font-bold text-slate-400 ml-1">Employee</label>
+                                <CustomSelect 
+                                    value={filters.assigned_to_emp_id} 
+                                    onChange={(v) => setFilters(p => ({ ...p, assigned_to_emp_id: v }))} 
+                                    options={[{ value: '', label: 'All Employees' }, ...allEmployees.map(e => ({ value: e.emp_id || e.id, label: e.name || 'Unknown' } ))]} 
+                                />
+                            </div>
+                        )}
                         <div className="space-y-1.5 flex flex-col"><label className="text-[10px] font-bold text-slate-400 ml-1">Status</label>
                             <CustomSelect value={filters.status} onChange={(v) => setFilters(p => ({ ...p, status: v }))} options={[{ value: '', label: 'All Status' }, { value: 'NEW', label: 'New' }, { value: 'IN_PROGRESS', label: 'In Progress' }, { value: 'SUBMITTED', label: 'Submitted' }, { value: 'REWORK', label: 'Rework' }, { value: 'APPROVED', label: 'Approved' }, { value: 'CANCELLED', label: 'Cancelled' }]} />
                         </div>
@@ -542,6 +582,7 @@ const TeamTasksPage = () => {
                                 <th className="p-6">Task</th>
                                 <th className="p-6">Department</th>
                                 <th className="p-6">Assigned By</th>
+                                <th className="p-6">Date Assigned</th>
                                 <th className="p-6">Assigned To</th>
                                 <th className="p-6">Due Date</th>
                                 <th className="p-6 text-center">Status</th>
@@ -555,7 +596,7 @@ const TeamTasksPage = () => {
                             ) : tasks.length === 0 ? (
                                 <tr><td colSpan={9} className="p-20 text-center opacity-50"><Layout size={48} className="text-slate-200 mx-auto mb-4" /><p className="text-slate-400 font-bold text-[11px]">No matching team tasks found</p></td></tr>
                             ) : tasks.map((task, idx) => (
-                                <TaskRow key={task?.task_id || task?.id || idx} task={task} expanded={expandedTasks.has(task?.task_id)} subtasks={subtasksMap[task?.task_id] || []} onToggle={() => toggleExpand(task?.task_id)} renderStatusBadge={renderStatusBadge} renderSeverityTag={renderSeverityTag} onAction={handleAction} onReassign={(t) => { setSelectedTask(t); setIsReassignModalOpen(true); }} onRework={(t) => { setSelectedTask(t); setIsReworkModalOpen(true); }} taskTitles={taskTitles} />
+                                <TaskRow key={task?.task_id || task?.id || idx} task={task} expanded={expandedTasks.has(task?.task_id)} subtasks={subtasksMap[task?.task_id] || []} onToggle={() => toggleExpand(task?.task_id)} renderStatusBadge={renderStatusBadge} renderSeverityTag={renderSeverityTag} onAction={handleAction} onReassign={(t) => { setSelectedTask(t); setIsReassignModalOpen(true); }} onRework={(t) => { setSelectedTask(t); setIsReworkModalOpen(true); }} taskTitles={taskTitles} user={user} />
                             ))}
                         </tbody>
                     </table>

@@ -110,10 +110,10 @@ const DepartmentPerformanceGrid = ({ data }) => {
                                         </span>
                                     </div>
                                 </td>
-                                <td className="py-4 px-4 text-right">
-                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-100 bg-white shadow-sm transition-transform group-hover:scale-105">
-                                        <div className={`w-3 h-3 rounded-full ${getStatusColor(dept.status)}`} />
-                                        <span className="text-[12px] font-black text-slate-500 capitalize tracking-widest">
+                                <td className="py-4 px-4 text-right whitespace-nowrap">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-100 bg-white shadow-sm transition-transform group-hover:scale-105 min-w-max">
+                                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${getStatusColor(dept.status)}`} />
+                                        <span className="text-[12px] font-black text-slate-500 capitalize tracking-widest whitespace-nowrap">
                                             {getStatusText(dept.status)}
                                         </span>
                                     </div>
@@ -1221,13 +1221,13 @@ const CFODashboard = () => {
                                     <table className="w-full text-left font-sans text-[16px]">
                                         <thead className="sticky top-0 bg-white z-10 border-b border-slate-100">
                                             <tr className="text-[14px] font-extrabold text-slate-500 capitalize tracking-widest">
-                                                <th className="py-3 px-6">Department</th>
-                                                <th className="py-3 px-3 text-center">Total Tasks</th>
-                                                <th className="py-3 px-3 text-center">Overdue</th>
-                                                <th className="py-3 px-3 text-center">In Progress</th>
-                                                <th className="py-3 px-3 text-center">Completed</th>
-                                                <th className="py-3 px-3">Completion Rate</th>
-                                                <th className="py-3 px-6 text-right">Status</th>
+                                                <th className="py-3 px-6 whitespace-nowrap">Department</th>
+                                                <th className="py-3 px-3 text-center whitespace-nowrap">Total Tasks</th>
+                                                <th className="py-3 px-3 text-center whitespace-nowrap">Overdue</th>
+                                                <th className="py-3 px-3 text-center whitespace-nowrap">In Progress</th>
+                                                <th className="py-3 px-3 text-center whitespace-nowrap">Completed</th>
+                                                <th className="py-3 px-3 whitespace-nowrap">Completion Rate</th>
+                                                <th className="py-3 px-6 text-right whitespace-nowrap min-w-[110px]">Status</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50">
@@ -1254,8 +1254,8 @@ const CFODashboard = () => {
                                                             </div>
                                                         </td>
                                                         <td className="py-4 px-6 text-right">
-                                                            <span className={`text-[12px] font-semibold px-2 py-1 rounded capitalize tracking-tighter border ${statusStyles[dept.status || 'NO_DATA']}`}>
-                                                                {(dept.status || 'No Data').toLowerCase().replace('_', ' ')}
+                                                            <span className={`inline-block whitespace-nowrap text-[12px] font-semibold px-3 py-1 rounded-full capitalize tracking-tight border ${statusStyles[dept.status || 'NO_DATA']}`}>
+                                                                {(dept.status || 'No Data').toLowerCase().replace(/_/g, ' ')}
                                                             </span>
                                                         </td>
                                                     </tr>

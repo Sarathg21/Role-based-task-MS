@@ -19,6 +19,7 @@ const EmployeePersonalReport = () => {
 
     const [tasks, setTasks] = useState([]);
     const [summary, setSummary] = useState({});
+    const [topPerformers, setTopPerformers] = useState([]);
 
     useEffect(() => {
         // Set default dates dynamically if needed, but for now align with the mock's dates or current
@@ -34,14 +35,59 @@ const EmployeePersonalReport = () => {
             const params = { fromDate, toDate, scope: 'mine', start_date: fromDate, end_date: toDate };
             const [dashRes, tasksRes] = await Promise.all([
                 api.get('/dashboard/employee', { params }),
-                api.get('/tasks', { params: { ...params, limit: 100 } })
+                api.get('/tasks', { params: { ...params, limit: 100 } }),
             ]);
+
+            // Try department scope to get peers' tasks for ranking.
+            // Employee role may not support 'org' scope (422), so try 'department' first,
+            // then fall back silently — rankings will use only own tasks if both fail.
+            let deptTasksRes = null;
+            try {
+                deptTasksRes = await api.get('/tasks', { params: { limit: 200, scope: 'department' } });
+            } catch (_) {
+                // scope=department not supported for this role — silently ignore
+            }
             
             const dashData = dashRes?.data?.data || dashRes?.data || {};
             setSummary(dashData);
 
             const fetchedTasks = tasksRes?.data?.data || tasksRes?.data || [];
-            setTasks(Array.isArray(fetchedTasks) ? fetchedTasks : []);
+            const myTasks = Array.isArray(fetchedTasks) ? fetchedTasks : [];
+            setTasks(myTasks);
+
+            // ── Build Department Top Performers ──
+            // Use org-scope tasks to find all employees and their completion scores
+            const deptRaw = deptTasksRes?.data?.data || deptTasksRes?.data || [];
+            const deptTasks = Array.isArray(deptRaw) ? deptRaw : [];
+
+            // Group tasks by employee (assigned_to_emp_id or assigned_to_name)
+            const empMap = {};
+            const allScopedTasks = [...myTasks, ...deptTasks];
+            allScopedTasks.forEach(t => {
+                const empId = t.assigned_to_emp_id || t.assignee_id || t.assigned_to_id;
+                const empName = t.assigned_to_name || t.assignee_name || t.employee_name;
+                if (!empId && !empName) return;
+                const key = empId ? String(empId) : empName;
+                if (!empMap[key]) {
+                    empMap[key] = { name: empName || `Emp-${empId}`, total: 0, completed: 0 };
+                }
+                empMap[key].total += 1;
+                if (['APPROVED', 'COMPLETED'].includes((t.status || '').toUpperCase())) {
+                    empMap[key].completed += 1;
+                }
+            });
+
+            const ranked = Object.values(empMap)
+                .filter(e => e.total > 0)
+                .map(e => ({
+                    name: e.name,
+                    score: Math.round((e.completed / e.total) * 100),
+                    total: e.total,
+                    completed: e.completed
+                }))
+                .sort((a, b) => b.score - a.score || b.completed - a.completed);
+
+            setTopPerformers(ranked.slice(0, 5));
         } catch (err) {
             console.error("Failed to fetch employee report data", err);
         } finally {
@@ -194,12 +240,12 @@ const EmployeePersonalReport = () => {
                         </div>
                         
                         <div>
-                            <h3 className="text-[26px] font-medium text-[#1E1B4B] mb-2">{user?.name || 'AP Exec 1'}</h3>
+                            <h3 className="text-[26px] font-medium text-[#1E1B4B] mb-2">{summary.top_performer_name || user?.department || 'Accounts Payables'} Top Performer</h3>
                             <div className="flex items-center gap-4">
                                 <span className="bg-[#1E1B4B] text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-2">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> {user?.emp_id || 'EMP_AP1'}
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> {summary.top_performer_id || 'DEPT_AVG'}
                                 </span>
-                                <span className="text-[14px] font-semibold text-slate-400">{user?.department || 'Accounts Payables'}</span>
+                                <span className="text-[14px] font-semibold text-slate-400">Department Score</span>
                             </div>
                         </div>
                     </div>
@@ -207,7 +253,7 @@ const EmployeePersonalReport = () => {
                     <div className="flex-1 bg-[#F8FAFF] rounded-3xl p-8 grid grid-cols-2 lg:grid-cols-4 gap-8">
                         <div>
                             <p className="text-[12px] font-bold text-slate-400 mb-2">Efficiency</p>
-                            <p className="text-[32px] font-semibold text-indigo-500 leading-none">{metrics.efficiency}%</p>
+                            <p className="text-[32px] font-semibold text-indigo-500 leading-none">{summary.top_performer_score || metrics.deptAvg}%</p>
                         </div>
                         <div>
                             <p className="text-[12px] font-bold text-slate-400 mb-2">Total Tasks</p>
@@ -438,21 +484,54 @@ const EmployeePersonalReport = () => {
                         <thead>
                             <tr className="border-b border-slate-100">
                                 <th className="pb-4 text-[12px] font-bold text-slate-500 tracking-wider">Rank</th>
-                                <th className="pb-4 text-[12px] font-bold text-slate-500 tracking-wider">Entity</th>
+                                <th className="pb-4 text-[12px] font-bold text-slate-500 tracking-wider">Employee</th>
                                 <th className="pb-4 text-[12px] font-bold text-slate-500 tracking-wider text-right">Score</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td className="py-5 w-16">
-                                    <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-[13px]">1</div>
-                                </td>
-                                <td className="py-5">
-                                    <p className="text-[14px] font-semibold text-[#1E1B4B]">{user?.name || 'AP Exec 1'}</p>
-                                    <p className="text-[11px] font-medium text-slate-400 mt-1">Employee</p>
-                                </td>
-                                <td className="py-5 text-right text-[15px] font-bold text-indigo-600">{metrics.efficiency}%</td>
-                            </tr>
+                            {topPerformers.length > 0 ? topPerformers.map((performer, idx) => {
+                                const rankColors = [
+                                    'bg-amber-100 text-amber-600',
+                                    'bg-slate-100 text-slate-500',
+                                    'bg-orange-100 text-orange-500',
+                                ];
+                                const isMe = performer.name === user?.name;
+                                return (
+                                    <tr key={idx} className={isMe ? 'bg-indigo-50/40 rounded-xl' : ''}>
+                                        <td className="py-4 w-16">
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] ${rankColors[idx] || 'bg-slate-50 text-slate-400'}`}>
+                                                {idx + 1}
+                                            </div>
+                                        </td>
+                                        <td className="py-4">
+                                            <p className="text-[14px] font-semibold text-[#1E1B4B] flex items-center gap-2">
+                                                {performer.name}
+                                                {isMe && <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold">You</span>}
+                                            </p>
+                                            <p className="text-[11px] font-medium text-slate-400 mt-0.5">
+                                                {performer.completed}/{performer.total} tasks completed
+                                            </p>
+                                        </td>
+                                        <td className="py-4 text-right text-[15px] font-bold text-indigo-600">{performer.score}%</td>
+                                    </tr>
+                                );
+                            }) : (
+                                // Fallback: show the top performer from API if no computed data
+                                <tr>
+                                    <td className="py-5 w-16">
+                                        <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-[13px]">1</div>
+                                    </td>
+                                    <td className="py-5">
+                                        <p className="text-[14px] font-semibold text-[#1E1B4B]">
+                                            {summary.top_performer_name || user?.name || 'Top Performer'}
+                                        </p>
+                                        <p className="text-[11px] font-medium text-slate-400 mt-1">Department Leader</p>
+                                    </td>
+                                    <td className="py-5 text-right text-[15px] font-bold text-indigo-600">
+                                        {summary.top_performer_score || metrics.deptAvg || metrics.efficiency}%
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
