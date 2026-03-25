@@ -39,6 +39,7 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
     const [activeTab, setActiveTab] = useState('history'); // 'history', 'attachments', 'subtasks'
     const [history, setHistory] = useState([]);
     const [attachments, setAttachments] = useState([]);
+    const [subtasks, setSubtasks] = useState([]);
     const [fullTask, setFullTask] = useState(task);
     const [loading, setLoading] = useState(false);
     const [newSubtask, setNewSubtask] = useState({ title: '', description: '', due_date: '' });
@@ -46,10 +47,9 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
 
     useEffect(() => {
         if (isOpen && task) {
-            setFullTask(task); // Re-sync when prop changes
             fetchDetails();
         }
-    }, [isOpen, task]);
+    }, [isOpen, task, activeTab]);
 
     const fetchDetails = async () => {
         setLoading(true);
@@ -67,21 +67,48 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
                     id: taskData.task_id || taskData.id || prev.id,
                     department: taskData.department_name || taskData.department || prev.department,
                     severity: taskData.priority || taskData.severity || prev.severity,
-                    employee_id: taskData.assigned_to_name || taskData.employee_name || taskData.assigned_to_emp_id || prev.assigneeName || prev.employee_id,
+                    employee_id: taskData.assigned_to_name || taskData.employee_name || taskData.employee?.name || taskData.assignee_name || taskData.assigned_to_emp_id || prev.assigneeName || prev.employee_id,
                     assigned_by: taskData.assigned_by_name || taskData.assigned_by_emp_id || prev.assignerName || prev.assigned_by,
-                    title: taskData.title || taskData.task_title || taskData.name || prev.title
+                    title: taskData.title || taskData.task_title || taskData.name || prev.title,
+                    description: taskData.description || taskData.task_description || prev.description
                 }));
             }
 
             if (activeTab === 'history') {
                 const res = await api.get(`/tasks/${task.id}/history`);
-                setHistory(res.data);
+                const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                setHistory(data);
             } else if (activeTab === 'attachments') {
-                const res = await api.get(`/tasks/${task.id}/attachments`);
-                setAttachments(res.data);
+                let attachData = [];
+                try {
+                    const res = await api.get(`/tasks/${task.id}/attachments`);
+                    attachData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                } catch (e) {
+                    console.warn("Dedicated attachments endpoint failed:", e.message);
+                }
+                
+                // Fallback: if dedicated endpoint empty/failed, check if task object has attachments
+                if (attachData.length === 0 && fullTask.attachments) {
+                    attachData = Array.isArray(fullTask.attachments) ? fullTask.attachments : [];
+                }
+                
+                setAttachments(attachData);
             } else if (activeTab === 'subtasks') {
-                const res = await api.get(`/tasks/${task.id}/subtasks`);
-                setSubtasks(res.data);
+                let subData = [];
+                try {
+                    const res = await api.get(`/tasks/${task.id}/subtasks`);
+                    subData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                } catch (e) {
+                    console.warn("Dedicated subtasks endpoint failed, trying fallback...", e.message);
+                    // Fallback: try the main tasks endpoint with parent_task_id filter
+                    try {
+                        const res = await api.get('/tasks', { params: { parent_task_id: task.id, limit: 100, scope: 'org' } });
+                        subData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                    } catch (e2) {
+                        console.error("Fallback subtask fetch also failed:", e2.message);
+                    }
+                }
+                setSubtasks(subData);
             }
         } catch (err) {
             console.error(`Failed to fetch ${activeTab}`, err);
@@ -114,27 +141,31 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
 
     const handleDownload = async (attachment) => {
         try {
-            // Updated to match backend Order #9: /tasks/{task_id}/attachments/{attachment_id}
-            const url = `${api.defaults.baseURL}/tasks/${task.id}/attachments/${attachment.id}`;
-            const response = await fetch(url, {
-                headers: {
-                    "X-EMP-ID": currentUser.id
-                }
+            const attachmentId = attachment.id || attachment.file_id || attachment.attachment_id || attachment.notification_id || attachment.notificationId;
+            if (!attachmentId) {
+                toast.error('Cannot retrieve file ID for download');
+                return;
+            }
+
+            const fileName = attachment.filename || attachment.name || attachment.file_name || attachment.original_name || 'download';
+            
+            // Use authenticated api service instead of raw fetch to ensure JWT headers are included
+            const res = await api.get(`/tasks/${task.id}/attachments/${attachmentId}`, {
+                responseType: 'blob'
             });
 
-            if (!response.ok) throw new Error('Download failed');
-
-            const blob = await response.blob();
+            const blob = new Blob([res.data], { type: res.headers['content-type'] });
             const blobUrl = window.URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = blobUrl;
-            a.download = attachment.filename;
+            a.download = fileName;
             document.body.appendChild(a);
             a.click();
             a.remove();
             window.URL.revokeObjectURL(blobUrl);
         } catch (err) {
             console.error("Download failed", err);
+            toast.error('Download failed. Ensure you have permissions for this file.');
         }
     };
 
@@ -257,28 +288,35 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
 
                                 <div className="space-y-2">
                                     {attachments.length > 0 ? (
-                                        attachments.map((file) => (
-                                            <div key={file.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition group">
-                                                <div className="flex items-center gap-3 min-w-0">
-                                                    <div className="p-2 bg-violet-50 rounded-lg text-violet-500">
-                                                        <FileText size={18} />
+                                        attachments.map((file, idx) => {
+                                            const id = file.id || file.file_id || file.attachment_id || idx;
+                                            const name = file.filename || file.name || file.file_name || file.original_name || 'Attached File';
+                                            const time = file.uploaded_at || file.created_at || file.timestamp || new Date().toISOString();
+                                            const by = file.uploaded_by || file.uploader || 'Task Creator';
+
+                                            return (
+                                                <div key={id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition group">
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div className="p-2 bg-violet-50 rounded-lg text-violet-500">
+                                                            <FileText size={18} />
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-medium text-slate-700 truncate">{name}</p>
+                                                            <p className="text-[10px] text-slate-400">
+                                                                {new Date(time).toLocaleString()} · by {by}
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div className="min-w-0">
-                                                        <p className="text-sm font-medium text-slate-700 truncate">{file.filename}</p>
-                                                        <p className="text-[10px] text-slate-400">
-                                                            {new Date(file.uploaded_at).toLocaleString()} · by {file.uploaded_by}
-                                                        </p>
-                                                    </div>
+                                                    <button
+                                                        onClick={() => handleDownload(file)}
+                                                        className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition"
+                                                        title="Download"
+                                                    >
+                                                        <Download size={18} />
+                                                    </button>
                                                 </div>
-                                                <button
-                                                    onClick={() => handleDownload(file)}
-                                                    className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition"
-                                                    title="Download"
-                                                >
-                                                    <Download size={18} />
-                                                </button>
-                                            </div>
-                                        ))
+                                            );
+                                        })
                                     ) : (
                                         <div className="text-center py-12">
                                             <Paperclip size={40} className="mx-auto text-slate-200 mb-3" />
@@ -368,13 +406,13 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
                                         <p className="text-sm text-slate-400">No subtasks yet.</p>
                                     </div>
                                 ) : (
-                                    subtasks.map((sub) => (
-                                        <div key={sub.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition">
+                                    subtasks.map((sub, idx) => (
+                                        <div key={sub.id || idx} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition">
                                             <div className="min-w-0">
-                                                <p className="text-sm font-medium text-slate-700 truncate">{sub.title}</p>
-                                                <p className="text-[10px] text-slate-400">Due: {sub.due_date} · Assigned to: {sub.employee_id}</p>
+                                                <p className="text-sm font-medium text-slate-700 truncate">{sub.title || sub.task_title || 'Untitled Subtask'}</p>
+                                                <p className="text-[10px] text-slate-400">Due: {sub.due_date || '-'} · Assigned to: {sub.assigned_to_name || sub.employee_name || sub.employee_id || 'Unassigned'}</p>
                                             </div>
-                                            <Badge variant={sub.status}>{sub.status.replace(/_/g, ' ')}</Badge>
+                                            <Badge variant={sub.status || 'NEW'}>{(sub.status || 'NEW').replace(/_/g, ' ')}</Badge>
                                         </div>
                                     ))
                                 )}

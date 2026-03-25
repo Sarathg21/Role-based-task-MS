@@ -312,8 +312,17 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
 
             if (notifyRes.status === 'fulfilled') {
                 const notifyRaw = notifyRes.value.data;
-                const items = Array.isArray(notifyRaw) ? notifyRaw : (notifyRaw.notifications || notifyRaw.data || []);
-                setActivities(Array.isArray(items) ? items : []);
+                const items = Array.isArray(notifyRaw) ? notifyRaw : (notifyRaw.notifications || notifyRaw.data || notifyRaw.items || []);
+                const dataList = Array.isArray(items) ? items : [];
+                
+                // Consistency: filter read using global blacklist
+                const readBlacklist = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+                const filtered = dataList.filter(n => {
+                    const isRead = n.is_read || n.read || n.isRead || (n.status === 'READ');
+                    const id = n.id || n.notification_id || n.notificationId || '';
+                    return !isRead && !readBlacklist.includes(String(id));
+                });
+                setActivities(filtered);
             }
 
             const totalFromDashboard = dashPayload?.total_tasks ?? dashPayload?.total ?? 0;
@@ -808,7 +817,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                             <button className="text-slate-400 hover:text-slate-600 transition-colors">
                                 <Settings size={16} />
                             </button>
-                        </div>
+                                    </div>
 
                         <div className="space-y-3 max-h-[380px] overflow-y-auto custom-scrollbar pr-1">
                             {activities.length === 0 ? (
@@ -940,8 +949,8 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                             )}
                         </tbody>
                     </table>
-                </div>
             </div>
+        </div>
 
             <ReworkCommentModal
                 isOpen={reworkModalOpen}

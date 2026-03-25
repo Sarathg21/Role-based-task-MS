@@ -75,7 +75,17 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
                 data = raw.notifications ?? raw.data ?? raw.items ?? raw.results ?? raw.records ?? [];
                 if (!Array.isArray(data)) data = [];
             }
-            setNotifications(data);
+            // Robust filtering: check for varied flag names and status values
+            const filterRead = (n) => {
+                const is_read = n.is_read || n.read || n.isRead || n.is_seen || (n.status === 'READ' || n.status === 'SEEN');
+                // Cross-check with a local "read" blacklist for immediate consistency after refresh
+                const readBlacklist = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+                const id = n.id || n.notification_id || n.notificationId || '';
+                return !is_read && !readBlacklist.includes(String(id));
+            };
+
+            const unreadOnly = data.filter(filterRead);
+            setNotifications(unreadOnly);
         } catch (err) {
             // Silence background poll errors unless they are critical auth issues
             if (err.code !== 'ECONNABORTED' && !err.message?.includes('Network Error')) {
@@ -109,13 +119,30 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
     }, [user]);
 
     const markAsRead = async (id) => {
+        if (!id) return;
         try {
-            await api.post(`/notifications/${id}/read`);
+            // Attempt standard POST, then fall back to generic variations
+            try {
+                await api.post(`/notifications/${id}/read`);
+            } catch (e) {
+                // Fallback: try different endpoint formats if the first fails
+                try { await api.put(`/notifications/${id}/read`); } catch (e2) {
+                    try { await api.post('/notifications/mark-read', { notification_id: id, id }); } catch (e3) {
+                         console.warn("Notification mark-read API fallback attempted");
+                    }
+                }
+            }
+            
+            // Persist locally to ensure it stays "read" even if backend sync is delayed
+            const readBlacklist = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+            if (!readBlacklist.includes(String(id))) {
+                readBlacklist.push(String(id));
+                // Keep only last 100 to avoid bloat
+                localStorage.setItem('read_notifications', JSON.stringify(readBlacklist.slice(-100)));
+            }
+
             setNotifications(prev =>
-                prev.map(n => {
-                    const nId = String(n.id || n.notification_id || '');
-                    return nId === String(id) ? { ...n, is_read: true, read: true } : n;
-                })
+                prev.filter(n => String(n.id || n.notification_id || '') !== String(id))
             );
         } catch (err) {
             console.error('Failed to mark read', err);
@@ -125,9 +152,20 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
     const markAllRead = async () => {
         try {
             await api.post('/notifications/read-all');
-            setNotifications(prev => prev.map(n => ({ ...n, is_read: true, read: true })));
+            
+            // Local blacklist update for all current IDs
+            const readBlacklist = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+            notifications.forEach(n => {
+                const id = n.id || n.notification_id || n.notificationId;
+                if (id && !readBlacklist.includes(String(id))) readBlacklist.push(String(id));
+            });
+            localStorage.setItem('read_notifications', JSON.stringify(readBlacklist.slice(-100)));
+
+            setNotifications([]);
         } catch (err) {
             console.error('Failed to mark all read', err);
+            // Fallback: empty locally anyway for better UX
+            setNotifications([]);
         }
     };
 

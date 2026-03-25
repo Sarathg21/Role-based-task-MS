@@ -68,13 +68,14 @@ const OKRSubTaskPage = () => {
         // Admin role has no access to task/OKR APIs — skip all calls
         if (isAdmin) { setLoading(false); return; }
         try {
-            if (isCFOorManager) {
+            if (isCFOorManager || userRole === 'EMPLOYEE') {
                 // Fetch from multiple scopes in parallel to capture recurring-generated tasks
+                const scopeParam = userRole === 'EMPLOYEE' ? 'mine' : 'org';
                 const [overviewRes, listRes, tasksRes, orgTasksRes] = await Promise.all([
-                    api.get('/reports/cfo/okr/overview').catch(() => ({ data: {} })),
-                    api.get('/reports/cfo/okr/objectives').catch(() => ({ data: [] })),
-                    api.get('/tasks', { params: { limit: 200 } }).catch(() => ({ data: [] })),
-                    api.get('/tasks', { params: { limit: 200, scope: 'org' } }).catch(() => ({ data: [] }))
+                    api.get(userRole === 'EMPLOYEE' ? '/reports/employee/performance' : '/reports/cfo/okr/overview').catch(() => ({ data: {} })),
+                    api.get(isCFOorManager ? '/reports/cfo/okr/objectives' : '/tasks', { params: { scope: 'mine', limit: 50 } }).catch(() => ({ data: [] })),
+                    api.get('/tasks', { params: { limit: 200, scope: (userRole === 'EMPLOYEE' ? 'mine' : 'department') } }).catch(() => ({ data: [] })),
+                    api.get('/tasks', { params: { limit: 200, scope: (userRole === 'EMPLOYEE' ? 'mine' : 'org') } }).catch(() => ({ data: [] }))
                 ]);
 
                 setGlobalOverview(overviewRes.data?.data || overviewRes.data);
@@ -138,6 +139,8 @@ const OKRSubTaskPage = () => {
             }
         } catch (error) {
             console.error('Error fetching initial OKR meta:', error);
+        } finally {
+            setLoading(false);
         }
     };
 

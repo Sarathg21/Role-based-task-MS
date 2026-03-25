@@ -431,14 +431,21 @@ const EmployeeDashboard = () => {
         try {
             const res = await api.get('/notifications');
             const raw = res.data;
-            let data = [];
+            let dataList = [];
             if (Array.isArray(raw)) {
-                data = raw;
+                dataList = raw;
             } else if (raw && typeof raw === 'object') {
-                data = raw.notifications ?? raw.data ?? raw.items ?? raw.results ?? raw.records ?? [];
-                if (!Array.isArray(data)) data = [];
+                dataList = raw.notifications ?? raw.data ?? raw.items ?? raw.results ?? raw.records ?? [];
+                if (!Array.isArray(dataList)) dataList = [];
             }
-            setActivities(data);
+            // Only show unread notifications in personal dashboard activity feed
+            const readBlacklist = JSON.parse(localStorage.getItem('read_notifications') || '[]');
+            const filtered = dataList.filter(n => {
+                const isRead = n.is_read || n.read || n.isRead || (n.status === 'READ');
+                const id = n.id || n.notification_id || n.notificationId || '';
+                return !isRead && !readBlacklist.includes(String(id));
+            });
+            setActivities(filtered);
         } catch (err) {
             console.error("Failed to fetch employee activities:", err);
         } finally {
@@ -649,7 +656,7 @@ const EmployeeDashboard = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                         <Stat 
                             label="Total Tasks" 
-                            value={stats.total} 
+                    value={stats.total}
                             icon={CheckSquare} 
                             color="blue" 
                             sub="Assigned to you"
@@ -851,7 +858,7 @@ const EmployeeDashboard = () => {
                     <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100 flex flex-col min-h-[300px]">
                         <div className="flex items-center justify-between mb-5">
                             <h3 className="text-[15px] font-bold text-slate-800 tracking-tight">Activity Log</h3>
-                            <button 
+                            <button
                                 onClick={fetchActivities}
                                 className="p-2 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-violet-600 transition-colors"
                                 title="Refresh activities"
@@ -889,8 +896,8 @@ const EmployeeDashboard = () => {
                                             <p className="text-[10px] text-slate-400 mt-1 font-bold flex items-center gap-1.5">
                                                 <Clock size={10} /> {formatTimeAgo(act.created_at)}
                                             </p>
-                                        </div>
-                                    </div>
+                    </div>
+                </div>
                                 ))
                             )}
                         </div>

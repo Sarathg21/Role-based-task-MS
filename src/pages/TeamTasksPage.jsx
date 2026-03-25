@@ -13,12 +13,13 @@ import toast from 'react-hot-toast';
 import ReassignTaskModal from '../components/Modals/ReassignTaskModal';
 import ReworkCommentModal from '../components/Modals/ReworkCommentModal';
 import TaskReviewModal from '../components/Modals/TaskReviewModal';
+import TaskDetailModal from '../components/Modals/TaskDetailModal';
 import CustomSelect from '../components/UI/CustomSelect';
 import StatsCard from '../components/UI/StatsCard';
 
 // --- Components defined outside for performance and clarity ---
 
-const SubtaskRow = ({ task, renderStatusBadge, renderSeverityTag, isLast, taskTitles = {} }) => {
+const SubtaskRow = ({ task, renderStatusBadge, renderSeverityTag, isLast, taskTitles = {}, onViewDetails }) => {
     if (!task) return null;
 
     const taskId = task?.task_id || task?.id || '???';
@@ -32,7 +33,16 @@ const SubtaskRow = ({ task, renderStatusBadge, renderSeverityTag, isLast, taskTi
     const parentTitle = task.parent_task_title || task.parent_task_name || task.parent_directive_title || (task.parent_task_id && taskTitles[task.parent_task_id]);
 
     return (
-        <tr className="bg-slate-50/30 group hover:bg-violet-50/10 transition-colors duration-200">
+        <tr
+            className="bg-slate-50/30 group hover:bg-violet-50/10 transition-colors duration-200"
+            role={onViewDetails ? 'button' : undefined}
+            tabIndex={onViewDetails ? 0 : undefined}
+            onClick={onViewDetails ? () => onViewDetails(task) : undefined}
+            onKeyDown={(e) => {
+                if (!onViewDetails) return;
+                if (e.key === 'Enter' || e.key === ' ') onViewDetails(task);
+            }}
+        >
             <td className="py-4 pl-12 relative text-left">
                 <div className="absolute left-14 top-0 bottom-0 w-[2.5px] bg-slate-100"></div>
                 <div className={`absolute left-14 ${isLast ? 'h-6' : 'h-full'} w-[12px] border-l-[2.5px] border-b-[2.5px] border-slate-100 rounded-bl-xl`}></div>
@@ -56,7 +66,14 @@ const SubtaskRow = ({ task, renderStatusBadge, renderSeverityTag, isLast, taskTi
                 <span className="text-slate-400 text-[11px] font-medium italic">-</span>
             </td>
             <td className="py-4 text-left">
-                <span className="text-slate-400 text-[11.5px] font-bold uppercase tracking-widest">{task.assigned_date || task.created_at ? format(new Date(task.assigned_date || task.created_at), 'yyyy-MM-dd') : '-'}</span>
+                <span className="text-slate-400 text-[11.5px] font-bold uppercase tracking-widest">
+                    {task.assigned_at || task.assigned_date || task.created_at
+                        ? format(
+                            new Date(task.assigned_at || task.assigned_date || task.created_at),
+                            'yyyy-MM-dd'
+                        )
+                        : '-'}
+                </span>
             </td>
             <td className="py-4 text-left">
                 <span className="text-[13.5px] font-bold text-slate-600">{assignedTo}</span>
@@ -90,7 +107,8 @@ const TaskRow = ({
     onReassign,
     onRework,
     taskTitles = {},
-    user
+    user,
+    onViewDetails,
 }) => {
     if (!task) return null;
 
@@ -114,14 +132,31 @@ const TaskRow = ({
     const isOverdue = dueDate !== 'N/A' && new Date(rawDueDateMain) < new Date() && !['APPROVED', 'CANCELLED'].includes(status);
     const parentTitle = task.parent_task_title || task.parent_task_name || task.parent_directive_title || (task.parent_task_id && taskTitles[task.parent_task_id]);
 
+    const handleRowClick = () => {
+        if (!onViewDetails) return;
+        onViewDetails(task);
+    };
+
     return (
         <>
-            <tr className="group hover:bg-violet-50/20 transition-all duration-300">
+            <tr
+                className="group hover:bg-violet-50/20 transition-all duration-300"
+                role={onViewDetails ? 'button' : undefined}
+                tabIndex={onViewDetails ? 0 : undefined}
+                onClick={onViewDetails ? handleRowClick : undefined}
+                onKeyDown={(e) => {
+                    if (!onViewDetails) return;
+                    if (e.key === 'Enter' || e.key === ' ') handleRowClick();
+                }}
+            >
                 <td className="py-6 pl-8 text-left">
                     <div className="flex items-center gap-4">
                         {isParent ? (
                             <button
-                                onClick={onToggle}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggle?.();
+                                }}
                                 className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${expanded ? 'bg-violet-600 text-white shadow-lg shadow-violet-200' : 'bg-slate-100 text-slate-400 group-hover:bg-violet-100 group-hover:text-violet-600 hover:shadow-sm'}`}
                             >
                                 <ChevronRight
@@ -163,7 +198,14 @@ const TaskRow = ({
                     </div>
                 </td>
                 <td className="py-6 text-left">
-                    <span className="text-[11.5px] font-black text-slate-500 uppercase tracking-widest">{task.assigned_date || task.created_at ? format(new Date(task.assigned_date || task.created_at), 'yyyy-MM-dd') : '-'}</span>
+                    <span className="text-[11.5px] font-black text-slate-500 uppercase tracking-widest">
+                        {task.assigned_at || task.assigned_date || task.created_at
+                            ? format(
+                                new Date(task.assigned_at || task.assigned_date || task.created_at),
+                                'yyyy-MM-dd'
+                            )
+                            : '-'}
+                    </span>
                 </td>
                 <td className="py-6 text-left">
                     <div className="flex items-center gap-3">
@@ -198,14 +240,20 @@ const TaskRow = ({
                         {status === 'SUBMITTED' && String(task?.employee_id || task?.assigned_to_emp_id || task?.assigned_to_id) !== String(user?.id) ? (
                             <>
                                 <button
-                                    onClick={() => onAction?.(taskId, 'APPROVE')}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onAction?.(taskId, 'APPROVE');
+                                    }}
                                     className="p-2 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
                                     title="Approve"
                                 >
                                     <CheckCircle2 size={14} strokeWidth={3} />
                                 </button>
                                 <button
-                                    onClick={() => onRework?.(task)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onRework?.(task);
+                                    }}
                                     className="p-2 bg-amber-50 text-amber-600 border border-amber-100 rounded-lg hover:bg-amber-500 hover:text-white transition-all shadow-sm"
                                     title="Rework"
                                 >
@@ -215,14 +263,20 @@ const TaskRow = ({
                         ) : (status === 'NEW' || status === 'IN_PROGRESS' || status === 'REWORK') ? (
                             <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => onReassign?.(task)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onReassign?.(task);
+                                    }}
                                     className="p-2 bg-white border border-slate-200 text-slate-500 rounded-lg hover:text-violet-600 hover:border-violet-200 transition-all shadow-sm"
                                     title="Reassign"
                                 >
                                     <Users size={14} />
                                 </button>
                                 <button
-                                    onClick={() => onAction?.(taskId, 'CANCEL')}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onAction?.(taskId, 'CANCEL');
+                                    }}
                                     className="p-2 bg-white border border-slate-200 text-slate-400 rounded-lg hover:text-rose-500 hover:border-rose-200 transition-all shadow-sm"
                                     title="Cancel"
                                 >
@@ -230,7 +284,10 @@ const TaskRow = ({
                                 </button>
                             </div>
                         ) : (
-                            <button className="p-2 text-slate-300 hover:text-violet-500 transition-colors">
+                            <button
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-2 text-slate-300 hover:text-violet-500 transition-colors"
+                            >
                                 <ArrowRight size={14} />
                             </button>
                         )}
@@ -245,6 +302,7 @@ const TaskRow = ({
                     renderSeverityTag={renderSeverityTag}
                     isLast={idx === subtasks.length - 1}
                     taskTitles={taskTitles}
+                    onViewDetails={onViewDetails}
                 />
             ))}
         </>
@@ -275,6 +333,7 @@ const TeamTasksPage = () => {
     const [isReworkModalOpen, setIsReworkModalOpen] = useState(false);
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState(null);
+    const [detailModalOpen, setDetailModalOpen] = useState(false);
 
     const taskTitles = useMemo(() => {
         const map = {};
@@ -299,12 +358,32 @@ const TeamTasksPage = () => {
             const res = await api.get('/tasks/team', { params });
             const rawData = res.data?.data || res.data || {};
             const items = Array.isArray(rawData) ? rawData : (rawData.items || rawData.data || []);
+
+            const employeeFilterId = String(filters.assigned_to_emp_id || '').trim();
+            const getTaskAssigneeId = (t) =>
+                String(
+                    t?.assigned_to_emp_id ??
+                    t?.employee_id ??
+                    t?.assigned_to_id ??
+                    t?.assigned_to_empId ??
+                    t?.assigned_to ??
+                    ''
+                ).trim();
+
             // Exclude CANCELLED tasks and MANAGER's own tasks from the team view
             const filteredItems = items.filter(t => {
                 const isCancelled = (t.status || '').toUpperCase() === 'CANCELLED';
                 const isSelf = String(t.assigned_to_emp_id || t.employee_id || t.id) === String(user?.id);
                 if (user?.role?.toUpperCase() === 'MANAGER' && isSelf) return false;
-                return !isCancelled;
+
+                if (isCancelled) return false;
+
+                // Manager employee dropdown filter (client-side fallback)
+                if (employeeFilterId) {
+                    return getTaskAssigneeId(t) === employeeFilterId;
+                }
+
+                return true;
             });
             const sorted = filteredItems.sort((a, b) => {
                 const dateA = new Date(a.assigned_date || a.created_at || a.assigned_at || 0);
@@ -425,7 +504,9 @@ const TeamTasksPage = () => {
         if (!taskId) return;
         const task = tasks.find(t => (t.task_id || t.id) === taskId);
         if (task?.status === 'SUBMITTED' && !isReviewModalOpen && (action === 'APPROVE' || action === 'REWORK')) {
-            setSelectedTask(task); setIsReviewModalOpen(true); return;
+            setSelectedTask({ ...task, id: task.id ?? task.task_id });
+            setIsReviewModalOpen(true);
+            return;
         }
         const confirmMsg = action === 'CANCEL' ? "Cancel this task?" : action === 'APPROVE' ? "Approve completion?" : action === 'REWORK' ? "Request rework?" : null;
         if (confirmMsg && !window.confirm(confirmMsg)) return;
@@ -463,6 +544,13 @@ const TeamTasksPage = () => {
         const colors = { HIGH: 'text-rose-600 bg-rose-50 border-rose-200', MEDIUM: 'text-amber-600 bg-amber-50 border-amber-200', LOW: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
         return <span className={`px-2 py-0.5 rounded border text-[9px] font-bold capitalize tracking-tight ${colors[s] || 'text-slate-400'}`}>{s}</span>;
     }, []);
+
+    const openDetailModal = (task) => {
+        if (!task) return;
+        const id = task.id ?? task.task_id ?? task.id;
+        setSelectedTask({ ...task, id });
+        setDetailModalOpen(true);
+    };
 
     return (
         <div className="p-4 lg:p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-700 text-left">
@@ -550,8 +638,8 @@ const TeamTasksPage = () => {
                                 <label className="text-[10px] font-bold text-slate-400 ml-1">Employee</label>
                                 <CustomSelect 
                                     value={filters.assigned_to_emp_id} 
-                                    onChange={(v) => setFilters(p => ({ ...p, assigned_to_emp_id: v }))} 
-                                    options={[{ value: '', label: 'All Employees' }, ...allEmployees.map(e => ({ value: e.emp_id || e.id, label: e.name || 'Unknown' } ))]} 
+                                    onChange={(v) => setFilters(p => ({ ...p, assigned_to_emp_id: v ? String(v) : '' }))} 
+                                    options={[{ value: '', label: 'All Employees' }, ...allEmployees.map(e => ({ value: String(e.emp_id || e.id), label: e.name || 'Unknown' } ))]} 
                                 />
                             </div>
                         )}
@@ -596,7 +684,27 @@ const TeamTasksPage = () => {
                             ) : tasks.length === 0 ? (
                                 <tr><td colSpan={9} className="p-20 text-center opacity-50"><Layout size={48} className="text-slate-200 mx-auto mb-4" /><p className="text-slate-400 font-bold text-[11px]">No matching team tasks found</p></td></tr>
                             ) : tasks.map((task, idx) => (
-                                <TaskRow key={task?.task_id || task?.id || idx} task={task} expanded={expandedTasks.has(task?.task_id)} subtasks={subtasksMap[task?.task_id] || []} onToggle={() => toggleExpand(task?.task_id)} renderStatusBadge={renderStatusBadge} renderSeverityTag={renderSeverityTag} onAction={handleAction} onReassign={(t) => { setSelectedTask(t); setIsReassignModalOpen(true); }} onRework={(t) => { setSelectedTask(t); setIsReworkModalOpen(true); }} taskTitles={taskTitles} user={user} />
+                                <TaskRow
+                                    key={task?.task_id || task?.id || idx}
+                                    task={task}
+                                    expanded={expandedTasks.has(task?.task_id)}
+                                    subtasks={subtasksMap[task?.task_id] || []}
+                                    onToggle={() => toggleExpand(task?.task_id)}
+                                    renderStatusBadge={renderStatusBadge}
+                                    renderSeverityTag={renderSeverityTag}
+                                    onAction={handleAction}
+                                    onReassign={(t) => {
+                                        setSelectedTask({ ...t, id: t?.id ?? t?.task_id });
+                                        setIsReassignModalOpen(true);
+                                    }}
+                                    onRework={(t) => {
+                                        setSelectedTask({ ...t, id: t?.id ?? t?.task_id });
+                                        setIsReworkModalOpen(true);
+                                    }}
+                                    taskTitles={taskTitles}
+                                    user={user}
+                                    onViewDetails={openDetailModal}
+                                />
                             ))}
                         </tbody>
                     </table>
@@ -632,6 +740,12 @@ const TeamTasksPage = () => {
             }} />
             <ReworkCommentModal isOpen={isReworkModalOpen} onClose={() => setIsReworkModalOpen(false)} onConfirm={(comment) => handleAction(selectedTask?.task_id || selectedTask?.id, 'REWORK', { comment })} taskTitle={selectedTask?.task_title || selectedTask?.title} />
             <TaskReviewModal isOpen={isReviewModalOpen} onClose={() => setIsReviewModalOpen(false)} task={selectedTask} onApprove={() => handleAction(selectedTask?.task_id || selectedTask?.id, 'APPROVE')} onRework={() => { setIsReviewModalOpen(false); setIsReworkModalOpen(true); }} />
+            <TaskDetailModal
+                isOpen={detailModalOpen}
+                onClose={() => setDetailModalOpen(false)}
+                task={selectedTask}
+                currentUser={user}
+            />
         </div>
     );
 };

@@ -312,7 +312,7 @@ const ActionTaskTable = ({
             <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Parent Task Id</th>
             <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Parent Task</th>
             <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Task</th>
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Assignee</th>
+            {viewMode !== 'personal' && <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Assignee</th>}
             <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Assigned By</th>
             <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px] text-center">Status</th>
             <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px] text-center">Severity</th>
@@ -342,6 +342,7 @@ const ActionTaskTable = ({
                   </div>
                 </td>
 
+                {viewMode !== 'personal' && (
                 <td className="p-5">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[12px] font-bold flex-shrink-0 shadow-sm border border-white">
@@ -358,6 +359,7 @@ const ActionTaskTable = ({
                     </div>
                   </div>
                 </td>
+                )}
 
                 <td className="p-5 font-bold text-slate-600 truncate">{assignerName}</td>
 
