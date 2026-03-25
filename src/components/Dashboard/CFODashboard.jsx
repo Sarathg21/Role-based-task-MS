@@ -961,13 +961,13 @@ const CFODashboard = () => {
 
 
 
-    const { workloadData, orgStatusData, globalStats, kpis, topEmployees } = useMemo(() => {
+    const { workloadData, orgStatusData, globalStats, kpis, topPerformers } = useMemo(() => {
         if (!dashboardData) return { 
             workloadData: [], 
             orgStatusData: [], 
             globalStats: { totalTasks: 0, completedTasks: 0, pendingTasks: 0, in_progress_tasks: 0, overallScore: 0 }, 
             kpis: null, 
-            topEmployees: [] 
+            topPerformers: [] 
         };
         const deptSource = dashboardData.department_stats || [];
 
@@ -1005,20 +1005,20 @@ const CFODashboard = () => {
             avgRework: orgMetrics?.org_avg_rework_rate ?? 0
         };
 
-        const topEmployees = (() => {
-            const dataSource = allOrgTasks.length > 0 ? allOrgTasks : todayOrgTasks;
-            if (!dataSource.length) return [];
-            const byEmployee = {};
-            dataSource.forEach(t => {
-                const name = t.assigneeName || t.assigned_to_name || 'Unknown';
-                const dept = t.department_name || t.department || 'Accounts';
-                if (!byEmployee[name]) byEmployee[name] = { name, department: dept, completed: 0, total: 0 };
-                byEmployee[name].total++;
-                if (['APPROVED', 'COMPLETED'].includes((t.status || '').toUpperCase())) byEmployee[name].completed++;
-            });
-            return Object.values(byEmployee)
-                .sort((a, b) => (b.completed / b.total) - (a.completed / a.total) || b.total - a.total)
-                .slice(0, 5);
+        const topPerformers = (() => {
+            if (!deptPerformance || deptPerformance.length === 0) return [];
+            
+            return [...deptPerformance]
+                .filter(d => (d.total_tasks || 0) > 0)
+                .sort((a, b) => (b.completion_pct || 0) - (a.completion_pct || 0))
+                .slice(0, 5)
+                .map(d => ({
+                    name: d.department_name || d.name || 'Unknown Dept',
+                    topPerformerName: d.top_performer?.name || 'Awaiting Stats',
+                    score: Math.round(d.completion_pct || 0),
+                    total: d.total_tasks || 0,
+                    completed: d.approved_tasks || 0
+                }));
         })();
 
         return {
@@ -1032,9 +1032,9 @@ const CFODashboard = () => {
                 overallScore: dashboardData.org_performance_index || 0,
             },
             kpis,
-            topEmployees
+            topPerformers
         };
-    }, [dashboardData, orgMetrics, todayOrgTasks, allOrgTasks]);
+    }, [dashboardData, orgMetrics, todayOrgTasks, allOrgTasks, deptPerformance]);
 
     if (loading) return (
         <div className="flex flex-col items-center justify-center p-10 bg-white/50 backdrop-blur-xl rounded-2xl border border-slate-100 shadow-sm animate-pulse">
@@ -1313,40 +1313,53 @@ const CFODashboard = () => {
                             <div className="flex flex-col gap-4">
                                 <OrganizationHealth metrics={kpis} />
                                 
-                                {/* ── Top Individual Performers (Rank 1-5) ── */}
+                                {/* ── Top High Performers (Rank 1-5 Departments) ── */}
                                 <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col min-h-[460px]">
                                     <div className="flex items-center justify-between mb-8">
                                         <div>
-                                            <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-widest leading-none mb-1">Top Individuals</h3>
-                                            <p className="text-[10px] font-bold text-slate-400 capitalize">High performing talent across org</p>
+                                            <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-widest leading-none mb-1">Top High Performers</h3>
+                                            <p className="text-[10px] font-bold text-slate-400 capitalize">Leading departments by completion rate</p>
                                         </div>
                                         <TrendingUp size={16} className="text-indigo-500" />
                                     </div>
 
-                                    <div className="space-y-4 flex-1">
-                                        {topEmployees.length > 0 ? topEmployees.map((emp, idx) => {
-                                            const score = Math.round((emp.completed / emp.total) * 100);
-                                            return (
-                                                <div key={idx} className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0 group hover:bg-slate-50/50 rounded-xl transition-all px-1">
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-[12px] shrink-0 border-2 border-white shadow-sm ${idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-slate-200 text-slate-500' : idx === 2 ? 'bg-orange-200 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
-                                                        {idx + 1}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <h4 className="text-[13px] font-bold text-slate-800 truncate leading-tight group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{emp.name}</h4>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mt-1">{emp.department} • {emp.completed}/{emp.total} Tasks</p>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <span className="text-[14px] font-black text-slate-900 tabular-nums">{score}%</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        }) : (
-                                            <div className="flex-1 flex flex-col items-center justify-center text-center py-10 opacity-30">
-                                                <Shield className="w-10 h-10 mb-2 text-slate-400" />
-                                                <p className="text-[10px] font-black uppercase tracking-widest">Awaiting Stats</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-slate-50">
+                                                <th className="pb-4 text-[11px] font-black text-slate-400 uppercase tracking-widest w-12 text-center">Rank</th>
+                                                <th className="pb-4 text-[11px] font-black text-slate-400 uppercase tracking-widest px-4">Entity</th>
+                                                <th className="pb-4 text-[11px] font-black text-slate-400 uppercase tracking-widest text-right">Score</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {topPerformers.length > 0 ? topPerformers.map((dept, idx) => (
+                                                <tr key={idx} className="group hover:bg-slate-50/50 transition-all">
+                                                    <td className="py-4">
+                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-[12px] shrink-0 border-2 border-white shadow-sm mx-auto ${idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-slate-200 text-slate-500' : idx === 2 ? 'bg-orange-200 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
+                                                            {idx + 1}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-4">
+                                                        <h4 className="text-[13px] font-bold text-slate-800 truncate leading-tight group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{dept.name}</h4>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mt-1">
+                                                            Top Performer: {dept.topPerformerName} • {dept.completed}/{dept.total} Tasks
+                                                        </p>
+                                                    </td>
+                                                    <td className="py-4 text-right">
+                                                        <span className="text-[14px] font-black text-slate-900 tabular-nums">{dept.score}%</span>
+                                                    </td>
+                                                </tr>
+                                            )) : (
+                                                <tr>
+                                                    <td colSpan="3" className="py-20 text-center opacity-30">
+                                                        <Shield className="w-10 h-10 mb-2 mx-auto text-slate-400" />
+                                                        <p className="text-[10px] font-black uppercase tracking-widest">Awaiting Stats</p>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                    
                                     <button 
                                         onClick={() => navigate('/performance-dashboard')}
                                         className="mt-6 w-full py-3 bg-slate-50 hover:bg-indigo-50 text-indigo-500 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all flex items-center justify-center gap-2 group border border-slate-100/50"
