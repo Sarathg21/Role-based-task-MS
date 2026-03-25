@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import {
     X, History, Paperclip, ChevronRight, ChevronDown,
-    Plus, Loader2, FileText, Download, User, Building2, CalendarDays
+    Plus, Loader2, FileText, Download, User, Building2, CalendarDays, Upload, Trash2
 } from 'lucide-react';
 import api from '../../services/api';
 import Badge from '../UI/Badge';
+import toast from 'react-hot-toast';
 
 const getHistoryLabel = (entry) => {
     const oldStatus = entry.old_status;
@@ -54,13 +55,11 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
     const fetchDetails = async () => {
         setLoading(true);
         try {
-            // First, fetch the full task data to get description and other hidden fields
+            // Fetch initial task details (description, etc)
             const taskRes = await api.get(`/tasks/${task.id}`);
             const taskData = taskRes.data?.data || taskRes.data;
-            // Only update if we got a valid plain object (not an array, null, or string)
+            
             if (taskData && typeof taskData === 'object' && !Array.isArray(taskData)) {
-                // Merge new detail data with the existing normalized prop data
-                // This ensures we keep details like description, but don't lose UI fields due to mismatched backend keys
                 setFullTask(prev => ({
                     ...prev,
                     ...taskData,
@@ -74,44 +73,44 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
                 }));
             }
 
-            if (activeTab === 'history') {
-                const res = await api.get(`/tasks/${task.id}/history`);
-                const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+            // Always fetch attachments and history concurrently for immediate availability
+            const [historyRes, attachmentsRes] = await Promise.allSettled([
+                api.get(`/tasks/${task.id}/history`),
+                api.get(`/tasks/${task.id}/attachments`)
+            ]);
+
+            if (historyRes.status === 'fulfilled') {
+                const data = Array.isArray(historyRes.value.data) ? historyRes.value.data : (historyRes.value.data?.data || []);
                 setHistory(data);
-            } else if (activeTab === 'attachments') {
-                let attachData = [];
-                try {
-                    const res = await api.get(`/tasks/${task.id}/attachments`);
-                    attachData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-                } catch (e) {
-                    console.warn("Dedicated attachments endpoint failed:", e.message);
-                }
-                
-                // Fallback: if dedicated endpoint empty/failed, check if task object has attachments
-                if (attachData.length === 0 && fullTask.attachments) {
-                    attachData = Array.isArray(fullTask.attachments) ? fullTask.attachments : [];
-                }
-                
+            }
+
+            if (attachmentsRes.status === 'fulfilled') {
+                const attachData = Array.isArray(attachmentsRes.value.data) ? attachmentsRes.value.data : (attachmentsRes.value.data?.data || []);
                 setAttachments(attachData);
-            } else if (activeTab === 'subtasks') {
-                let subData = [];
+            } else if (fullTask.attachments) {
+                // Fallback to task object if dedicated endpoint fails
+                setAttachments(Array.isArray(fullTask.attachments) ? fullTask.attachments : []);
+            }
+
+            // Subtasks still fetched on tab demand if they are heavy
+            if (activeTab === 'subtasks') {
                 try {
                     const res = await api.get(`/tasks/${task.id}/subtasks`);
-                    subData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                    const subData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                    setSubtasks(subData);
                 } catch (e) {
-                    console.warn("Dedicated subtasks endpoint failed, trying fallback...", e.message);
-                    // Fallback: try the main tasks endpoint with parent_task_id filter
+                    // Fallback
                     try {
                         const res = await api.get('/tasks', { params: { parent_task_id: task.id, limit: 100, scope: 'org' } });
-                        subData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                        const subData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                        setSubtasks(subData);
                     } catch (e2) {
-                        console.error("Fallback subtask fetch also failed:", e2.message);
+                        console.error("Subtask fetch failed:", e2.message);
                     }
                 }
-                setSubtasks(subData);
             }
         } catch (err) {
-            console.error(`Failed to fetch ${activeTab}`, err);
+            console.error(`Failed to fetch task details`, err);
         } finally {
             setLoading(false);
         }
@@ -140,21 +139,62 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
     };
 
     const handleDownload = async (attachment) => {
+        if (!attachment) return;
+        
+        // Dynamic detection of identifier
+        const attachmentId = (typeof attachment === 'object') 
+            ? (attachment.id || attachment.file_id || attachment.attachment_id || attachment.fileId || attachment._id || attachment.aid)
+            : attachment; // Fallback if attachment is just the ID (number/string)
+
+        if (!attachmentId) {
+            toast.error('Could not resolve file ID. Task metadata may be incomplete.');
+            return;
+        }
+
+        const toastId = toast.loading('Establishing secure connection for download...');
         try {
-            const attachmentId = attachment.id || attachment.file_id || attachment.attachment_id || attachment.notification_id || attachment.notificationId;
-            if (!attachmentId) {
-                toast.error('Cannot retrieve file ID for download');
-                return;
+            // 1. Try primary download endpoint
+            let res;
+            try {
+                res = await api.get(`/tasks/${fullTask.id}/attachments/${attachmentId}`, {
+                    responseType: 'blob'
+                });
+            } catch (firstErr) {
+                // 2. Fallback to /download sub-segment if first one fails
+                console.warn("Primary download failed, trying /download sub-path", firstErr);
+                res = await api.get(`/tasks/${fullTask.id}/attachments/${attachmentId}/download`, {
+                    responseType: 'blob'
+                });
             }
 
-            const fileName = attachment.filename || attachment.name || attachment.file_name || attachment.original_name || 'download';
-            
-            // Use authenticated api service instead of raw fetch to ensure JWT headers are included
-            const res = await api.get(`/tasks/${task.id}/attachments/${attachmentId}`, {
-                responseType: 'blob'
-            });
+            // check if we got a tiny response which might be an error JSON disguised as a blob
+            if (res.data instanceof Blob && res.data.size < 500) {
+                const text = await res.data.text();
+                try {
+                    const json = JSON.parse(text);
+                    if (json.detail || json.message) {
+                        throw new Error(json.detail || json.message);
+                    }
+                } catch (e) { /* Not JSON or not an error object */ }
+            }
 
-            const blob = new Blob([res.data], { type: res.headers['content-type'] });
+            // Extract filename
+            const contentDisposition = res.headers['content-disposition'];
+            let fileName = 'downloaded_file';
+            
+            if (typeof attachment === 'object') {
+                fileName = attachment.filename || attachment.name || attachment.file_name || attachment.original_name || attachment.title || attachment.original_filename || 'download';
+            }
+            
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+                if (filenameMatch && filenameMatch[1]) {
+                    fileName = filenameMatch[1];
+                }
+            }
+
+            // If res.data is already a Blob, we don't strictly need new Blob([res.data]), but it's safe
+            const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
             const blobUrl = window.URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = blobUrl;
@@ -163,10 +203,50 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
             a.click();
             a.remove();
             window.URL.revokeObjectURL(blobUrl);
+            
+            toast.success('Download complete', { id: toastId });
         } catch (err) {
             console.error("Download failed", err);
-            toast.error('Download failed. Ensure you have permissions for this file.');
+            toast.error(err.response?.data?.message || 'Download failed. Ensure you have permissions for this file.', { id: toastId });
         }
+    };
+    
+    const handleDeleteAttachment = async (attachment) => {
+        if (!attachment) return;
+        
+        const attachmentId = (typeof attachment === 'object') 
+            ? (attachment.id || attachment.file_id || attachment.attachment_id || attachment.fileId || attachment._id || attachment.aid)
+            : attachment;
+            
+        if (!attachmentId) {
+            toast.error('Could not resolve attachment for deletion');
+            return;
+        }
+
+        if (!window.confirm('Are you sure you want to permanently delete this attachment?')) return;
+
+        const toastId = toast.loading('Deleting attachment...');
+        try {
+            await api.delete(`/tasks/${fullTask.id}/attachments/${attachmentId}`);
+            toast.success('Attachment deleted successfully', { id: toastId });
+            
+            // Refresh the list immediately
+            const res = await api.get(`/tasks/${fullTask.id}/attachments`);
+            const attachData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+            setAttachments(attachData);
+        } catch (err) {
+            console.error("Delete failed", err);
+            toast.error(err.response?.data?.message || 'Delete failed. You may not have permission to delete this file.', { id: toastId });
+        }
+    };
+
+    const getFileIcon = (fileName) => {
+        const ext = String(fileName || '').toLowerCase().split('.').pop();
+        if (['jpg', 'jpeg', 'png', 'gif', 'svg'].includes(ext)) return <div className="p-2 bg-rose-50 rounded-lg text-rose-500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>;
+        if (['pdf'].includes(ext)) return <div className="p-2 bg-red-50 rounded-lg text-red-500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg></div>;
+        if (['xlsx', 'xls', 'csv'].includes(ext)) return <div className="p-2 bg-emerald-50 rounded-lg text-emerald-500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg></div>;
+        if (['docx', 'doc', 'txt'].includes(ext)) return <div className="p-2 bg-blue-50 rounded-lg text-blue-500"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg></div>;
+        return <div className="p-2 bg-violet-50 rounded-lg text-violet-500"><FileText size={18} /></div>;
     };
 
     if (!isOpen || !task) return null;
@@ -193,13 +273,48 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-white">
                     {/* Description Area */}
-                    <div className="space-y-2">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <FileText size={14} /> Description
+                    <div className="space-y-4">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                            <FileText size={14} strokeWidth={3} /> Description
                         </h3>
-                        <p className="text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 italic">
-                            {fullTask.description || "No description provided."}
-                        </p>
+                        <div className="bg-slate-50/50 p-6 rounded-[1.5rem] border border-slate-100/80 shadow-inner group transition-all hover:bg-white hover:border-violet-100 hover:shadow-md">
+                            <p className="text-[14.5px] text-slate-600 leading-relaxed font-medium">
+                                {fullTask.description || "No tactical description provided for this objective."}
+                            </p>
+                        </div>
+                        
+                        {/* Quick Attachments Preview */}
+                        {attachments.length > 0 && activeTab === 'description' && (
+                            <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-1.5">
+                                    <Paperclip size={12} strokeWidth={3} /> Relevant Attachments ({attachments.length})
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {attachments.slice(0, 3).map((file, i) => (
+                                        <div 
+                                            key={i} 
+                                            onClick={() => setActiveTab('attachments')}
+                                            className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-violet-200 hover:shadow-md transition-all cursor-pointer group"
+                                        >
+                                            <div className="w-5 h-5 flex items-center justify-center text-violet-500">
+                                                <Paperclip size={12} strokeWidth={3} />
+                                            </div>
+                                            <span className="text-[11px] font-bold text-slate-600 max-w-[100px] truncate">
+                                                {file.filename || file.name || 'document'}
+                                            </span>
+                                        </div>
+                                    ))}
+                                    {attachments.length > 3 && (
+                                        <button 
+                                            onClick={() => setActiveTab('attachments')}
+                                            className="text-[11px] font-black text-violet-600 uppercase tracking-widest px-3 py-2"
+                                        >
+                                            +{attachments.length - 3} More
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Metadata Grid */}
@@ -271,56 +386,74 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
                                 <Loader2 className="animate-spin text-slate-300" size={32} />
                             </div>
                         ) : activeTab === 'attachments' ? (
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200">
-                                    <div className="flex items-center gap-3">
-                                        <Paperclip size={18} className="text-slate-400" />
+                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-500">
+                                <div className="flex justify-between items-center bg-violet-50/30 p-5 rounded-2xl border border-dashed border-violet-200 group hover:bg-violet-50 hover:border-violet-300 transition-all">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-violet-500 group-hover:scale-110 transition-transform">
+                                            <Upload size={22} strokeWidth={2.5} />
+                                        </div>
                                         <div>
-                                            <p className="text-sm font-medium text-slate-700">Add Attachments</p>
-                                            <p className="text-[10px] text-slate-400">No size limit · All file types</p>
+                                            <p className="text-[14px] font-bold text-slate-800 tracking-tight leading-none mb-1.5">Evidence Submission</p>
+                                            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest leading-none">PDF, JPEG, XLSX, DOCX preferred</p>
                                         </div>
                                     </div>
-                                    <label className="cursor-pointer bg-white px-4 py-2 rounded-lg border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition shadow-sm">
-                                        {uploading ? <Loader2 size={14} className="animate-spin" /> : 'Choose File'}
+                                    <label className="cursor-pointer bg-[#7B51ED] px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest text-white hover:bg-violet-700 transition-all shadow-lg shadow-violet-100 active:scale-95 flex items-center gap-2">
+                                        {uploading ? <Loader2 size={14} className="animate-spin" /> : <><Plus size={14} strokeWidth={3} /> Upload</>}
                                         <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
                                     </label>
                                 </div>
 
-                                <div className="space-y-2">
+                                <div className="space-y-3">
                                     {attachments.length > 0 ? (
                                         attachments.map((file, idx) => {
-                                            const id = file.id || file.file_id || file.attachment_id || idx;
-                                            const name = file.filename || file.name || file.file_name || file.original_name || 'Attached File';
-                                            const time = file.uploaded_at || file.created_at || file.timestamp || new Date().toISOString();
-                                            const by = file.uploaded_by || file.uploader || 'Task Creator';
+                                            const isObj = typeof file === 'object' && file !== null;
+                                            const id = isObj ? (file.id || file.file_id || file.attachment_id || file._id || idx) : idx;
+                                            const name = isObj ? (file.filename || file.name || file.file_name || file.original_name || file.title || 'document') : (typeof file === 'string' ? file : 'document');
+                                            const time = isObj ? (file.uploaded_at || file.created_at || file.timestamp || new Date().toISOString()) : new Date().toISOString();
+                                            const by = isObj ? (file.uploaded_by || file.uploader || 'System') : 'System';
 
                                             return (
-                                                <div key={id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition group">
-                                                    <div className="flex items-center gap-3 min-w-0">
-                                                        <div className="p-2 bg-violet-50 rounded-lg text-violet-500">
-                                                            <FileText size={18} />
-                                                        </div>
+                                                <div key={id} className="group p-4 bg-white border border-slate-100 rounded-2xl flex items-center justify-between hover:shadow-xl hover:shadow-slate-100/50 hover:border-violet-200 transition-all">
+                                                    <div className="flex items-center gap-4 min-w-0">
+                                                        {getFileIcon(name)}
                                                         <div className="min-w-0">
-                                                            <p className="text-sm font-medium text-slate-700 truncate">{name}</p>
-                                                            <p className="text-[10px] text-slate-400">
-                                                                {new Date(time).toLocaleString()} · by {by}
+                                                            <p className="text-[14px] font-black text-slate-700 truncate tracking-tight">{name}</p>
+                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                                                {new Date(time).toLocaleDateString()} · {new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · By {by}
                                                             </p>
                                                         </div>
                                                     </div>
-                                                    <button
-                                                        onClick={() => handleDownload(file)}
-                                                        className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition"
-                                                        title="Download"
-                                                    >
-                                                        <Download size={18} />
-                                                    </button>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => handleDownload(file)}
+                                                            className="p-3 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-xl transition-all shadow-sm border border-transparent hover:border-violet-100 active:scale-90"
+                                                            title="Download File"
+                                                        >
+                                                            <Download size={20} />
+                                                        </button>
+                                                        
+                                                        {/* Delete button: Visible if uploader or manager/cfo */}
+                                                        {((currentUser?.emp_id === (file.uploaded_by || file.uploader)) || 
+                                                          (['MANAGER', 'CFO', 'ADMIN'].includes(currentUser?.role?.toUpperCase()))) && (
+                                                            <button
+                                                                onClick={() => handleDeleteAttachment(file)}
+                                                                className="p-3 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm border border-transparent hover:border-rose-100 active:scale-90"
+                                                                title="Delete Attachment"
+                                                            >
+                                                                <Trash2 size={20} />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         })
                                     ) : (
-                                        <div className="text-center py-12">
-                                            <Paperclip size={40} className="mx-auto text-slate-200 mb-3" />
-                                            <p className="text-sm text-slate-400">No attachments yet.</p>
+                                        <div className="text-center py-16 bg-slate-50 border border-dashed border-slate-200 rounded-[2.5rem]">
+                                            <div className="w-20 h-20 bg-white rounded-3xl shadow-sm border border-slate-100 flex items-center justify-center mx-auto mb-6 transform rotate-3">
+                                                <Paperclip size={32} className="text-slate-200" />
+                                            </div>
+                                            <p className="text-[14px] font-bold text-slate-800 tracking-tight">No archived intelligence found</p>
+                                            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mt-1.5">Upload relevant documentation for this task</p>
                                         </div>
                                     )}
                                 </div>

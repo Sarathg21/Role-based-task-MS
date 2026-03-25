@@ -54,13 +54,13 @@ const EmployeePersonalReport = () => {
                 { url: '/tasks', params: { ...teamParams, scope: 'org' } }
             ];
 
+            const aggregatedRankingTasks = [];
             for (const ep of endpoints) {
                 try {
                     const res = await api.get(ep.url, { params: ep.params });
                     const rows = res?.data?.data || res?.data || [];
                     if (Array.isArray(rows) && rows.length > 0) {
-                        deptTasksRes = res;
-                        break; 
+                        rows.forEach(r => aggregatedRankingTasks.push(r));
                     }
                 } catch (e) {
                     if (e.response?.status === 422) continue;
@@ -76,13 +76,8 @@ const EmployeePersonalReport = () => {
             setTasks(myTasks);
 
             // ── Build Top Performer Per Department ──
-            // For each department, find the employee with the highest completion score.
-            const deptRaw = deptTasksRes?.data?.data || deptTasksRes?.data || [];
-            const deptTasks = Array.isArray(deptRaw) ? deptRaw : [];
-
-            // Prefer department-scoped tasks for peer ranking.
-            // If we don't have department-scoped tasks (API unsupported), use the API-provided fallback below.
-            const rankingTasks = deptTasks.length > 0 ? deptTasks : [];
+            // Combine all available tasks for a comprehensive ranking
+            const rankingTasks = [...aggregatedRankingTasks, ...myTasks];
 
             const deptEmployeeMap = {};
             rankingTasks.forEach(t => {
@@ -537,72 +532,70 @@ const EmployeePersonalReport = () => {
                         <thead>
                             <tr className="border-b border-slate-100">
                                 <th className="pb-4 text-[12px] font-bold text-slate-500 tracking-wider">Rank</th>
-                                <th className="pb-4 text-[12px] font-bold text-slate-500 tracking-wider">Department</th>
+                                <th className="pb-4 text-[12px] font-bold text-slate-500 tracking-wider">Top Performer</th>
                                 <th className="pb-4 text-[12px] font-bold text-slate-500 tracking-wider text-right">Score</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {topPerformers.length > 0 ? topPerformers.map((performer, idx) => {
-                                const rankColors = [
-                                    'bg-amber-100 text-gold-600',
-                                    'bg-slate-100 text-slate-500',
-                                    'bg-orange-100 text-orange-500',
-                                ];
-                                const isMe = (performer.name === (user?.name || '')) || (String(performer.empId) === String(user?.emp_id || user?.id));
-                                return (
-                                    <tr key={idx} className={isMe ? 'bg-indigo-50/20' : ''}>
-                                        <td className="py-4 w-16">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] ${idx === 0 ? 'bg-amber-100 text-amber-600 shadow-sm' : 'bg-slate-50 text-slate-400'}`}>
-                                                {idx + 1}
-                                            </div>
-                                        </td>
-                                        <td className="py-4">
-                                            <p className="text-[14px] font-semibold text-[#1E1B4B]">
-                                                {performer.department || performer.name || 'Accounts Payables'}
-                                                {isMe && <span className="ml-2 text-[10px] bg-indigo-100/50 text-indigo-600 px-2 py-0.5 rounded-full font-bold">You</span>}
-                                            </p>
-                                            <p className="text-[11px] font-medium text-slate-400 mt-1">
-                                                {performer.completed}/{performer.total} tasks completed
-                                            </p>
-                                        </td>
-                                        <td className="py-4 text-right text-[15px] font-bold text-indigo-600">{performer.score}%</td>
-                                    </tr>
-                                );
-                            }) : (
-                                // Fallback: show the top performer from API if no computed data
+                            {topPerformers.length > 0 ? (
+                                topPerformers.map((performer, idx) => {
+                                    const isMe = (performer.name === (user?.name || '')) || (String(performer.empId) === String(user?.emp_id || user?.id));
+                                    return (
+                                        <tr key={idx} className={isMe ? 'bg-indigo-50/20' : ''}>
+                                            <td className="py-4 w-16">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] ${idx === 0 ? 'bg-amber-100 text-amber-600 shadow-sm' : 'bg-slate-50 text-slate-400'}`}>
+                                                    {idx + 1}
+                                                </div>
+                                            </td>
+                                            <td className="py-4">
+                                                <p className="text-[14px] font-semibold text-[#1E1B4B]">
+                                                    {performer.name || 'Employee'}
+                                                    {isMe && <span className="ml-2 text-[10px] bg-indigo-100/50 text-indigo-600 px-2 py-0.5 rounded-full font-bold">You</span>}
+                                                </p>
+                                                <p className="text-[11px] font-medium text-slate-400 mt-1 uppercase tracking-wider">
+                                                    {performer.department || 'Accounts Payables'} • {performer.completed}/{performer.total} tasks
+                                                </p>
+                                            </td>
+                                            <td className="py-4 text-right text-[15px] font-bold text-indigo-600">{performer.score}%</td>
+                                        </tr>
+                                    );
+                                })
+                            ) : (summary.top_department_performer || summary.top_performer) ? (
                                 <tr>
                                     <td className="py-5 w-16">
                                         <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-[13px]">1</div>
                                     </td>
                                     <td className="py-5">
                                         <p className="text-[14px] font-semibold text-[#1E1B4B]">
-                                            {summary.top_department_performer?.department || 
-                                             summary.top_performer?.department || 
-                                             summary.top_department_name ||
-                                             (topPerformers[0]?.department) || 
-                                             user?.department_name || 
-                                             user?.department || 
-                                             'Accounts Payables'}
+                                            {summary.top_department_performer?.name || summary.top_performer?.name || 'Top Performer'}
                                         </p>
-                                        <p className="text-[11px] font-medium text-slate-400 mt-1">
-                                            {summary.top_department_performer?.name || 
-                                             summary.top_performer?.name || 
-                                             summary.top_department_performer_name || 
-                                             summary.top_performer_name || 
-                                             summary.best_performer_name ||
-                                             summary.top_emp_name ||
-                                             (topPerformers[0]?.name) || 
-                                             'Current Month Statistics'}
+                                        <p className="text-[11px] font-medium text-slate-400 mt-1 uppercase tracking-wider">
+                                            {summary.top_department_performer?.department || summary.top_performer?.department || 'Operations'}
+                                            {(summary.top_department_performer?.total_tasks || summary.top_performer?.total_tasks) ? 
+                                               ` • ${(summary.top_department_performer?.approved_tasks || summary.top_performer?.approved_tasks || 0)}/${(summary.top_department_performer?.total_tasks || summary.top_performer?.total_tasks)} tasks` 
+                                               : ''}
                                         </p>
                                     </td>
                                     <td className="py-5 text-right text-[15px] font-bold text-indigo-600">
-                                        {summary.top_department_performer?.score ?? 
-                                         summary.top_performer?.score ?? 
-                                         summary.top_department_performer_score ?? 
-                                         summary.top_performer_score ?? 
-                                         summary.performance_score ??
-                                         (topPerformers[0]?.score) ?? 
-                                         0}%
+                                        {Math.round(summary.top_department_performer?.score ?? summary.top_performance_score ?? 0)}%
+                                    </td>
+                                </tr>
+                            ) : (
+                                <tr>
+                                    <td className="py-4 w-16">
+                                        <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-[13px]">1</div>
+                                    </td>
+                                    <td className="py-4">
+                                        <p className="text-[14px] font-semibold text-[#1E1B4B]">
+                                            {user?.name || 'You'}
+                                            <span className="ml-2 text-[10px] bg-indigo-100/50 text-indigo-600 px-2 py-0.5 rounded-full font-bold">You</span>
+                                        </p>
+                                        <p className="text-[11px] font-medium text-slate-400 mt-1 uppercase tracking-wider">
+                                            {user?.department_name || user?.department || 'My Department'} • {tasks.filter(t => ['APPROVED', 'COMPLETED'].includes(t.status?.toUpperCase())).length}/{tasks.length} tasks
+                                        </p>
+                                    </td>
+                                    <td className="py-4 text-right text-[15px] font-bold text-indigo-600">
+                                        {tasks.length > 0 ? Math.round((tasks.filter(t => ['APPROVED', 'COMPLETED'].includes(t.status?.toUpperCase())).length / tasks.length) * 100) : 0}%
                                     </td>
                                 </tr>
                             )}

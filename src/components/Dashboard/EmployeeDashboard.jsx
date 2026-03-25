@@ -677,24 +677,22 @@ const EmployeeDashboard = () => {
                         />
                     </div>
                 </div>
-                {/* Right: spacer matching quick actions column */}
-                <div className="hidden xl:flex w-[320px] shrink-0 gap-4" />
             </div>
 
             {/* Main Content Split */}
-            <div className="flex flex-col xl:flex-row gap-6 items-start">
+            <div className="flex flex-col xl:flex-row gap-4 items-start">
                 {/* Left Side - Task Table (grows to fill) */}
                 <div className="flex-1 min-w-0 bg-white rounded-[1.5rem] p-0 shadow-sm border border-slate-100 flex flex-col min-h-[500px]">
                     <div className="flex items-center gap-6 pt-6 px-6 border-b border-slate-100 pb-0">
                         <h2 className="text-[17px] font-bold text-slate-800 pb-4">My Task List</h2>
-                        <div className="flex gap-10 ml-2">
-                            {['Today\'s Tasks', 'New', 'In Progress', 'Submitted', 'Reworks', 'All'].map((tab) => {
-                                const tabKey = tab === 'Today\'s Tasks' ? 'TODAY' : tab.toUpperCase().replace(' ', '_');
+                        <div className="flex gap-3 sm:gap-4 ml-2 overflow-x-auto no-scrollbar">
+                            {['Today', 'New', 'Progress', 'Submitted', 'Reworks', 'All'].map((tab) => {
+                                const tabKey = tab === 'Today' ? 'TODAY' : tab === 'Progress' ? 'IN_PROGRESS' : tab.toUpperCase().replace(' ', '_');
                                 return (
                                     <span
                                         key={tab}
                                         onClick={() => setActiveTab(tabKey)}
-                                        className={`text-sm pb-4 cursor-pointer whitespace-nowrap ${activeTab === tabKey ? "text-violet-600 border-b-2 border-violet-600 font-semibold" : "text-slate-400"}`}
+                                        className={`text-[12px] pb-4 cursor-pointer whitespace-nowrap transition-all uppercase tracking-widest font-black ${activeTab === tabKey ? "text-violet-600 border-b-2 border-violet-600" : "text-slate-400 hover:text-slate-600"}`}
                                     >
                                         {tab}
                                     </span>
@@ -707,13 +705,13 @@ const EmployeeDashboard = () => {
                         <table className="w-full text-left">
                             <thead className="text-[12px] text-slate-400 border-b border-slate-100 bg-slate-50/30">
                                 <tr>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Tasks</th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Parent Task ID</th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Parent Task</th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Assigned Date</th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-slate-400">Priority</th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-center text-slate-400">Status</th>
-                                    <th className="py-3 px-6 font-medium whitespace-nowrap text-right text-slate-400">Actions</th>
+                                    <th className="py-2.5 px-1.5 font-bold whitespace-nowrap text-slate-400">Task</th>
+                                    <th className="py-2.5 px-1.5 font-bold whitespace-nowrap text-slate-400 text-center">P.ID</th>
+                                    <th className="py-2.5 px-1.5 font-bold whitespace-nowrap text-slate-400">Parent</th>
+                                    <th className="py-2.5 px-1.5 font-bold whitespace-nowrap text-slate-400">Date</th>
+                                    <th className="py-2.5 px-1.5 font-bold whitespace-nowrap text-slate-400 text-center">Prio</th>
+                                    <th className="py-2.5 px-1.5 font-bold whitespace-nowrap text-center text-slate-400">Status</th>
+                                    <th className="py-2.5 px-1.5 font-bold whitespace-nowrap text-right text-slate-400 pr-4">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
@@ -722,19 +720,19 @@ const EmployeeDashboard = () => {
                                 ) : (
                                     paginatedTasks.map(task => (
                                         <tr key={task.id} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="py-2 px-6">
-                                                <span className="text-[13.5px] font-semibold text-slate-700 truncate max-w-[200px] block">{task.title}</span>
+                                            <td className="py-1.5 px-1.5">
+                                                <span className="text-[12.5px] font-bold text-slate-700 truncate max-w-[130px] block leading-tight">{task.title}</span>
                                             </td>
-                                            <td className="py-2 px-6">
-                                                <span className="text-[13px] font-medium text-slate-500">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</span>
+                                            <td className="py-1.5 px-1.5 text-center">
+                                                <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</span>
                                             </td>
-                                            <td className="py-2 px-6">
-                                                <span className="text-[13px] font-medium text-slate-500 truncate max-w-[150px] block">
+                                            <td className="py-1.5 px-1.5">
+                                                <span className="text-[11px] font-medium text-slate-500 truncate max-w-[90px] block">
                                                     {task.parent_task_title || '-'}
                                                 </span>
                                             </td>
-                                            <td className="py-2 px-6">
-                                                <span className="text-[13px] font-medium text-slate-600">
+                                            <td className="py-1.5 px-1.5">
+                                                <span className="text-[11px] font-bold text-slate-600 whitespace-nowrap">
                                                     {formatDisplayDate(
                                                         task.assigned_date || 
                                                         task.assigned_at || 
@@ -747,37 +745,37 @@ const EmployeeDashboard = () => {
                                                     )}
                                                 </span>
                                             </td>
-                                            <td className="py-2 px-6">
-                                                <div className="flex items-center gap-1.5 text-[13px] font-medium text-slate-600">
-                                                    <span className={`w-2 h-2 rounded-full ${task.severity === 'HIGH' ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]' : 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.5)]'}`}></span>
-                                                    {task.severity === 'HIGH' ? 'High' : 'Medium'}
+                                            <td className="py-1.5 px-1.5">
+                                                <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-slate-600">
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${task.severity === 'HIGH' ? 'bg-red-500' : 'bg-amber-400'}`}></span>
+                                                    {task.severity === 'HIGH' ? 'High' : 'Med'}
                                                 </div>
                                             </td>
-                                            <td className="py-2 px-6 text-center">
+                                            <td className="py-1.5 px-1.5 text-center">
                                                 <div className="flex justify-center">
                                                     {task.status === 'SUBMITTED' ? (
-                                                        <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-violet-50 text-violet-600 border border-violet-100 flex items-center gap-1.5 min-w-[100px] justify-center shadow-sm">
-                                                            <CheckCircle size={12} /> Submitted
+                                                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-violet-50 text-violet-600 border border-violet-100 flex items-center gap-1 min-w-[70px] justify-center shadow-sm">
+                                                            <CheckCircle size={9} /> Submitted
                                                         </span>
                                                     ) : task.status === 'IN_PROGRESS' || task.status === 'STARTED' ? (
-                                                        <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center gap-1.5 min-w-[100px] justify-center shadow-sm">
-                                                            <Clock size={12} /> In Progress
+                                                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center gap-1 min-w-[70px] justify-center shadow-sm">
+                                                            <Clock size={9} /> Progress
                                                         </span>
                                                     ) : task.status === 'NEW' ? (
-                                                        <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-600 border border-blue-100 flex items-center gap-1.5 min-w-[100px] justify-center shadow-sm">
-                                                            <PlusCircle size={12} /> New
+                                                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 border border-blue-100 flex items-center gap-1 min-w-[70px] justify-center shadow-sm">
+                                                            <PlusCircle size={9} /> New
                                                         </span>
                                                     ) : (
-                                                        <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-slate-50 text-slate-600 border border-slate-100 flex items-center gap-1.5 min-w-[100px] justify-center shadow-sm">
-                                                            <Activity size={12} /> {task.status}
+                                                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-slate-50 text-slate-600 border border-slate-100 flex items-center gap-1 min-w-[70px] justify-center shadow-sm text-center">
+                                                            {task.status}
                                                         </span>
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="py-2 px-6 text-right">
+                                            <td className="py-1.5 px-1.5 text-right pr-4">
                                                 <button
                                                     onClick={() => navigate(`/tasks?taskId=${task.id}`)}
-                                                    className="px-5 py-1.5 bg-[#4285F4] text-white text-[12px] font-bold rounded-lg hover:bg-blue-600 transition active:scale-95 shadow-sm inline-flex items-center gap-1.5"
+                                                    className="px-2.5 py-1 bg-[#4285F4] text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:bg-blue-600 transition active:scale-95 shadow-sm inline-flex items-center gap-1"
                                                 >
                                                     View
                                                 </button>

@@ -729,57 +729,57 @@ const PerformanceDashboard = () => {
                     <table className="w-full text-left">
                         <thead className="bg-slate-50 text-[10px] uppercase font-black tracking-widest text-slate-400 sticky top-0 z-10">
                             <tr>
-                                <th className="px-10 py-5">Employee</th>
-                                <th className="px-5 py-5 text-center">Department</th>
-                                <th className="px-5 py-5 text-center">Tasks</th>
-                                <th className="px-5 py-5 text-center">Active</th>
-                                <th className="px-5 py-5 text-center">Pending</th>
-                                <th className="px-5 py-5 text-center">Overdue</th>
-                                <th className="px-10 py-5 text-right">Completion</th>
-                                <th className="px-5 py-5 text-center">Details</th>
+                                <th className="px-2 py-3 text-left">Employee</th>
+                                <th className="px-2 py-3 text-center">Dept</th>
+                                <th className="px-2 py-3 text-center">Tasks</th>
+                                <th className="px-2 py-3 text-center">Active</th>
+                                <th className="px-2 py-3 text-center">Pending</th>
+                                <th className="px-2 py-3 text-center">Overdue</th>
+                                <th className="px-2 py-3 text-right">Completion</th>
+                                <th className="px-2 py-3 text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 font-medium">
                             {teamPerformance.slice((teamPage-1)*teamItemsPerPage, teamPage*teamItemsPerPage).map((emp, i) => (
                                 <tr key={i} className="hover:bg-indigo-50/30 transition-colors">
-                                    <td className="px-10 py-4">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-[11px] font-semibold">{getInitials(emp.name)}</div>
-                                            <div>
-                                                <div className="capitalize font-semibold text-slate-800 text-sm">{emp.name}</div>
-                                                <div className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">{emp.role || 'Employee'}</div>
+                                    <td className="px-2 py-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-[10px] font-semibold shrink-0">{getInitials(emp.name)}</div>
+                                            <div className="min-w-0">
+                                                <div className="capitalize font-semibold text-slate-800 text-[13px] truncate">{emp.name}</div>
+                                                <div className="text-[9px] text-slate-400 font-medium uppercase tracking-widest truncate">{emp.role || 'Employee'}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-5 py-4 text-center">
-                                        <div className="text-xs font-medium text-slate-500">{emp.department}</div>
+                                    <td className="px-2 py-2 text-center">
+                                        <div className="text-[11px] font-medium text-slate-500 truncate max-w-[80px]">{emp.department}</div>
                                     </td>
-                                    <td className="px-5 py-4 text-center tabular-nums font-medium text-slate-700">{emp.tasks_assigned}</td>
-                                    <td className="px-5 py-4 text-center tabular-nums">
-                                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-medium ${emp.in_progress > 0 ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`}>
+                                    <td className="px-2 py-2 text-center tabular-nums font-medium text-slate-700">{emp.tasks_assigned}</td>
+                                    <td className="px-2 py-2 text-center tabular-nums">
+                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${emp.in_progress > 0 ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`}>
                                             {emp.in_progress ?? 0}
                                         </span>
                                     </td>
-                                    <td className="px-5 py-4 text-center tabular-nums">
-                                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-medium ${emp.pending_review > 0 ? 'bg-amber-50 text-amber-600' : 'text-slate-400'}`}>
+                                    <td className="px-2 py-2 text-center tabular-nums">
+                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${emp.pending_review > 0 ? 'bg-amber-50 text-amber-600' : 'text-slate-400'}`}>
                                             {emp.pending_review ?? 0}
                                         </span>
                                     </td>
-                                    <td className={`px-5 py-4 text-center tabular-nums ${emp.overdue > 0 ? 'text-rose-500 font-semibold' : ''}`}>{emp.overdue}</td>
-                                    <td className="px-10 py-4">
-                                        <div className="flex items-center justify-end gap-3 text-sm">
+                                    <td className={`px-2 py-2 text-center tabular-nums text-[11px] ${emp.overdue > 0 ? 'text-rose-500 font-semibold' : ''}`}>{emp.overdue}</td>
+                                    <td className="px-2 py-2">
+                                        <div className="flex items-center justify-end gap-1.5 text-[11px]">
                                             <span>{emp.completion_rate}%</span>
-                                            <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <div className="w-12 h-1 bg-slate-100 rounded-full overflow-hidden">
                                                 <div className={`h-full ${emp.completion_rate > 70 ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${emp.completion_rate}%` }} />
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-5 py-4 text-center">
+                                    <td className="px-2 py-2 text-center">
                                         <button
                                             onClick={() => navigate(`/tasks?mode=team&employeeId=${emp.emp_id}`)}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[11px] font-semibold transition-all hover:shadow-sm active:scale-95"
+                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[10px] font-semibold transition-all hover:shadow-sm active:scale-95"
                                         >
-                                            <ExternalLink size={12} />
+                                            <ExternalLink size={10} />
                                             View
                                         </button>
                                     </td>
@@ -796,25 +796,30 @@ const PerformanceDashboard = () => {
                         <div>
                             <h3 className="text-xl font-medium text-[#1E1B4B]">Employee Risk Monitor</h3>
                         </div>
-                        <button className="text-[11px] font-black text-indigo-600 uppercase tracking-widest hover:underline">View All</button>
-                    </div>
-                    <div className="px-8 flex items-center justify-end gap-2 flex-wrap pb-4 mt-4">
-                        {[
-                            { label: 'On Track',  desc: 'No overdue tasks',     dot: 'bg-emerald-500', bg: 'bg-emerald-50',  text: 'text-emerald-700'  },
-                            { label: 'Watch',     desc: '1 overdue task',        dot: 'bg-blue-500',    bg: 'bg-blue-50',     text: 'text-blue-700'     },
-                            { label: 'At Risk',   desc: '2 overdue tasks',       dot: 'bg-amber-500',   bg: 'bg-amber-50',    text: 'text-amber-700'    },
-                            { label: 'Off Track', desc: '3+ overdue tasks',      dot: 'bg-rose-500',    bg: 'bg-rose-50',     text: 'text-rose-700'     },
-                        ].map(({ label, desc, dot, bg, text }) => (
-                            <div key={label} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/60 ${bg}`}>
-                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
-                                <div>
-                                    <p className={`text-[11px] font-black leading-none ${text}`}>{label}</p>
-                                    <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-none">{desc}</p>
-                                </div>
+                    <button 
+                        onClick={() => setShowRiskModal(!showRiskModal)} 
+                        className="text-[11px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
+                    >
+                        {showRiskModal ? 'Show Less' : 'View All'}
+                    </button>
+                </div>
+                <div className="px-8 flex items-center justify-end gap-2 flex-wrap pb-4 mt-4">
+                    {[
+                        { label: 'On Track',  desc: 'No overdue tasks',     dot: 'bg-emerald-500', bg: 'bg-emerald-50',  text: 'text-emerald-700'  },
+                        { label: 'Watch',     desc: '1 overdue task',        dot: 'bg-blue-500',    bg: 'bg-blue-50',     text: 'text-blue-700'     },
+                        { label: 'At Risk',   desc: '2 overdue tasks',       dot: 'bg-amber-500',   bg: 'bg-amber-50',    text: 'text-amber-700'    },
+                        { label: 'Off Track', desc: '3+ overdue tasks',      dot: 'bg-rose-500',    bg: 'bg-rose-50',     text: 'text-rose-700'     },
+                    ].map(({ label, desc, dot, bg, text }) => (
+                        <div key={label} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/60 ${bg}`}>
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+                            <div>
+                                <p className={`text-[11px] font-black leading-none ${text}`}>{label}</p>
+                                <p className="text-[9px] text-slate-400 font-medium mt-0.5 leading-none">{desc}</p>
                             </div>
-                        ))}
-                    </div>
-                <div className="overflow-x-auto overflow-y-auto max-h-[500px] flex-1">
+                        </div>
+                    ))}
+                </div>
+                <div className={`overflow-x-auto overflow-y-auto ${showRiskModal ? '' : 'max-h-[500px]'} flex-1`}>
                     {employeeRisk.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                             <svg className="w-10 h-10 mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
@@ -824,11 +829,11 @@ const PerformanceDashboard = () => {
                         <table className="w-full text-left">
                             <thead className="bg-slate-50 text-[10px] uppercase font-black tracking-widest text-slate-400 sticky top-0 z-10">
                                 <tr>
-                                    <th className="px-10 py-5 text-left">Employee Name</th>
-                                    <th className="px-5 py-5 text-center">Active Tasks</th>
-                                    <th className="px-5 py-5 text-center">Overdue Tasks</th>
-                                    <th className="px-5 py-5 text-center">Performance Score</th>
-                                    <th className="px-10 py-5 text-center">Risk Status</th>
+                                    <th className="px-4 py-4 text-left">Employee Name</th>
+                                    <th className="px-2 py-4 text-center">Active Tasks</th>
+                                    <th className="px-2 py-4 text-center">Overdue Tasks</th>
+                                    <th className="px-2 py-4 text-center">Performance Score</th>
+                                    <th className="px-4 py-4 text-center">Risk Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50 font-medium">
@@ -845,26 +850,26 @@ const PerformanceDashboard = () => {
 
                                     return (
                                         <tr key={i} className="hover:bg-indigo-50/30 transition-colors">
-                                            <td className="px-10 py-4">
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-black ${riskConfig.bg} ${riskConfig.text}`}>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${riskConfig.bg} ${riskConfig.text}`}>
                                                         {getInitials(emp.name)}
                                                     </div>
-                                                    <div className="capitalize font-semibold text-slate-800">{emp.name}</div>
+                                                    <div className="capitalize font-semibold text-slate-800 text-sm truncate">{emp.name}</div>
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-4 text-center tabular-nums text-slate-600 font-bold">
+                                            <td className="px-2 py-3 text-center tabular-nums text-slate-600 font-bold text-sm">
                                                 {emp.active_tasks ?? 0}
                                             </td>
-                                            <td className="px-5 py-4 text-center tabular-nums">
-                                                <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-[12px] font-black ${emp.overdue_tasks > 0 ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
+                                            <td className="px-2 py-3 text-center tabular-nums">
+                                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-black ${emp.overdue_tasks > 0 ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
                                                     {emp.overdue_tasks ?? 0}
                                                 </span>
                                             </td>
-                                            <td className="px-5 py-4 text-center">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <span className={`font-black text-sm tabular-nums ${scoreColor}`}>{score}%</span>
-                                                    <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                            <td className="px-2 py-3 text-center">
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <span className={`font-black text-[13px] tabular-nums ${scoreColor}`}>{score}%</span>
+                                                    <div className="w-12 h-1 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
                                                         <div
                                                             className={`h-full rounded-full transition-all ${score >= 70 ? 'bg-emerald-500' : score >= 40 ? 'bg-amber-400' : 'bg-rose-500'}`}
                                                             style={{ width: `${Math.min(score, 100)}%` }}
@@ -872,9 +877,9 @@ const PerformanceDashboard = () => {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-10 py-4 text-center">
-                                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide ${riskConfig.bg} ${riskConfig.text}`}>
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${riskConfig.dot}`} />
+                                            <td className="px-4 py-3 text-center">
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide ${riskConfig.bg} ${riskConfig.text}`}>
+                                                    <span className={`w-1 h-1 rounded-full ${riskConfig.dot}`} />
                                                     {riskConfig.label}
                                                 </span>
                                             </td>

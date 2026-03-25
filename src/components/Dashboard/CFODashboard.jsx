@@ -66,54 +66,54 @@ const DepartmentPerformanceGrid = ({ data }) => {
 
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                    <thead className="text-[14px] text-slate-400 font-bold border-b border-slate-100">
+                    <thead className="text-[13px] text-slate-400 font-bold border-b border-slate-100">
                         <tr>
-                            <th className="py-4 px-4 font-bold text-[17px]">Department</th>
-                            <th className="py-4 px-4 font-bold text-center">Total</th>
-                            <th className="py-4 px-4 font-bold text-center">Overdue</th>
-                            <th className="py-4 px-4 font-bold text-center text-indigo-500">In Progress</th>
-                            <th className="py-4 px-4 font-bold text-center text-emerald-500">Completed</th>
-                            <th className="py-4 px-4 font-bold min-w-[150px]">Completion %</th>
-                            <th className="py-4 px-4 font-bold text-right">Status</th>
+                            <th className="py-2.5 px-2.5 font-bold text-[13px]">Department</th>
+                            <th className="py-2.5 px-2.5 font-bold text-center">Total</th>
+                            <th className="py-2.5 px-2.5 font-bold text-center">Overdue</th>
+                            <th className="py-2.5 px-2.5 font-bold text-center text-indigo-500">Progress</th>
+                            <th className="py-2.5 px-2.5 font-bold text-center text-emerald-500">Done</th>
+                            <th className="py-2.5 px-2.5 font-bold min-w-[120px]">Completion %</th>
+                            <th className="py-2.5 px-2.5 font-bold text-right">Status</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                         {data.map((dept, idx) => (
                             <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
-                                <td className="py-4 px-4">
-                                    <span className="text-[14px] font-medium text-slate-800 capitalize tracking-tight">
+                                <td className="py-2 px-2.5">
+                                    <span className="text-[13px] font-medium text-slate-800 capitalize tracking-tight">
                                         {dept.department_name || dept.name || 'Unknown'}
                                     </span>
                                 </td>
-                                <td className="py-4 px-4 text-center font-bold text-slate-600 tabular-nums">
+                                <td className="py-2 px-2.5 text-center font-bold text-slate-600 tabular-nums">
                                     {dept.total_tasks || 0}
                                 </td>
-                                <td className="py-4 px-4 text-center font-bold text-rose-600 tabular-nums">
+                                <td className="py-2 px-2.5 text-center font-bold text-rose-600 tabular-nums">
                                     {dept.overdue_tasks || 0}
                                 </td>
-                                <td className="py-4 px-4 text-center font-bold text-indigo-600 tabular-nums">
+                                <td className="py-2 px-2.5 text-center font-bold text-indigo-600 tabular-nums">
                                     {dept.in_progress_tasks || 0}
                                 </td>
-                                <td className="py-4 px-4 text-center font-bold text-emerald-600 tabular-nums">
+                                <td className="py-2 px-2.5 text-center font-bold text-emerald-600 tabular-nums">
                                     {dept.completed_tasks || 0}
                                 </td>
-                                <td className="py-4 px-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner p-0.5">
+                                <td className="py-2 px-2.5">
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden shadow-inner p-0.5">
                                             <div
                                                 className="h-full rounded-full bg-emerald-400 transition-all duration-1000 ease-out shadow-[0_0_8px_rgba(52,211,153,0.3)]"
                                                 style={{ width: `${dept.completion_pct || 0}%` }}
                                             />
                                         </div>
-                                        <span className="text-[17px] font-black text-slate-700 w-12 tabular-nums">
+                                        <span className="text-[13px] font-black text-slate-700 w-10 tabular-nums">
                                             {Math.round(dept.completion_pct || 0)}%
                                         </span>
                                     </div>
                                 </td>
-                                <td className="py-4 px-4 text-right whitespace-nowrap">
-                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-100 bg-white shadow-sm transition-transform group-hover:scale-105 min-w-max">
-                                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${getStatusColor(dept.status)}`} />
-                                        <span className="text-[12px] font-black text-slate-500 capitalize tracking-widest whitespace-nowrap">
+                                <td className="py-2 px-2.5 text-right whitespace-nowrap">
+                                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full border border-slate-100 bg-white shadow-sm transition-transform group-hover:scale-105 min-w-max">
+                                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${getStatusColor(dept.status)}`} />
+                                        <span className="text-[10px] font-black text-slate-500 capitalize tracking-widest whitespace-nowrap">
                                             {getStatusText(dept.status)}
                                         </span>
                                     </div>
@@ -502,13 +502,14 @@ const ExportReportsPanel = ({ fromDate, toDate }) => {
 const CFODashboard = () => {
     const navigate = useNavigate();
     const handleCreateTask = () => navigate('/tasks/assign');
-    const handleManageTeam = () => navigate('/admin');
+    const handleManagePerformance = () => navigate('/performance-dashboard');
 
     const [dashboardData, setDashboardData] = useState(null);
     const [orgMetrics, setOrgMetrics] = useState(null);
     const [trendsData, setTrendsData] = useState([]);
     const [deptPerformance, setDeptPerformance] = useState([]);
     const [todayOrgTasks, setTodayOrgTasks] = useState([]);
+    const [allOrgTasks, setAllOrgTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const todayTasksRef = useRef([]); // Protections against stale closures in setInterval
 
@@ -651,13 +652,34 @@ const CFODashboard = () => {
                 const byDeptName = {};
                 normalizedTasks.forEach(t => {
                     const d = t.department;
-                    if (!byDeptName[d]) byDeptName[d] = { new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, rework_tasks: 0, approved_tasks_computed: 0 };
-                    if (t.status === 'NEW' || t.status === 'CREATED') byDeptName[d].new_tasks++;
-                    if (['IN_PROGRESS', 'STARTED', 'PENDING', 'IN-PROGRESS'].includes(t.status)) byDeptName[d].in_progress_tasks++;
-                    if (t.status === 'SUBMITTED') byDeptName[d].submitted_tasks++;
-                    if (t.status === 'REWORK' || t.status === 'CHANGES_REQUESTED') byDeptName[d].rework_tasks++;
-                    if (t.status === 'APPROVED') byDeptName[d].approved_tasks_computed++;
+                    if (!byDeptName[d]) byDeptName[d] = { new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, rework_tasks: 0, approved_tasks_computed: 0, employees: {} };
+                    const dept = byDeptName[d];
+                    
+                    if (t.status === 'APPROVED') dept.approved_tasks_computed++;
+                    if (t.status === 'NEW' || t.status === 'CREATED') dept.new_tasks++;
+                    if (['IN_PROGRESS', 'STARTED', 'PENDING', 'IN-PROGRESS'].includes(t.status)) dept.in_progress_tasks++;
+                    if (t.status === 'SUBMITTED') dept.submitted_tasks++;
+                    if (t.status === 'REWORK' || t.status === 'CHANGES_REQUESTED') dept.rework_tasks++;
+
+                    // Tracking for top performer
+                    const empName = t.assigneeName || t.assigned_to_name || 'Unassigned';
+                    if (!dept.employees[empName]) dept.employees[empName] = { name: empName, completed: 0, total: 0 };
+                    dept.employees[empName].total++;
+                    if (t.status === 'APPROVED') dept.employees[empName].completed++;
                 });
+
+                // Compute top performer for each dept
+                Object.values(byDeptName).forEach(dept => {
+                    const sortedEmps = Object.values(dept.employees).sort((a, b) => (b.completed / b.total) - (a.completed / a.total) || b.total - a.total);
+                    if (sortedEmps.length > 0) {
+                        const top = sortedEmps[0];
+                        dept.top_performer = {
+                            name: top.name,
+                            score: Math.round((top.completed / top.total) * 100)
+                        };
+                    }
+                });
+
                 return byDeptName;
             };
 
@@ -702,6 +724,7 @@ const CFODashboard = () => {
                         rework_tasks: counts.rework_tasks ?? (d.rework_tasks ?? d.rework ?? 0),
                         approved_tasks: approvedComputed,
                         completion_pct: computedPct,
+                        top_performer: counts.top_performer
                     };
                     enriched.status = deriveStatus(enriched);
                     return enriched;
@@ -764,6 +787,7 @@ const CFODashboard = () => {
                     department_stats: Object.values(byDept),
                 });
                 setTodayOrgTasks(normalized.slice(0, 200));
+                setAllOrgTasks(normalized);
             };
 
             // Always fetch all org tasks to compute per-dept status breakdowns
@@ -888,6 +912,7 @@ const CFODashboard = () => {
                 setDashboardData(dashboardPayload);
                 const tasksForToday = todayRows.length > 0 ? todayRows.map(normalizeRow) : allNormalized;
                 setTodayOrgTasks(tasksForToday.slice(0, 200));
+                setAllOrgTasks(allNormalized);
                 // Enrich rawDepts with computed per-status counts
                 setDeptPerformance(enrichDepts(rawDepts, allNormalized.length > 0 ? taskCountsByDept : buildDeptStatusCounts(tasksForToday)));
                 return;
@@ -936,8 +961,14 @@ const CFODashboard = () => {
 
 
 
-    const { workloadData, orgStatusData, globalStats, kpis } = useMemo(() => {
-        if (!dashboardData) return { workloadData: [], orgStatusData: [], globalStats: {}, kpis: null };
+    const { workloadData, orgStatusData, globalStats, kpis, topEmployees } = useMemo(() => {
+        if (!dashboardData) return { 
+            workloadData: [], 
+            orgStatusData: [], 
+            globalStats: { totalTasks: 0, completedTasks: 0, pendingTasks: 0, in_progress_tasks: 0, overallScore: 0 }, 
+            kpis: null, 
+            topEmployees: [] 
+        };
         const deptSource = dashboardData.department_stats || [];
 
         const workloadData = deptSource.map((d, i) => ({
@@ -974,18 +1005,20 @@ const CFODashboard = () => {
             avgRework: orgMetrics?.org_avg_rework_rate ?? 0
         };
 
-        const topEmployee = (() => {
-            if (!todayOrgTasks.length) return null;
+        const topEmployees = (() => {
+            const dataSource = allOrgTasks.length > 0 ? allOrgTasks : todayOrgTasks;
+            if (!dataSource.length) return [];
             const byEmployee = {};
-            todayOrgTasks.forEach(t => {
+            dataSource.forEach(t => {
                 const name = t.assigneeName || t.assigned_to_name || 'Unknown';
                 const dept = t.department_name || t.department || 'Accounts';
                 if (!byEmployee[name]) byEmployee[name] = { name, department: dept, completed: 0, total: 0 };
                 byEmployee[name].total++;
-                if (t.status === 'APPROVED' || t.status === 'COMPLETED') byEmployee[name].completed++;
+                if (['APPROVED', 'COMPLETED'].includes((t.status || '').toUpperCase())) byEmployee[name].completed++;
             });
             return Object.values(byEmployee)
-                .sort((a, b) => (b.completed / b.total) - (a.completed / a.total) || b.total - a.total)[0];
+                .sort((a, b) => (b.completed / b.total) - (a.completed / a.total) || b.total - a.total)
+                .slice(0, 5);
         })();
 
         return {
@@ -999,9 +1032,9 @@ const CFODashboard = () => {
                 overallScore: dashboardData.org_performance_index || 0,
             },
             kpis,
-            topEmployee
+            topEmployees
         };
-    }, [dashboardData, orgMetrics, todayOrgTasks]);
+    }, [dashboardData, orgMetrics, todayOrgTasks, allOrgTasks]);
 
     if (loading) return (
         <div className="flex flex-col items-center justify-center p-10 bg-white/50 backdrop-blur-xl rounded-2xl border border-slate-100 shadow-sm animate-pulse">
@@ -1127,7 +1160,7 @@ const CFODashboard = () => {
                                         <AlertTriangle size={16} className="text-rose-500" />
                                         Employee Risk Monitor
                                     </h3>
-                                    <button onClick={() => navigate('/admin')} className="text-[10px] font-semibold text-indigo-500 capitalize tracking-widest hover:underline">View All</button>
+                                    <button onClick={() => navigate('/performance-dashboard')} className="text-[10px] font-semibold text-indigo-500 capitalize tracking-widest hover:underline">View All</button>
                                 </div>
 
                                 <div className="flex items-center text-[12px] font-bold text-slate-500 capitalize pb-2 border-b border-slate-100 mb-3 px-1">
@@ -1199,10 +1232,10 @@ const CFODashboard = () => {
                                     })()}
                                 </div>
                                 <button
-                                    onClick={() => navigate('/admin')}
+                                    onClick={() => navigate('/performance-dashboard')}
                                     className="mt-4 w-full py-2.5 bg-[#4f46e5] hover:bg-[#4338ca] text-white text-[10px] font-bold capitalize tracking-widest rounded-xl transition-all shadow-md active:scale-[0.98]"
                                 >
-                                    View All Employees
+                                    View Performance Metrics
                                 </button>
                             </div>
                         </div>
@@ -1218,10 +1251,11 @@ const CFODashboard = () => {
                                     </h3>
                                 </div>
                                 <div className="flex-1 overflow-x-auto custom-scrollbar">
-                                    <table className="w-full text-left font-sans text-[16px]">
+                                    <table className="w-full text-left font-sans">
                                         <thead className="sticky top-0 bg-white z-10 border-b border-slate-100">
-                                            <tr className="text-[14px] font-extrabold text-slate-500 capitalize tracking-widest">
+                                            <tr className="text-[11px] font-extrabold text-slate-500 capitalize tracking-widest">
                                                 <th className="py-3 px-6 whitespace-nowrap">Department</th>
+                                                <th className="py-3 px-3 text-center whitespace-nowrap">Top Performer</th>
                                                 <th className="py-3 px-3 text-center whitespace-nowrap">Total Tasks</th>
                                                 <th className="py-3 px-3 text-center whitespace-nowrap">Overdue</th>
                                                 <th className="py-3 px-3 text-center whitespace-nowrap">In Progress</th>
@@ -1240,17 +1274,27 @@ const CFODashboard = () => {
                                                 };
                                                 return (
                                                     <tr key={idx} className="hover:bg-slate-50/50 transition-colors group cursor-pointer" onClick={() => handleDeptSelect(dept.department_id || dept.id || dept.name)}>
-                                                        <td className="py-4 px-6 font-medium text-slate-900 tracking-tight text-[17px]">{dept.department_name || dept.name}</td>
-                                                        <td className="py-4 px-3 text-center font-semibold text-slate-700 tabular-nums text-[17px]">{dept.total_tasks || 0}</td>
-                                                        <td className="py-4 px-3 text-center font-semibold text-rose-600 tabular-nums text-[17px]">{dept.overdue_tasks || 0}</td>
-                                                        <td className="py-4 px-3 text-center font-semibold text-indigo-700 tabular-nums text-[17px]">{dept.in_progress_tasks || 0}</td>
-                                                        <td className="py-4 px-3 text-center font-semibold text-emerald-600 tabular-nums text-[17px]">{dept.approved_tasks || 0}</td>
-                                                        <td className="py-4 px-3">
+                                                        <td className="py-3 px-6 font-medium text-slate-900 tracking-tight text-[13px]">{dept.department_name || dept.name}</td>
+                                                        <td className="py-3 px-3 text-center">
+                                                            {dept.top_performer ? (
+                                                                <div className="grid place-items-center">
+                                                                    <span className="text-[13px] font-bold text-indigo-600 block leading-none">{dept.top_performer.name}</span>
+                                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mt-1">{dept.top_performer.score}% Score</span>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-slate-300 text-[11px] font-bold tracking-widest uppercase italic">Calculating..</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3 px-3 text-center font-semibold text-slate-700 tabular-nums text-[13px]">{dept.total_tasks || 0}</td>
+                                                        <td className="py-3 px-3 text-center font-semibold text-rose-600 tabular-nums text-[13px]">{dept.overdue_tasks || 0}</td>
+                                                        <td className="py-3 px-3 text-center font-semibold text-indigo-700 tabular-nums text-[13px]">{dept.in_progress_tasks || 0}</td>
+                                                        <td className="py-3 px-3 text-center font-semibold text-emerald-600 tabular-nums text-[13px]">{dept.approved_tasks || 0}</td>
+                                                        <td className="py-3 px-3">
                                                             <div className="flex items-center gap-3">
                                                                 <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                                                                     <div className={`h-full rounded-full ${dept.completion_pct > 50 ? 'bg-indigo-500' : dept.completion_pct > 25 ? 'bg-amber-400' : 'bg-rose-400'}`} style={{ width: `${dept.completion_pct || 0}%` }} />
                                                                 </div>
-                                                                <span className="text-[17px] font-semibold text-slate-900 tabular-nums min-w-[45px]">{Math.round(dept.completion_pct || 0)}%</span>
+                                                                <span className="text-[13px] font-semibold text-slate-900 tabular-nums min-w-[45px]">{Math.round(dept.completion_pct || 0)}%</span>
                                                             </div>
                                                         </td>
                                                         <td className="py-4 px-6 text-right">
@@ -1269,7 +1313,47 @@ const CFODashboard = () => {
                             <div className="flex flex-col gap-4">
                                 <OrganizationHealth metrics={kpis} />
                                 
-                                {/* Top Department Sidebar Card */}
+                                {/* ── Top Individual Performers (Rank 1-5) ── */}
+                                <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col min-h-[460px]">
+                                    <div className="flex items-center justify-between mb-8">
+                                        <div>
+                                            <h3 className="text-[14px] font-black text-slate-800 uppercase tracking-widest leading-none mb-1">Top Individuals</h3>
+                                            <p className="text-[10px] font-bold text-slate-400 capitalize">High performing talent across org</p>
+                                        </div>
+                                        <TrendingUp size={16} className="text-indigo-500" />
+                                    </div>
+
+                                    <div className="space-y-4 flex-1">
+                                        {topEmployees.length > 0 ? topEmployees.map((emp, idx) => {
+                                            const score = Math.round((emp.completed / emp.total) * 100);
+                                            return (
+                                                <div key={idx} className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0 group hover:bg-slate-50/50 rounded-xl transition-all px-1">
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-[12px] shrink-0 border-2 border-white shadow-sm ${idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-slate-200 text-slate-500' : idx === 2 ? 'bg-orange-200 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
+                                                        {idx + 1}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h4 className="text-[13px] font-bold text-slate-800 truncate leading-tight group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{emp.name}</h4>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mt-1">{emp.department} • {emp.completed}/{emp.total} Tasks</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-[14px] font-black text-slate-900 tabular-nums">{score}%</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }) : (
+                                            <div className="flex-1 flex flex-col items-center justify-center text-center py-10 opacity-30">
+                                                <Shield className="w-10 h-10 mb-2 text-slate-400" />
+                                                <p className="text-[10px] font-black uppercase tracking-widest">Awaiting Stats</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button 
+                                        onClick={() => navigate('/performance-dashboard')}
+                                        className="mt-6 w-full py-3 bg-slate-50 hover:bg-indigo-50 text-indigo-500 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all flex items-center justify-center gap-2 group border border-slate-100/50"
+                                    >
+                                        Full Rankings <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
+                                    </button>
+                                </div>
                                 <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm p-5 hover:shadow-md transition-all flex items-center gap-4 group">
                                     <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-xl shadow-inner border border-emerald-100 shrink-0">🏆</div>
                                     <div className="grid flex-1">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
     X, User, Shield, Briefcase, Network, RefreshCw,
     ChevronDown, ChevronRight, PlusCircle, Check, XCircle, Loader2, ArrowLeft
@@ -263,9 +263,17 @@ const OrgTreePage = () => {
             const emps = Array.isArray(empRes.data) ? empRes.data : [];
             setTotalEmployees(emps.length);
             
-            // Extract departments
-            const deptRes = results[1].status === 'fulfilled' ? results[1].value : { data: [] };
-            setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
+            // Extract departments with multiple fallbacks
+            let deptRes = results[1].status === 'fulfilled' ? results[1].value : { data: [] };
+            let deptData = Array.isArray(deptRes.data) ? deptRes.data : (deptRes.data?.data || []);
+            
+            if (deptData.length === 0) {
+                try {
+                    const altRes = await api.get('/departments');
+                    deptData = Array.isArray(altRes.data) ? altRes.data : (altRes.data?.data || []);
+                } catch (e) { console.warn("Alt dept fetch failed", e); }
+            }
+            setDepartments(deptData);
 
             // Handle Tree Data
             if (results[0].status === 'fulfilled' && results[0].value.data) {
@@ -344,7 +352,33 @@ const OrgTreePage = () => {
         fetchTree();
     }, []);
 
-    const depts = departments?.length ? departments : ["Engineering", "Sales", "HR", "Administration"];
+    const depts = useMemo(() => {
+        const list = departments?.length ? departments.map(d => ({
+            name: d.name || d.dept_name || (typeof d === 'string' ? d : String(d)),
+            id: String(d.department_id || d.dept_id || d.id || (d.name || d.dept_name || String(d)))
+        })) : [];
+
+        // If still empty, try to extract from treeData
+        if (list.length === 0 && treeData) {
+            const extracted = new Set();
+            const scan = (n) => {
+                if (!n) return;
+                const d = n.user?.department || n.department || n.department_name;
+                if (d && d !== 'Management' && d !== 'System') extracted.add(d);
+                (n.children || []).forEach(scan);
+            };
+            scan(treeData?.root || treeData?.cfo || treeData);
+            if (treeData.orphan_managers) treeData.orphan_managers.forEach(scan);
+            if (treeData.orphan_employees) treeData.orphan_employees.forEach(scan);
+            
+            extracted.forEach(name => list.push({ name, id: name }));
+        }
+
+        if (list.length === 0) {
+            ["Engineering", "Sales", "HR", "Administration"].forEach(name => list.push({ name, id: name }));
+        }
+        return list;
+    }, [departments, treeData]);
 
     // Dynamically calculate counts
     const getOrgStats = (node) => {
@@ -486,23 +520,20 @@ const OrgTreePage = () => {
                                             All Departments
                                             {deptFilter === 'ALL' && <Check size={14} />}
                                         </button>
-                                        {departments.length === 0 && (
+                                        {depts.length === 0 && (
                                             <p className="px-4 py-3 text-[10px] text-slate-400 italic">No departments found</p>
                                         )}
-                                        {departments.map((d, di) => {
-                                            const dName = d.name || d.dept_name || (typeof d === 'string' ? d : String(d));
-                                            // Use dept_id as filter value — this matches what nodes store in department_id
-                                            const dId = String(d.department_id || d.dept_id || d.id || dName);
-                                            const isSelected = deptFilter === dId;
+                                        {depts.map((d, di) => {
+                                            const isSelected = deptFilter === d.id;
                                             return (
                                                 <button
-                                                    key={dId || di}
-                                                    onClick={() => { setDeptFilter(dId); setIsDeptOpen(false); }}
+                                                    key={d.id || di}
+                                                    onClick={() => { setDeptFilter(d.id); setIsDeptOpen(false); }}
                                                     className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest mb-0.5 flex items-center justify-between ${
                                                         isSelected ? 'bg-violet-50 text-violet-600' : 'text-slate-600 hover:bg-slate-50'
                                                     }`}
                                                 >
-                                                    <span>{dName}</span>
+                                                    <span>{d.name}</span>
                                                     {isSelected && <Check size={14} />}
                                                 </button>
                                             );

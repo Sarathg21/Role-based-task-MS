@@ -36,9 +36,9 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
     const candidateEmployees = employees.filter(u => {
         const uId = u.emp_id || u.id;
         const uRole = (u.role || '').toUpperCase();
-        // Exclude current assignee (check both possible ID fields on the task)
-        const currentAssigneeId = currentTask.employee_id || currentTask.assigned_to_emp_id;
-        if (uId === currentAssigneeId) return false;
+        // Exclude current assignee (check all possible ID fields on the task)
+        const currentAssigneeId = currentTask.assigned_to_emp_id || currentTask.employee_id || currentTask.assigned_to_id || currentTask.id;
+        if (uId && currentAssigneeId && String(uId) === String(currentAssigneeId)) return false;
         // Only include Employee and Manager roles
         if (!['EMPLOYEE', 'MANAGER'].includes(uRole)) return false;
         // Manager: scope to same department, checking both department and department_id fields
@@ -50,7 +50,11 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
         return true; // CFO sees all
     });
 
-    const currentAssignee = employees.find(u => (u.emp_id || u.id) === currentTask.employee_id);
+    const currentAssigneeId = currentTask.assigned_to_emp_id || currentTask.employee_id || currentTask.assigned_to_id;
+    const currentAssignee = employees.find(u => {
+        const uId = u.emp_id || u.id;
+        return uId && currentAssigneeId && String(uId) === String(currentAssigneeId);
+    });
     const canSave = newAssignee !== '' && newDueDate !== '';
 
     const handleSubmit = (e) => {
@@ -103,17 +107,17 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
                         <div className="grid grid-cols-2 gap-3 text-sm">
                             <div>
                                 <p className="text-xs text-slate-400 font-medium mb-0.5">Task ID</p>
-                                <p className="font-semibold text-slate-700">{currentTask.id}</p>
+                                <p className="font-semibold text-slate-700">#{currentTask.task_id || currentTask.id}</p>
                             </div>
                             <div>
                                 <p className="text-xs text-slate-400 font-medium mb-0.5">Status</p>
-                                <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${STATUS_COLOR[currentTask.status] || 'bg-slate-100 text-slate-600'}`}>
-                                    {STATUS_LABEL[currentTask.status] || currentTask.status}
+                                <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${STATUS_COLOR[(currentTask.status || '').toUpperCase()] || 'bg-slate-100 text-slate-600'}`}>
+                                    {STATUS_LABEL[(currentTask.status || '').toUpperCase()] || currentTask.status}
                                 </span>
                             </div>
                             <div className="col-span-2">
                                 <p className="text-xs text-slate-400 font-medium mb-0.5">Title</p>
-                                <p className="font-semibold text-slate-800">{currentTask.title}</p>
+                                <p className="font-semibold text-slate-800">{currentTask.task_title || currentTask.title}</p>
                             </div>
                             {currentTask.description && (
                                 <div className="col-span-2">
@@ -123,7 +127,7 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
                             )}
                             <div>
                                 <p className="text-xs text-slate-400 font-medium mb-0.5">Department</p>
-                                <p className="text-slate-600">{currentTask.department}</p>
+                                <p className="text-slate-600 font-bold uppercase tracking-tight">{currentTask.department_name || currentTask.department || 'N/A'}</p>
                             </div>
                             <div>
                                 <p className="text-xs text-slate-400 font-medium mb-0.5">Severity</p>
@@ -133,11 +137,11 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
                             </div>
                             <div>
                                 <p className="text-xs text-slate-400 font-medium mb-0.5">Current Assignee</p>
-                                <p className="text-slate-600">{currentAssignee?.name ?? currentTask.employee_id}</p>
+                                <p className="text-slate-600 font-bold">{currentTask.assigned_to_name || currentAssignee?.name || currentTask.employee_id || 'N/A'}</p>
                             </div>
                             <div>
                                 <p className="text-xs text-slate-400 font-medium mb-0.5">Current Due Date</p>
-                                <p className="text-slate-600">{currentTask.due_date}</p>
+                                <p className="text-slate-600 font-semibold">{currentTask.due_date}</p>
                             </div>
                         </div>
                     </div>

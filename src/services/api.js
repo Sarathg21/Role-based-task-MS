@@ -9,12 +9,30 @@ const api = axios.create({
     },
 });
 
-// Inject JWT Bearer token on every request
+// Inject JWT Bearer token and user context headers on every request
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem('pms_token');
+    const userStr = localStorage.getItem('pms_user');
+    
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Add employee context headers if available
+    if (userStr) {
+        try {
+            const user = JSON.parse(userStr);
+            if (user.emp_id || user.id) {
+                config.headers['X-EMP-ID'] = user.emp_id || user.id;
+            }
+            if (user.role) {
+                config.headers['X-USER-ROLE'] = user.role.toUpperCase();
+            }
+        } catch (e) {
+            console.warn('[API] Failed to parse user for headers');
+        }
+    }
+    
     return config;
 });
 
@@ -49,8 +67,11 @@ api.interceptors.response.use(
             try {
                 const savedUser = JSON.parse(localStorage.getItem('pms_user') || '{}');
                 const isGet = error.config?.method?.toLowerCase() === 'get';
+                const isBlob = error.config?.responseType === 'blob';
                 
-                if (savedUser?.role && isGet) {
+                // We should NOT mock data for blob/binary requests (like downloads) 
+                // as it would return a corrupted file (the dummy JSON as a blob).
+                if (savedUser?.role && isGet && !isBlob) {
                     console.warn(`[API] 403 Forbidden on ${url} for role ${savedUser.role}. Resolving gracefully.`);
                     return Promise.resolve({ data: { data: [], notifications: [], items: [], status: 'success' } });
                 }

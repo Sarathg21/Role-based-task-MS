@@ -111,21 +111,21 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
   return (
     <div className="overflow-x-auto bg-white rounded-[1.5rem] shadow-sm border border-slate-100 mt-6 overflow-hidden">
       <table className="w-full text-left border-collapse text-[15px]">
-        <thead className="bg-slate-50/10 text-slate-400 text-[13px] uppercase tracking-wider font-bold border-b border-slate-100/80">
+        <thead className="bg-slate-50/10 text-slate-400 text-[10px] uppercase tracking-wider font-bold border-b border-slate-100/80">
           <tr>
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Task Id</th>
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Parent Task Id</th>
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Parent Task</th>
-            <th className="py-4 px-5">Employee</th>
-            <th className="py-4 px-5 font-bold uppercase tracking-widest text-[11px]">Role</th>
-            <th className="py-3 px-4">Dept</th>
-            <th className="py-3 px-4">Job Assignment</th>
-            <th className="py-3 px-4">Assigned By</th>
-            <th className="py-3 px-4">Date Assigned</th>
-            <th className="py-3 px-4">Due Date</th>
-            <th className="py-3 px-4">Severity</th>
-            <th className="py-3 px-4 text-center">Status</th>
-            <th className="py-3 px-4 text-right">Actions</th>
+            <th className="py-2.5 px-1.5 pl-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">ID</th>
+            <th className="py-2.5 px-1.5 text-slate-400 font-bold capitalize tracking-widest text-[10px]">PID</th>
+            <th className="py-2.5 px-1.5 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent</th>
+            <th className="py-2.5 px-1.5 text-slate-400 font-bold capitalize tracking-widest text-[10px]">User</th>
+            <th className="py-2.5 px-1.5 font-bold uppercase tracking-widest text-[10px]">Role</th>
+            <th className="py-2.5 px-1.5">Dept</th>
+            <th className="py-2.5 px-1.5">Task</th>
+            <th className="py-2.5 px-1.5">By</th>
+            <th className="py-2.5 px-1.5">Start</th>
+            <th className="py-2.5 px-1.5">Due</th>
+            <th className="py-2.5 px-1.5 text-center">Prio</th>
+            <th className="py-2.5 px-1.5 text-center">Status</th>
+            <th className="py-2.5 px-1.5 text-right pr-4">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50 text-slate-700">
@@ -141,21 +141,20 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
 
             return (
               <tr key={taskKey} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => onViewDetails(task)}>
-                <td className="py-4 px-5 font-bold text-violet-600">#{task.id}</td>
-                <td className="py-4 px-5 text-slate-500 font-medium">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</td>
-                <td className="py-4 px-5 text-slate-500 font-medium truncate max-w-[150px]">{task.parent_task_title || task.parent_task_name || '-'}</td>
+                <td className="py-2 px-1.5 pl-4 font-bold text-violet-600 text-[12px]">#{task.id}</td>
+                <td className="py-2 px-1.5 text-slate-400 font-medium text-[11px]">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</td>
+                <td className="py-2 px-1.5 text-slate-500 font-medium truncate max-w-[80px] text-[11px]">{task.parent_task_title || task.parent_task_name || '-'}</td>
 
                 {/* Employee */}
-                <td className="py-4 px-5">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[12px] font-bold flex-shrink-0 shadow-sm border border-white">
+                <td className="py-2 px-1.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-sm border border-white">
                       {(task.assigneeName || task.employee_id || '?').charAt(0)}
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="truncate font-bold text-[14.5px] text-slate-800 tracking-tight">{task.assigneeName || task.employee_id}</span>
+                      <span className="truncate font-bold text-[12px] text-slate-800 tracking-tight max-w-[80px]">{task.assigneeName || task.employee_id}</span>
                       {(task.is_reassigned || task.reassigned_from || (task.reassignment_count > 0)) && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-0.5 w-fit uppercase tracking-wider">
-                          <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 6h10M7 2l4 4-4 4"/></svg>
+                        <span className="inline-flex items-center gap-1 text-[8px] font-black text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1 py-0.5 mt-0.5 w-fit uppercase tracking-tighter">
                           Reassigned
                         </span>
                       )}
@@ -164,8 +163,8 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                 </td>
 
                 {/* Role */}
-                <td className="py-4 px-5">
-                  <span className={`text-[11px] font-black px-3 py-1 rounded-full capitalize tracking-widest ${(assignee?.role || task.assignee_role || '').toUpperCase() === 'MANAGER' ? 'bg-indigo-100 text-indigo-700' :
+                <td className="py-2 px-1.5">
+                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full capitalize tracking-widest ${(assignee?.role || task.assignee_role || '').toUpperCase() === 'MANAGER' ? 'bg-indigo-100 text-indigo-700' :
                     (assignee?.role || task.assignee_role || '').toUpperCase() === 'EMPLOYEE' ? 'bg-slate-100 text-slate-600' :
                     (assignee?.role || task.assignee_role || '').toUpperCase() === 'CFO' || (assignee?.role || task.assignee_role || '').toUpperCase() === 'ADMIN' ? 'bg-[#9B51E0] text-white' :
                         'bg-slate-100 text-slate-400'
@@ -174,58 +173,52 @@ const CFOTaskTable = ({ tasks, users, onStatusChange, onAssign, onApprove, onRew
                   </span>
                 </td>
 
-                {/* Dept */}
-                <td className="py-2 px-4 max-w-[120px]">
-                  <span className="truncate block font-medium text-slate-500">{task.department}</span>
+                <td className="py-2 px-1.5 max-w-[70px]">
+                  <span className="truncate block font-medium text-slate-500 text-[11px]">{task.department}</span>
                 </td>
 
-                {/* Job Assignment Name */}
-                <td className="py-4 px-5 max-w-[200px]">
-                  <div className="font-bold text-[14.5px] text-slate-800 truncate tracking-tight">{task.title}</div>
-                  <div className="text-[12px] font-medium text-slate-400 truncate mt-0.5">{task.description}</div>
+                <td className="py-2 px-1.5 max-w-[140px]">
+                  <div className="font-bold text-[12px] text-slate-800 truncate tracking-tight">{task.title}</div>
+                  <div className="text-[10px] font-medium text-slate-400 truncate mt-0.5">{task.description}</div>
                 </td>
 
                 {/* Assigned By */}
-                <td className="py-4 px-5 text-slate-600 truncate font-semibold">
+                <td className="py-2 px-1.5 text-slate-600 truncate font-semibold text-[11px] max-w-[70px]">
                   {task.assignerName || task.assigned_by || 'System'}
                 </td>
 
-                {/* Date Assigned */}
-                <td className="py-4 px-5 text-slate-500 whitespace-nowrap font-medium">
+                <td className="py-2 px-1.5 text-slate-500 whitespace-nowrap font-medium text-[11px]">
                   {(() => {
                     const dateVal = task.assigned_date || assignedDates[task.id];
-                    if (!dateVal) return <span className="text-slate-300 text-xs">Loading…</span>;
+                    if (!dateVal) return <span className="text-slate-300 text-[9px]">...</span>;
                     try {
-                      return new Date(dateVal).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                      return new Date(dateVal).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
                     } catch { return dateVal; }
                   })()}
                 </td>
 
-                {/* Due Date */}
-                <td className={`py-4 px-5 whitespace-nowrap font-bold text-[14.5px] ${isOverdue ? 'text-red-500' : 'text-slate-600'}`}>
+                <td className={`py-2 px-1.5 whitespace-nowrap font-bold text-[11px] ${isOverdue ? 'text-red-500' : 'text-slate-600'}`}>
                   {task.due_date}
                 </td>
 
-                {/* Severity */}
-                <td className="p-4">
+                <td className="py-2 px-1.5">
                   {task.severity ? (
-                    <div className="flex items-center gap-1.5 text-[12px] font-medium text-slate-600">
-                      <span className={`w-2 h-2 rounded-full ${task.severity === 'HIGH' ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]' : task.severity === 'MEDIUM' ? 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.5)]' : 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]'}`}></span>
+                    <div className="flex items-center justify-center gap-1 text-[10px] font-medium text-slate-600">
+                      <span className={`w-1.5 h-1.5 rounded-full ${task.severity === 'HIGH' ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]' : task.severity === 'MEDIUM' ? 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.5)]' : 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]'}`}></span>
                       {task.severity}
                     </div>
                   ) : (
-                    <span className="text-slate-400 text-xs">-</span>
+                    <span className="text-slate-400 text-[10px] text-center block">-</span>
                   )}
                 </td>
 
                 {/* Status */}
-                <td className="p-4 text-center">
+                <td className="py-2 px-1 text-center">
                   <StatusCell task={task} />
                 </td>
 
-                {/* Actions — CFO state machine */}
-                <td className="p-4">
-                  <div className="flex justify-end gap-1.5 flex-wrap items-center">
+                <td className="py-2 px-1.5 pr-4">
+                  <div className="flex justify-end gap-1 flex-nowrap items-center">
 
                     {/* SUBMITTED → Approve / Rework */}
                     {task.status === 'SUBMITTED' && (
@@ -306,18 +299,18 @@ const ActionTaskTable = ({
   return (
     <div className="overflow-x-auto bg-white rounded-[1.5rem] shadow-sm border border-slate-100 mt-6 overflow-hidden">
       <table className="w-full text-left border-collapse">
-        <thead className="bg-slate-50/10 text-slate-400 text-[13px] uppercase tracking-wider font-bold border-b border-slate-100/80">
+        <thead className="bg-slate-50/10 text-slate-400 text-[10px] uppercase tracking-wider font-bold border-b border-slate-100/80">
           <tr>
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Task Id</th>
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Parent Task Id</th>
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Parent Task</th>
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Task</th>
-            {viewMode !== 'personal' && <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Assignee</th>}
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Assigned By</th>
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px] text-center">Status</th>
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px] text-center">Severity</th>
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px]">Due Date</th>
-            <th className="py-4 px-5 text-slate-400 font-bold capitalize tracking-widest text-[11px] text-right">Actions</th>
+            <th className="py-2.5 px-1.5 pl-4 text-slate-400 font-bold capitalize tracking-widest text-[10px]">ID</th>
+            <th className="py-2.5 px-1.5 text-slate-400 font-bold capitalize tracking-widest text-[10px]">PID</th>
+            <th className="py-2.5 px-1.5 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Parent</th>
+            <th className="py-2.5 px-1.5 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Task</th>
+            {viewMode !== 'personal' && <th className="py-2.5 px-1.5 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Assignee</th>}
+            <th className="py-2.5 px-1.5 text-slate-400 font-bold capitalize tracking-widest text-[10px]">By</th>
+            <th className="py-2.5 px-1.5 text-slate-400 font-bold capitalize tracking-widest text-[10px] text-center">Status</th>
+            <th className="py-2.5 px-1.5 text-slate-400 font-bold capitalize tracking-widest text-[10px] text-center">Prio</th>
+            <th className="py-2.5 px-1.5 text-slate-400 font-bold capitalize tracking-widest text-[10px]">Due</th>
+            <th className="py-2.5 px-1.5 text-slate-400 font-bold capitalize tracking-widest text-[10px] text-right pr-4">Actions</th>
           </tr>
         </thead>
 
@@ -328,14 +321,14 @@ const ActionTaskTable = ({
 
             return (
               <tr key={task.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => onViewDetails(task)}>
-                <td className="p-5 font-bold text-violet-600">#{task.id}</td>
-                <td className="p-5 text-slate-500 font-medium">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</td>
-                <td className="p-5 text-slate-500 font-medium truncate max-w-[150px]">{task.parent_task_title || task.parent_task_name || '-'}</td>
-                <td className="p-5 min-w-0">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <div className="font-bold text-slate-800 text-[15.5px] truncate max-w-[200px] tracking-tight">{task.title}</div>
-                      <div className="text-[12.5px] font-medium text-slate-400 truncate mt-0.5 max-w-[200px]">
+                <td className="py-2 px-1.5 pl-4 font-bold text-violet-600 text-[12px]">#{task.id}</td>
+                <td className="py-2 px-1.5 text-slate-400 font-medium text-[11px]">{task.parent_task_id ? `#${task.parent_task_id}` : '-'}</td>
+                <td className="py-2 px-1.5 text-slate-500 font-medium truncate max-w-[80px] text-[11px]">{task.parent_task_title || task.parent_task_name || '-'}</td>
+                <td className="py-2 px-1.5 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-800 text-[12.5px] truncate max-w-[150px] tracking-tight">{task.title}</div>
+                      <div className="text-[10px] font-medium text-slate-400 truncate mt-0.5 max-w-[150px]">
                         {task.description}
                       </div>
                     </div>
@@ -343,49 +336,42 @@ const ActionTaskTable = ({
                 </td>
 
                 {viewMode !== 'personal' && (
-                <td className="p-5">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[12px] font-bold flex-shrink-0 shadow-sm border border-white">
+                <td className="py-2 px-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-sm border border-white">
                       {(assigneeName || '?').charAt(0)}
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="truncate font-bold text-slate-800 text-[14.5px] tracking-tight">{assigneeName}</span>
-                      {(task.is_reassigned || task.reassigned_from || (task.reassignment_count > 0)) && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-0.5 w-fit uppercase tracking-widest">
-                          <svg width="8" height="8" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 6h10M7 2l4 4-4 4"/></svg>
-                          Reassigned
-                        </span>
-                      )}
+                      <span className="truncate font-bold text-slate-800 text-[12px] tracking-tight max-w-[80px]">{assigneeName}</span>
                     </div>
                   </div>
                 </td>
                 )}
 
-                <td className="p-5 font-bold text-slate-600 truncate">{assignerName}</td>
+                <td className="py-2 px-1.5 font-bold text-slate-600 truncate text-[11px] max-w-[80px]">{assignerName}</td>
 
-                <td className="p-4 text-center">
+                <td className="py-2 px-1 text-center">
                   <StatusCell task={task} />
                 </td>
 
-                <td className="p-4 text-center">
+                <td className="py-2 px-1 text-center">
                   {(() => {
                     const sev = (task.priority || task.severity || '').toUpperCase();
                     return sev ? (
-                      <div className="flex items-center justify-center gap-1.5 text-[12px] font-medium text-slate-600">
-                        <span className={`w-2 h-2 rounded-full ${sev === 'HIGH' ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]' : sev === 'MEDIUM' ? 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.5)]' : 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]'}`}></span>
+                      <div className="flex items-center justify-center gap-1 text-[10px] font-medium text-slate-600">
+                        <span className={`w-1.5 h-1.5 rounded-full ${sev === 'HIGH' ? 'bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]' : sev === 'MEDIUM' ? 'bg-amber-400 shadow-[0_0_4px_rgba(251,191,36,0.5)]' : 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]'}`}></span>
                         {sev}
                       </div>
                     ) : (
-                      <span className="text-slate-400 text-xs">-</span>
+                      <span className="text-slate-400 text-[10px]">-</span>
                     );
                   })()}
                 </td>
 
-                <td className="p-4 font-semibold text-slate-600">{task.due_date}</td>
+                <td className="py-2 px-1.5 font-semibold text-slate-600 text-[11px]">{task.due_date}</td>
 
-                {/* ================= Actions ================= */}
-                <td className="p-4 text-right">
-                  <div className="flex justify-end gap-1.5 flex-wrap items-center">
+                <td className="py-2 px-1.5 text-right pr-4">
+                  <div className="flex justify-end gap-1 flex-nowrap items-center">
 
                     {/* ── ASSIGNEE ACTIONS: START / SUBMIT / RESTART
                         Shown to ANYONE when task is assigned to the current user */}
@@ -943,7 +929,7 @@ const handleReworkConfirm = async (comment) => {
       {/* â•â• TASK MANAGEMENT PREMIUM HERO â•â• */}
       {/* ── METRIC WIDGETS ── */}
       {/* PREMIUM METRIC WIDGETS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-full px-4 mx-auto">
         {/* Active Tasks */}
         <div className="bg-violet-50/50 p-6 rounded-[2rem] border border-violet-100 flex items-center gap-5 transition-all hover:shadow-lg hover:bg-violet-100/50 group">
           <div className="w-14 h-14 rounded-2xl bg-violet-600 text-white flex items-center justify-center shadow-lg shadow-violet-200 shrink-0 group-hover:scale-110 transition-transform">
@@ -1011,7 +997,7 @@ const handleReworkConfirm = async (comment) => {
         const empApproved = empTasks.filter(t => t.status === 'APPROVED').length;
         const completion = empTasks.length ? Math.round((empApproved / empTasks.length) * 100) : 0;
         return (
-          <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 max-w-7xl mx-auto">
+          <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 max-w-full px-4 mx-auto">
             <div className="flex items-center gap-3 flex-1">
               <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-sm font-black shadow-lg shadow-indigo-200 shrink-0">
                 {empName.trim().split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)}
@@ -1072,7 +1058,7 @@ const handleReworkConfirm = async (comment) => {
 
       {/* Filters & Search — Premium Spacing */}
       {/* ── UNIFIED SEARCH & FILTERS ── */}
-      <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 flex flex-row flex-nowrap items-center gap-2 max-w-7xl mx-auto overflow-visible relative">
+      <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-200 flex flex-row flex-nowrap items-center gap-2 max-w-full px-4 mx-auto overflow-visible relative">
 
         {/* Unified Search Bar Group */}
         <div className="flex-1 flex items-center bg-slate-50 rounded-xl border border-slate-100 focus-within:bg-white focus-within:ring-2 focus-within:ring-violet-400/20 transition-all shrink-0 min-w-[300px]">
