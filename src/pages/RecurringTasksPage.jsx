@@ -116,7 +116,7 @@ const RecurringTasksPage = () => {
             if (isAdminOrCFO) {
                 // Try scope=org (standard for Admin/CFO in this backend)
                 endpointCalls.push(api.get('/recurring-tasks', { params: { scope: 'org', limit: 200 } }).catch(() => ({ data: [] })));
-                endpointCalls.push(api.get('/recurring-tasks', { params: { scope: 'all', limit: 200 } }).catch(() => ({ data: [] })));
+                endpointCalls.push(api.get('/recurring-tasks', { params: { limit: 200 } }).catch(() => ({ data: [] })));
             } else if (user?.role?.toUpperCase() === 'MANAGER') {
                 // Try department scope for managers
                 endpointCalls.push(api.get('/recurring-tasks', { params: { scope: 'department', limit: 200 } }).catch(() => ({ data: [] })));

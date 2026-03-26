@@ -43,7 +43,6 @@ const fetchManagerTasksFallback = async (params = {}) => {
     // but typically we can just append our params to these candidates.
     const candidates = [
         `tasks?scope=org${query ? `&${query}` : ''}`,
-        `tasks?scope=all${query ? `&${query}` : ''}`,
         `tasks${queryString}`,
         `tasks?scope=department${query ? `&${query}` : ''}`,
         `tasks?scope=mine${query ? `&${query}` : ''}`
