@@ -160,10 +160,10 @@ const OKRSubTaskPage = () => {
                 api.get(`/reports/cfo/okr/objectives/${targetId}/summary`, { params }).catch(() => ({ data: {} })),
                 api.get(`/reports/cfo/okr/objectives/${targetId}/subtasks`, { params }).catch(() => ({ data: [] })),
                 api.get(`/reports/cfo/okr/objectives/${targetId}/departments`, { params }).catch(() => ({ data: [] })),
-                api.get('/tasks', { params: { parent_task_id: targetId, limit: 300 } }).catch(() => ({ data: [] })),
-                api.get('/tasks', { params: { parent_task_id: targetId, limit: 300, scope: 'org' } }).catch(() => ({ data: [] })),
+                api.get('/tasks', { params: { parent_task_id: targetId, limit: 200 } }).catch(() => ({ data: [] })),
+                api.get('/tasks', { params: { parent_task_id: targetId, limit: 200, scope: 'org' } }).catch(() => ({ data: [] })),
                 // Broader fetch: capture more tasks and filter client-side
-                api.get('/tasks', { params: { limit: 300, scope: 'org' } }).catch(() => ({ data: [] }))
+                api.get('/tasks', { params: { limit: 200, scope: 'org' } }).catch(() => ({ data: [] }))
             ]);
 
             // Universal array extractor to handle varying backend payloads gracefully

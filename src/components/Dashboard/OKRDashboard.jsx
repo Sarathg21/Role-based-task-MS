@@ -139,11 +139,11 @@ const OKRDashboard = () => {
             // ✅ COMPREHENSIVE TASK FETCH - catches recurring-generated tasks + standard tasks
             try {
                 // Fetch from all available scopes to ensure recurring-generated tasks are included
-                // Increased limit to 300 - more data without hitting 422 Unprocessable Entity
+                // Moderate limit at 200 - more data while adhering to server constraints
                 const settled = await Promise.allSettled([
-                    api.get('/tasks', { params: { limit: 300 } }),
-                    api.get('/tasks', { params: { limit: 300, scope: 'org' } }),
-                    api.get('/tasks', { params: { limit: 300, scope: 'department' } }).catch(() => null)
+                    api.get('/tasks', { params: { limit: 200 } }),
+                    api.get('/tasks', { params: { limit: 200, scope: 'org' } }),
+                    api.get('/tasks', { params: { limit: 200, scope: 'department' } }).catch(() => null)
                 ]);
                 tasksReq = settled[0];
                 orgTasksReq = settled[1];
