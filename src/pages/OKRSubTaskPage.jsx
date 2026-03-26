@@ -609,10 +609,6 @@ const OKRSubTaskPage = () => {
                                         const related = subtasks.filter(st => (st.department_name || st.department) === dName);
                                         const countStatus = (statuses) => related.filter(st => statuses.includes((st.status || '').toUpperCase().replace('_', ' '))).length;
                                         
-                                        const completed = d.completed_subtasks ?? countStatus(['COMPLETED']);
-                                        const inProgress = d.in_progress_subtasks ?? countStatus(['IN PROGRESS', 'STARTED']);
-                                        const approved = d.approved_subtasks ?? countStatus(['APPROVED']);
-                                        const pending = d.pending_subtasks ?? countStatus(['PENDING', 'NEW', 'SUBMITTED', 'REVIEW', 'CHANGES REQUESTED', 'REWORK']);
 
                                         return (
                                             <tr key={i} className="hover:bg-slate-50 font-bold text-slate-700 group transition-colors">
