@@ -652,9 +652,10 @@ const CFODashboard = () => {
                 const byDeptName = {};
                 normalizedTasks.forEach(t => {
                     const d = t.department;
-                    if (!byDeptName[d]) byDeptName[d] = { new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, rework_tasks: 0, approved_tasks_computed: 0, employees: {} };
+                    if (!byDeptName[d]) byDeptName[d] = { total_computed: 0, new_tasks: 0, in_progress_tasks: 0, submitted_tasks: 0, rework_tasks: 0, approved_tasks_computed: 0, employees: {} };
                     const dept = byDeptName[d];
                     
+                    dept.total_computed++;
                     if (t.status === 'APPROVED') dept.approved_tasks_computed++;
                     if (t.status === 'NEW' || t.status === 'CREATED') dept.new_tasks++;
                     if (['IN_PROGRESS', 'STARTED', 'PENDING', 'IN-PROGRESS'].includes(t.status)) dept.in_progress_tasks++;
@@ -709,7 +710,9 @@ const CFODashboard = () => {
                         ? counts.approved_tasks_computed
                         : (d.approved_tasks ?? d.completed_tasks ?? d.completed ?? 0);
 
-                    const total = Number(d.total_tasks || d.total || 0);
+                    const total = (matchedKey && counts.total_computed > 0)
+                        ? counts.total_computed
+                        : Number(d.total_tasks || d.total || 0);
 
                     // Recompute completion_pct from actual counts with precision
                     // If we have total but our computation found 0 approved, check if API had a better percentage
@@ -793,26 +796,41 @@ const CFODashboard = () => {
             // Always fetch all org tasks to compute per-dept status breakdowns
             // Uses a short 12s timeout so slow requests fail fast rather than blocking for 60s
             const fetchOrgTasks = async (signal) => {
-                const candidates = [
-                    { scope: 'org', limit: 100 },
-                    { scope: 'all', limit: 100 },
-                    { limit: 100 }
+                const scopes = [
+                    { scope: 'org', limit: 200 },
+                    { limit: 200 },
+                    { scope: 'department', limit: 200 },
+                    { scope: 'mine', limit: 200 }
                 ];
 
-                for (const params of candidates) {
-                    try {
-                        const res = await api.get('/tasks', { params, signal, timeout: 12000 });
-                        if (res?.data) return res;
-                    } catch (e) {
-                        if (e.name === 'CanceledError' || e.name === 'AbortError' || e.code === 'ERR_CANCELED') throw e;
-                        if (e.response?.status === 422 || e.response?.status === 404 || e.response?.status === 400 || e.code === 'ECONNABORTED') {
-                            console.warn(`Org task fetch fail for ${JSON.stringify(params)}, trying fallback...`);
-                            continue;
+                try {
+                    const results = await Promise.allSettled(
+                        scopes.map(params => api.get('/tasks', { params, signal, timeout: 15000 }).catch(() => null))
+                    );
+                    
+                    const allFound = [];
+                    results.forEach(res => {
+                        if (res.status === 'fulfilled' && res.value?.data) {
+                            const d = res.value.data;
+                            const items = Array.isArray(d) ? d : (d.data || d.items || d.tasks || []);
+                            allFound.push(...items);
                         }
-                        throw e;
-                    }
+                    });
+
+                    // Deduplicate by ID
+                    const seen = new Set();
+                    const unique = allFound.filter(t => {
+                        const id = t.task_id || t.id || t.id_task;
+                        if (!id || seen.has(id)) return false;
+                        seen.add(id);
+                        return true;
+                    });
+
+                    return { data: unique };
+                } catch (e) {
+                    console.error("fetchOrgTasks failed:", e);
+                    return { data: [] };
                 }
-                return null;
             };
 
             const allTasksRes = await fetchOrgTasks(signal);
@@ -890,16 +908,32 @@ const CFODashboard = () => {
                     ptitle = taskMap[pid];
                 }
 
+                // Robust Department Extraction
+                const deptCandidates = [
+                    t.department_name,
+                    t.department,
+                    t.dept_name,
+                    t.dept,
+                    t.owner_dept,
+                    t.assigned_dept,
+                    t.department_id ? `Dept-${t.department_id}` : null
+                ];
+                let finalDept = 'Accounts';
+                for (const c of deptCandidates) {
+                    if (c && c !== 'N/A' && c !== 'undefined' && c !== 'null') {
+                        finalDept = typeof c === 'object' ? (c.name || JSON.stringify(c)) : String(c).trim();
+                        break;
+                    }
+                }
+
                 return {
                     ...t,
                     task_id: t.task_id || t.id,
                     title: t.title || 'Untitled Task',
                     status: String(t.status || ''),
-                    department: t.department_name || t.department || t.dept_name || 'Accounts',
+                    department: finalDept,
                     priority: String(t.priority || t.severity || 'Medium'),
                     assigneeName: t.assigned_to_name || t.assignee || 'Unassigned',
-
-                    // ✅ FIX
                     parent_task_id: pid ? pid : '-',
                     parent_task_title: ptitle ? ptitle : '-',
                 };
@@ -1110,7 +1144,7 @@ const CFODashboard = () => {
                                     trendLabel: 'improving'
                                 },
                                 { 
-                                    label: 'Org Index', 
+                                    label: 'ORG COMPLETION RATE', 
                                     value: `${Math.round(kpis?.orgCompletionRate || 0)}%`, 
                                     icon: Activity, 
                                     gradient: 'from-cyan-500 to-sky-600',
