@@ -72,7 +72,8 @@ const PerformanceDashboard = () => {
         team_tasks: 0,
         in_progress_tasks: 0,
         pending_approval: 0,
-        overdue_tasks: 0
+        overdue_tasks: 0,
+        team_score_current: 0
     });
     const [trends, setTrends] = useState([]);
     const [teamPerformance, setTeamPerformance] = useState([]);
@@ -107,7 +108,8 @@ const PerformanceDashboard = () => {
             team_tasks: total,
             in_progress_tasks: inProgress,
             pending_approval: pending,
-            overdue_tasks: overdueCount
+            overdue_tasks: overdueCount,
+            team_score_current: Math.round((done / (total || 1)) * 100)
         };
         console.log("FALLBACK SUCCESS - Calculated Summary:", metrics);
         setSummary(metrics);
@@ -215,7 +217,8 @@ const PerformanceDashboard = () => {
         
         const perfData = Object.values(empMap).map(e => ({
             ...e,
-            completion_rate: Math.round((e.completed / (e.tasks_assigned || 1)) * 100)
+            completion_rate: Math.round((e.completed / (e.tasks_assigned || 1)) * 100),
+            performance_score: Math.round((e.completed / (e.tasks_assigned || 1)) * 100)
         })).sort((a, b) => b.tasks_assigned - a.tasks_assigned);
         
         setTeamPerformance(perfData);
@@ -293,7 +296,8 @@ const PerformanceDashboard = () => {
                     team_tasks: Number(d.team_tasks || d.total_tasks || d.total || 0),
                     in_progress_tasks: Number(d.in_progress_tasks || d.in_progress || 0),
                     pending_approval: Number(d.pending_approval || d.submitted_tasks || d.submitted || 0),
-                    overdue_tasks: Number(d.overdue_tasks || d.overdue || 0)
+                    overdue_tasks: Number(d.overdue_tasks || d.overdue || 0),
+                    team_score_current: Number(d.team_score_current || d.completion_pct || d.completion_rate || 0)
                 });
             }
 
@@ -559,13 +563,14 @@ const PerformanceDashboard = () => {
                 </div>
             </div>
 
-            {/* KPI CARDS — Finalized 4-item list */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-12 px-4">
+            {/* KPI CARDS — Expanded to 5 items */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5 mb-12 px-4">
                 {[
                     { label: 'Team tasks', val: summary.team_tasks, icon: Briefcase, color: 'from-indigo-500 to-indigo-600' },
                     { label: 'In progress', val: summary.in_progress_tasks, icon: Activity, color: 'from-sky-500 to-sky-600' },
                     { label: 'Pending approval', val: summary.pending_approval, icon: Clock, color: 'from-amber-500 to-amber-600' },
-                    { label: 'Overdue tasks', val: summary.overdue_tasks, icon: AlertCircle, color: 'from-rose-500 to-rose-600' }
+                    { label: 'Overdue tasks', val: summary.overdue_tasks, icon: AlertCircle, color: 'from-rose-500 to-rose-600' },
+                    { label: 'Team Performance Score', val: `${summary.team_score_current}%`, icon: TrendingUp, color: 'from-emerald-500 to-emerald-600' }
                 ].map((kpi, i) => (
                     <div key={i} className={`p-6 rounded-[2rem] bg-gradient-to-br ${kpi.color} text-white shadow-xl shadow-indigo-100/40 hover:scale-[1.02] transition-all`}>
                         <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-4"><kpi.icon size={20} /></div>
@@ -665,7 +670,7 @@ const PerformanceDashboard = () => {
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
                             <p className="text-[32px] font-semibold text-indigo-950 leading-none">{deptMetrics.completion_pct}%</p>
                             <div className="mt-1 flex flex-col items-center">
-                                <p className="text-[9px] text-slate-400 font-medium uppercase tracking-widest">Health Score</p>
+                                <p className="text-[9px] text-slate-400 font-medium uppercase tracking-widest">Completion Rate</p>
                             </div>
                         </div>
                     </div>
@@ -695,8 +700,8 @@ const PerformanceDashboard = () => {
             <div className="bg-white/90 rounded-[2.5rem] border border-white shadow-2xl mx-4 overflow-hidden mb-20 flex flex-col min-h-[500px]">
                 <div className="p-8 border-b border-indigo-50 flex flex-wrap items-center justify-between gap-4">
                     <div>
-                        <h3 className="text-xl font-medium text-[#1E1B4B]">Team Performance Monitor</h3>
-                        <p className="text-[12px] text-slate-400 font-medium">Direct Contributor Metrics</p>
+                        <h3 className="text-xl font-medium text-[#1E1B4B]">Team Execution Monitor</h3>
+                        <p className="text-[12px] text-slate-400 font-medium">Workload & Completion Metrics</p>
                     </div>
                     <div className="flex items-center gap-6">
                         <button onClick={() => navigate('/tasks?mode=team')} className="flex items-center gap-1.5 text-[11px] font-black text-indigo-600 uppercase tracking-widest hover:underline">
@@ -735,7 +740,8 @@ const PerformanceDashboard = () => {
                                 <th className="px-2 py-3 text-center">Active</th>
                                 <th className="px-2 py-3 text-center">Pending</th>
                                 <th className="px-2 py-3 text-center">Overdue</th>
-                                <th className="px-2 py-3 text-right">Completion</th>
+                                <th className="px-2 py-3 text-right">Completion Rate</th>
+                                <th className="px-2 py-3 text-center">Performance Score</th>
                                 <th className="px-2 py-3 text-center">Actions</th>
                             </tr>
                         </thead>
@@ -773,6 +779,15 @@ const PerformanceDashboard = () => {
                                                 <div className={`h-full ${emp.completion_rate > 70 ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${emp.completion_rate}%` }} />
                                             </div>
                                         </div>
+                                    </td>
+                                    <td className="px-2 py-2 text-center">
+                                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-black tabular-nums ${
+                                            (emp.performance_score || emp.completion_rate) >= 70 ? 'bg-emerald-50 text-emerald-700' :
+                                            (emp.performance_score || emp.completion_rate) >= 40 ? 'bg-amber-50 text-amber-700' :
+                                            'bg-rose-50 text-rose-700'
+                                        }`}>
+                                            {emp.performance_score || emp.completion_rate || 0}%
+                                        </span>
                                     </td>
                                     <td className="px-2 py-2 text-center">
                                         <button
@@ -832,8 +847,8 @@ const PerformanceDashboard = () => {
                                     <th className="px-4 py-4 text-left">Employee Name</th>
                                     <th className="px-2 py-4 text-center">Active Tasks</th>
                                     <th className="px-2 py-4 text-center">Overdue Tasks</th>
-                                    <th className="px-2 py-4 text-center">Performance Score</th>
-                                    <th className="px-4 py-4 text-center">Risk Status</th>
+                                    <th className="px-2 py-4 text-center">Execution Score (Delivery Health)</th>
+                                    <th className="px-4 py-4 text-center">Delivery Risk Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50 font-medium">

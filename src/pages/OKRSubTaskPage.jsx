@@ -101,7 +101,7 @@ const OKRSubTaskPage = () => {
                 // Build a set of IDs that are referenced as parent by any subtask
                 const childParentIds = new Set();
                 allTasks.forEach(t => {
-                    const pid = t.parent_task_id || t.parent_id;
+                    const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
                     if (pid) childParentIds.add(String(pid));
                 });
 
@@ -124,8 +124,8 @@ const OKRSubTaskPage = () => {
                     if (!list.find(o => String(o.parent_task_id || o.id) === String(pid))) {
                         list.push({
                             parent_task_id: pid,
-                            parent_task_title: p.title || p.objective_title || 'Strategic Objective',
-                            objective_title: p.title || p.objective_title || 'Strategic Objective',
+                            parent_task_title: p.title || p.task_name || p.name || p.objective_title || 'Strategic Objective',
+                            objective_title: p.title || p.task_name || p.name || p.objective_title || 'Strategic Objective',
                         });
                     }
                 });
@@ -156,17 +156,28 @@ const OKRSubTaskPage = () => {
             };
 
             // Fetch from API endpoints + raw DB with org scope to capture all recurring tasks
-            const [summaryRes, subtasksRes, deptsRes, rawTasksRes, orgRawTasksRes] = await Promise.all([
+            const [summaryRes, subtasksRes, deptsRes, rawTasksRes, orgRawTasksRes, allTasksRes] = await Promise.all([
                 api.get(`/reports/cfo/okr/objectives/${targetId}/summary`, { params }).catch(() => ({ data: {} })),
                 api.get(`/reports/cfo/okr/objectives/${targetId}/subtasks`, { params }).catch(() => ({ data: [] })),
                 api.get(`/reports/cfo/okr/objectives/${targetId}/departments`, { params }).catch(() => ({ data: [] })),
                 api.get('/tasks', { params: { parent_task_id: targetId, limit: 200 } }).catch(() => ({ data: [] })),
-                api.get('/tasks', { params: { parent_task_id: targetId, limit: 200, scope: 'org' } }).catch(() => ({ data: [] }))
+                api.get('/tasks', { params: { parent_task_id: targetId, limit: 200, scope: 'org' } }).catch(() => ({ data: [] })),
+                // Broader fetch: get more tasks and filter client-side (in case backend ignores parent_task_id param)
+                // Using limit: 200 to avoid 422 Unprocessable Entity error
+                api.get('/tasks', { params: { limit: 200, scope: 'org' } }).catch(() => ({ data: [] }))
             ]);
 
+            // Universal array extractor to handle varying backend payloads gracefully
+            const extractList = (res) => {
+                const d = res?.data;
+                if (!d) return [];
+                if (Array.isArray(d)) return d;
+                return d.data || d.items || d.tasks || d.subtasks || d.departments || d.results || [];
+            };
+            
             const summary = summaryRes.data?.data || summaryRes.data || {};
-            let subtasks = subtasksRes.data?.data || subtasksRes.data || [];
-            let depts = deptsRes.data?.data || deptsRes.data || [];
+            let subtasks = extractList(subtasksRes);
+            let depts = extractList(deptsRes);
 
             // If the summary lacks a title (usually happens for live uncached tasks), inherit it from our list
             if (!summary.objective_title && !summary.parent_task_title) {
@@ -175,26 +186,28 @@ const OKRSubTaskPage = () => {
             }
 
             // Merge + deduplicate raw tasks from both scopes
-            const extractList = (res) => {
-                const d = res?.data;
-                if (!d) return [];
-                if (Array.isArray(d)) return d;
-                return d.data || d.items || d.tasks || d.results || [];
-            };
             const rawA = extractList(rawTasksRes);
             const rawB = extractList(orgRawTasksRes);
+            // Also scan the broad all-tasks fetch for children of this parent
+            const rawC = extractList(allTasksRes);
             const seenSubs = new Set();
-            const rawTasks = [...rawA, ...rawB].filter(t => {
+            const rawTasks = [...rawA, ...rawB, ...rawC].filter(t => {
                 const id = t.id || t.task_id;
                 if (!id || seenSubs.has(String(id))) return false;
-                // ✅ EXCLUDE CANCELLED TASKS
+                // EXCLUDE CANCELLED TASKS
                 if ((t.status || '').toUpperCase() === 'CANCELLED') return false;
+                
+                // Filter to only tasks that belong to this parent
+                const pId = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+                if (String(pId) !== String(targetId)) return false;
+
                 seenSubs.add(String(id));
                 return true;
             });
 
-            if (Array.isArray(rawTasks) && rawTasks.length > 0 && (subtasks.length === 0 || rawTasks.length > subtasks.length)) {
-                 subtasks = rawTasks; // Use the most complete dataset from the real database
+            // Use whichever source returned the most results (most complete dataset)
+            if (Array.isArray(rawTasks) && rawTasks.length > 0) {
+                subtasks = rawTasks;
                  
                  // Rebuild department groupings structurally so other departments appear
                  const dMap = {};
@@ -205,11 +218,11 @@ const OKRSubTaskPage = () => {
                  });
                  depts = Object.values(dMap);
                  
-                 // Sync summary metrics to prevent UI crashing on 0 / 0
+                 // Sync summary metrics
                  summary.total_subtasks = subtasks.length;
                  summary.completed_subtasks = subtasks.filter(s => ['COMPLETED','APPROVED'].includes((s.status||'').toUpperCase())).length;
                  summary.progress_pct = summary.total_subtasks > 0 ? Math.round((summary.completed_subtasks / summary.total_subtasks) * 100) : 0;
-            } else if (subtasks.length > 0 && depts.length === 0) {
+            } else if (subtasks.length > 0) {
                  // Safe fallback if depts res failed completely
                  const dMap = {};
                  subtasks.forEach(t => {
@@ -232,13 +245,18 @@ const OKRSubTaskPage = () => {
     };
 
     useEffect(() => {
-        fetchInitialData();
+        fetchInitialData().then(() => {
+            // After initial load: if no okrId in URL, the first objective will be
+            // auto-selected by fetchInitialData. Either way trigger the drilldown.
+            if (filters.currentOkrId) fetchDrilldownData();
+        });
     }, []);
 
     useEffect(() => {
+        if (!filters.currentOkrId) return; // Don't fire with empty ID
         fetchDrilldownData();
-        // Sync URL if needed (optional, depends on UX preference)
-        if (filters.currentOkrId && filters.currentOkrId !== okrId) {
+        // Sync URL
+        if (filters.currentOkrId !== okrId) {
             navigate(`/okr-subtask/${filters.currentOkrId}`, { replace: true });
         }
     }, [filters.currentOkrId, filters.from_date, filters.to_date]);
@@ -379,7 +397,7 @@ const OKRSubTaskPage = () => {
             <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden mb-6 flex flex-col">
                 <div className="bg-[#f8fafc] px-6 py-4 border-b border-slate-200">
                     <h2 className="text-lg font-black text-slate-800 tracking-tight">
-                        Objective Progress Overview: <span className="text-blue-700">{selectedOKR?.parent_task_title || selectedOKR?.objective_title || 'Loading...'} </span>
+                        Sub Objectives Tracking: <span className="text-blue-700">{selectedOKR?.parent_task_title || selectedOKR?.objective_title || 'Loading...'} </span>
                         <span className="text-slate-400 text-sm font-medium ml-2">({filters.currentOkrId})</span>
                     </h2>
                 </div>
@@ -392,7 +410,7 @@ const OKRSubTaskPage = () => {
                                 <thead className="bg-[#f1f5f9] text-[10px] font-black text-slate-500 capitalize tracking-tight border-b border-slate-200">
                                     <tr>
                                         <th className="py-3 px-4">Task ID</th>
-                                        <th className="py-3 px-4">Subtask</th>
+                                        <th className="py-3 px-4">Sub Objective</th>
                                         <th className="py-3 px-4">Department</th>
                                         <th className="py-3 px-4">Assigned To</th>
                                         <th className="py-3 px-4 text-center">Status</th>
