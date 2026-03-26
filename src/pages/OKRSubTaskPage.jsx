@@ -510,6 +510,53 @@ const OKRSubTaskPage = () => {
                             );
                         })()}
 
+                        {/* Pie Chart — fixed height to prevent overflow */}
+                        <div className="w-full" style={{ height: 320 }}>
+                            <ResponsiveContainer width="100%" height={320}>
+                                <PieChart>
+                                    <Pie
+                                        data={deptDistribution}
+                                        cx="50%"
+                                        cy="50%"
+                                        outerRadius={120}
+                                        dataKey="value"
+                                        stroke="#fff"
+                                        strokeWidth={2}
+                                        label={({ cx, cy, midAngle, outerRadius, index }) => {
+                                            const RADIAN = Math.PI / 180;
+                                            const radius = outerRadius * 0.62;
+                                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                                            const words = (deptDistribution[index]?.name || '').split(' ');
+                                            return (
+                                                <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={8} fontWeight="black" className="pointer-events-none">
+                                                    {words.map((word, i) => (
+                                                        <tspan x={x} dy={i === 0 ? 0 : 10} key={i}>{word}</tspan>
+                                                    ))}
+                                                </text>
+                                            );
+                                        }}
+                                        labelLine={false}
+                                    >
+                                        {deptDistribution.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        {/* Legend — outside chart so it doesn't steal chart height */}
+                        <div className="flex flex-wrap gap-x-4 gap-y-1.5 justify-center">
+                            {deptDistribution.map((d, i) => (
+                                <div key={i} className="flex items-center gap-1.5">
+                                    <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: d.fill }} />
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wide">{d.name}</span>
+                                </div>
+                            ))}
+                        </div>
+
                         {/* Stats Cards */}
                         <div className="grid grid-cols-2 gap-3">
                              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col items-center">
@@ -538,60 +585,12 @@ const OKRSubTaskPage = () => {
                      <h3 className="text-sm font-black text-slate-700 capitalize tracking-tight">Department Contribution</h3>
                  </div>
                  
-                 <div className="flex flex-col lg:flex-row gap-0">
-                    {/* Left: Pie Chart & Legend */}
-                    <div className="lg:w-[320px] p-6 border-r border-slate-100 flex flex-col items-center justify-center bg-slate-50/30">
-                        <div className="w-full h-[240px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={deptDistribution}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={90}
-                                        dataKey="value"
-                                        stroke="#fff"
-                                        strokeWidth={2}
-                                        label={({ cx, cy, midAngle, outerRadius, index }) => {
-                                            const RADIAN = Math.PI / 180;
-                                            const radius = outerRadius * 0.62;
-                                            const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                                            const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                                            const words = (deptDistribution[index]?.name || '').split(' ');
-                                            return (
-                                                <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={7} fontWeight="black" className="pointer-events-none">
-                                                    {words.map((word, i) => (
-                                                        <tspan x={x} dy={i === 0 ? 0 : 8} key={i}>{word}</tspan>
-                                                    ))}
-                                                </text>
-                                            );
-                                        }}
-                                        labelLine={false}
-                                    >
-                                        {deptDistribution.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center mt-4">
-                            {deptDistribution.map((d, i) => (
-                                <div key={i} className="flex items-center gap-1.5">
-                                    <span className="w-2.5 h-2.5 rounded-[2px]" style={{ background: d.fill }} />
-                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wide">{d.name}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Right: Detailed Table (EXTENDED FORMAT) */}
-                    <div className="flex-1 relative flex flex-col">
+                 <div className="flex flex-col gap-0">
+                    {/* Detailed Table (EXTENDED FORMAT) */}
+                    <div className="relative flex flex-col">
                         <div className="flex-1 overflow-x-auto">
                             <table className="w-full text-left text-xs border-collapse">
-                                <thead className="bg-[#1e3a8a]/5 text-[#1e3a8a] text-[12px] font-black uppercase tracking-widest">
+                                <thead className="bg-[#1e3a8a]/5 text-[#1e3a8a] text-[13.5px] font-black uppercase tracking-widest">
                                     <tr>
                                         <th className="py-5 px-6 text-left">Department Focus</th>
                                         <th className="py-5 px-4 text-center">Total Tasks</th>
