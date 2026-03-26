@@ -584,7 +584,7 @@ const OKRDashboard = () => {
                     <div className="bg-indigo-500/20 p-2.5 rounded-xl backdrop-blur-md border border-white/20">
                         <ShieldCheck className="text-indigo-200" size={26} strokeWidth={2.5} />
                     </div>
-                    <h1 className="text-2xl font-black text-white tracking-tight capitalize">FJ Group — OKR Execution Dashboard</h1>
+                    <h1 className="text-2xl font-black text-white tracking-tight">FJ Group — OKR Execution Dashboard</h1>
                  </div>
                  <div className="hidden lg:flex items-center gap-3 text-xs font-black text-indigo-200/60 capitalize tracking-tight">
                     <Calendar size={14} strokeWidth={3} />
