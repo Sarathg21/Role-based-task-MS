@@ -124,7 +124,7 @@ const OKRDashboard = () => {
             const role = (user?.role || '').toUpperCase();
             const isAdmin = role === 'ADMIN';
 
-            const [res, trendsRes, todayRes] = await Promise.all([
+            const [res, trendsRes, todayRes, summaryRes] = await Promise.all([
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/reports/cfo/okr/overview', {
                     params: {
                         from_date: filters.from_date,
@@ -132,9 +132,16 @@ const OKRDashboard = () => {
                     }
                 }).catch(() => ({ data: {} })),
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/trends').catch(() => ({ data: {} })),
-                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/today').catch(() => ({ data: {} }))
+                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/today').catch(() => ({ data: {} })),
+                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo', {
+                    params: {
+                        from_date: filters.from_date,
+                        to_date: filters.to_date
+                    }
+                }).catch(() => ({ data: {} }))
             ]);
             let data = res.data?.data || res.data || {};
+            const summaryData = summaryRes.data?.data || summaryRes.data || {};
 
             // ✅ COMPREHENSIVE TASK FETCH - catches recurring-generated tasks + standard tasks
             try {
@@ -419,7 +426,8 @@ const OKRDashboard = () => {
                 { label: 'Completed Tasks', value: data.completed_tasks || 0, color: 'green', icon: CheckCircle2 },
                 { label: 'Overall Progress', value: `${data.overall_progress || 0}%`, color: 'amber', icon: TrendingUp },
                 { label: 'At Risk Objectives', value: data.at_risk || 0, color: 'rose', icon: AlertTriangle },
-                { label: 'Avg Health Score', value: data.avg_health_score || 0, color: 'green', icon: CheckCircle },
+                { label: 'Avg Completion Rate', value: data.avg_health_score || 0, color: 'green', icon: CheckCircle },
+                { label: 'Team Performance Score', value: `${summaryData.team_score_current || 0}%`, color: 'violet', icon: TrendingUp },
             ]);
 
             setObjCompletionData((data.objective_completion || []).map(obj => ({
@@ -592,7 +600,7 @@ const OKRDashboard = () => {
             </div>
 
             {/* ── TOP KPI CARDS ── */}
-            <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-7 gap-4">
                 {metrics.map((m, i) => (
                     <Stat 
                         key={i}
@@ -735,7 +743,7 @@ const OKRDashboard = () => {
                                 <th className="py-4 px-2 text-center">Done</th>
                                 <th className="py-4 px-2 text-center">Total</th>
                                 <th className="py-4 px-4 min-w-[150px]">Progress</th>
-                                <th className="py-4 px-2 text-center">Health</th>
+                                <th className="py-4 px-2 text-center">Completion</th>
                                 <th className="py-4 px-6 text-right">Risk</th>
                             </tr>
                         </thead>

@@ -71,14 +71,18 @@ const OKRSubTaskPage = () => {
             if (isCFOorManager || userRole === 'EMPLOYEE') {
                 // Fetch from multiple scopes in parallel to capture recurring-generated tasks
                 const scopeParam = userRole === 'EMPLOYEE' ? 'mine' : 'org';
-                const [overviewRes, listRes, tasksRes, orgTasksRes] = await Promise.all([
+                const [overviewRes, listRes, tasksRes, orgTasksRes, summaryRes] = await Promise.all([
                     api.get(userRole === 'EMPLOYEE' ? '/reports/employee/performance' : '/reports/cfo/okr/overview').catch(() => ({ data: {} })),
                     api.get(isCFOorManager ? '/reports/cfo/okr/objectives' : '/tasks', { params: { scope: 'mine', limit: 50 } }).catch(() => ({ data: [] })),
                     api.get('/tasks', { params: { limit: 200, scope: (userRole === 'EMPLOYEE' ? 'mine' : 'department') } }).catch(() => ({ data: [] })),
-                    api.get('/tasks', { params: { limit: 200, scope: (userRole === 'EMPLOYEE' ? 'mine' : 'org') } }).catch(() => ({ data: [] }))
+                    api.get('/tasks', { params: { limit: 200, scope: (userRole === 'EMPLOYEE' ? 'mine' : 'org') } }).catch(() => ({ data: [] })),
+                    api.get('/dashboard/cfo').catch(() => ({ data: {} }))
                 ]);
 
-                setGlobalOverview(overviewRes.data?.data || overviewRes.data);
+                setGlobalOverview({
+                    ...(overviewRes.data?.data || overviewRes.data),
+                    team_score_current: summaryRes.data?.data?.team_score_current || summaryRes.data?.team_score_current || 0
+                });
                 let list = listRes.data?.data || listRes.data || [];
                 if (!Array.isArray(list)) list = [];
 
@@ -323,14 +327,15 @@ const OKRSubTaskPage = () => {
             </div>
 
             {/* ── TOP KPI CARDS (GLOBAL OVERVIEW) ── */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-2">
+            <div className="grid grid-cols-2 lg:grid-cols-7 gap-4 mb-2">
                 {[
                     { label: 'Total Objectives', value: globalOverview?.total_objectives || 0, gradient: 'from-[#4285F4] to-[#2563EB]' },
                     { label: 'Total Subtasks', value: globalOverview?.total_subtasks || 146, gradient: 'from-[#4F46E5] to-[#4338CA]' },
                     { label: 'Completed Tasks', value: globalOverview?.completed_tasks || 82, gradient: 'from-[#10B981] to-[#059669]' },
                     { label: 'Overall Progress', value: `${globalOverview?.overall_progress || 56}%`, gradient: 'from-[#F59E0B] to-[#D97706]' },
                     { label: 'At Risk', value: globalOverview?.at_risk || 3, gradient: 'from-[#F43F5E] to-[#E11D48]' },
-                    { label: 'Avg Health Score', value: globalOverview?.avg_health_score || 74, gradient: 'from-[#06B6D4] to-[#0891B2]' },
+                    { label: 'Avg Completion Rate', value: globalOverview?.avg_health_score || 74, gradient: 'from-[#06B6D4] to-[#0891B2]' },
+                    { label: 'Team Performance Score', value: `${globalOverview?.team_score_current || 0}%`, gradient: 'from-[#7C3AED] to-[#5B21B6]' },
                 ].map((m, i) => (
                     <div key={i} className={`relative overflow-hidden bg-gradient-to-br ${m.gradient} p-5 rounded-2xl shadow-lg shadow-indigo-200/20 flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] group`}>
                         <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl group-hover:scale-150 transition-transform duration-700" />
@@ -564,7 +569,7 @@ const OKRSubTaskPage = () => {
                                 </div>
                              </div>
                              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col items-center justify-center">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">Health Score</span>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">Completion Rate</span>
                                 <span className="text-2xl font-black text-emerald-600 tabular-nums leading-none">{selectedOKR?.health_score || 0}</span>
                              </div>
                         </div>
