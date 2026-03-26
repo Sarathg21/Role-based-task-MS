@@ -251,7 +251,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                 api.get('/dashboard/manager/employee-risk', { params }),
                 api.get('/dashboard/manager/team-performance', { params }),
                 api.get('/dashboard/manager/department-metrics', { params }),
-                api.get('/notifications')
+                api.get('/notifications', { timeout: 10000, params: { limit: 50 } })
             ]);
 
             const [

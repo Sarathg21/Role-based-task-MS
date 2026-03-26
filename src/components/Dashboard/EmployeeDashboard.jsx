@@ -429,7 +429,7 @@ const EmployeeDashboard = () => {
     const fetchActivities = async () => {
         setLoadingActivities(true);
         try {
-            const res = await api.get('/notifications');
+            const res = await api.get('/notifications', { timeout: 10000, params: { limit: 50 } });
             const raw = res.data;
             let dataList = [];
             if (Array.isArray(raw)) {
@@ -447,7 +447,9 @@ const EmployeeDashboard = () => {
             });
             setActivities(filtered);
         } catch (err) {
-            console.error("Failed to fetch employee activities:", err);
+            if (err.code !== 'ECONNABORTED' && !err.message?.includes('Network Error')) {
+                console.error("Failed to fetch employee activities:", err);
+            }
         } finally {
             setLoadingActivities(false);
         }

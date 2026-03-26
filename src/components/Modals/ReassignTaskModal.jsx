@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, User, CalendarDays, FileText, Clock, AlertTriangle, RotateCcw } from 'lucide-react';
+import { X, User, CalendarDays, FileText, Clock, AlertTriangle, RotateCcw, Building2 } from 'lucide-react';
 import Badge from "../UI/Badge";
 
 /* ── status label map ── */
@@ -104,44 +104,63 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
                     <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-3">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Task Details (read-only)</p>
 
-                        <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
                             <div>
-                                <p className="text-xs text-slate-400 font-medium mb-0.5">Task ID</p>
-                                <p className="font-semibold text-slate-700">#{currentTask.task_id || currentTask.id}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Task ID</p>
+                                <p className="font-semibold text-slate-700 flex items-center gap-2">
+                                    <Clock size={14} className="text-slate-400" /> #{currentTask.task_id || currentTask.id}
+                                </p>
                             </div>
                             <div>
-                                <p className="text-xs text-slate-400 font-medium mb-0.5">Status</p>
-                                <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${STATUS_COLOR[(currentTask.status || '').toUpperCase()] || 'bg-slate-100 text-slate-600'}`}>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status</p>
+                                <span className={`inline-flex text-[11px] font-bold px-2.5 py-1 rounded-lg ${STATUS_COLOR[(currentTask.status || '').toUpperCase()] || 'bg-slate-100 text-slate-600'}`}>
                                     {STATUS_LABEL[(currentTask.status || '').toUpperCase()] || currentTask.status}
                                 </span>
                             </div>
+
                             <div className="col-span-2">
-                                <p className="text-xs text-slate-400 font-medium mb-0.5">Title</p>
-                                <p className="font-semibold text-slate-800">{currentTask.task_title || currentTask.title}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Title</p>
+                                <p className="font-bold text-slate-800 text-[15px] leading-tight">{currentTask.task_title || currentTask.title}</p>
                             </div>
+
                             {currentTask.description && (
-                                <div className="col-span-2">
-                                    <p className="text-xs text-slate-400 font-medium mb-0.5">Description</p>
-                                    <p className="text-slate-600 text-sm leading-relaxed">{currentTask.description}</p>
+                                <div className="col-span-2 bg-white/50 p-3 rounded-xl border border-slate-100/50">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Description</p>
+                                    <p className="text-slate-600 text-sm leading-relaxed font-medium">{currentTask.description}</p>
                                 </div>
                             )}
+
                             <div>
-                                <p className="text-xs text-slate-400 font-medium mb-0.5">Department</p>
-                                <p className="text-slate-600 font-bold uppercase tracking-tight">{currentTask.department_name || currentTask.department || 'N/A'}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 text-left">Severity</p>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant={currentTask.severity}>
+                                        {currentTask.severity}
+                                    </Badge>
+                                </div>
                             </div>
+
                             <div>
-                                <p className="text-xs text-slate-400 font-medium mb-0.5">Severity</p>
-                                <Badge variant={currentTask.severity}>
-                                    {currentTask.severity}
-                                </Badge>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Department</p>
+                                <p className="text-slate-700 font-bold flex items-center gap-2 text-xs">
+                                    <Building2 size={14} className="text-indigo-400" />
+                                    {currentTask.department_name || currentTask.department || 'N/A'}
+                                </p>
                             </div>
+
                             <div>
-                                <p className="text-xs text-slate-400 font-medium mb-0.5">Current Assignee</p>
-                                <p className="text-slate-600 font-bold">{currentTask.assigned_to_name || currentAssignee?.name || currentTask.employee_id || 'N/A'}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Current Assignee</p>
+                                <p className="text-slate-700 font-bold flex items-center gap-2 text-xs">
+                                    <User size={14} className="text-violet-400" />
+                                    {currentTask.assigned_to_name || currentAssignee?.name || currentTask.employee_id || 'N/A'}
+                                </p>
                             </div>
+
                             <div>
-                                <p className="text-xs text-slate-400 font-medium mb-0.5">Current Due Date</p>
-                                <p className="text-slate-600 font-semibold">{currentTask.due_date}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Current Due Date</p>
+                                <p className="text-slate-700 font-bold flex items-center gap-2 text-xs">
+                                    <CalendarDays size={14} className="text-rose-400" />
+                                    {currentTask.due_date}
+                                </p>
                             </div>
                         </div>
                     </div>

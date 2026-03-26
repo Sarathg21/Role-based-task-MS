@@ -32,110 +32,78 @@ const EmployeePersonalReport = () => {
     const fetchDashData = async () => {
         setLoading(true);
         try {
-            const params = { fromDate, toDate, scope: 'mine', start_date: fromDate, end_date: toDate };
-            const [dashRes, tasksRes] = await Promise.all([
-                api.get('/dashboard/employee', { params }),
-                api.get('/tasks', { params: { ...params, limit: 100 } }),
+            const myDept = user?.department_name || user?.department || '';
+            const dateParams = { from_date: fromDate, to_date: toDate, start_date: fromDate, end_date: toDate };
+
+            // 1. Fetch own dashboard summary, own tasks, AND department top performer — all in parallel
+            const [dashRes, myTasksRes, topPerformerRes] = await Promise.allSettled([
+                api.get('/dashboard/employee', { params: { ...dateParams, scope: 'mine' } }),
+                api.get('/tasks', { params: { ...dateParams, limit: 100 } }),
+                api.get('/reports/employee/department-top-performer', { params: { from_date: fromDate, to_date: toDate } }),
             ]);
 
-            // Try various endpoints to get peer data for ranking
-            let deptTasksRes = null;
-            const teamParams = { 
-                from_date: fromDate, 
-                to_date: toDate, 
-                start_date: fromDate, 
-                end_date: toDate, 
-                limit: 100 // Ensure limit <= 100 to avoid 422
-            };
-
-            const endpoints = [
-                { url: '/tasks/team', params: teamParams },
-                { url: '/tasks', params: { ...teamParams, scope: 'department' } },
-                { url: '/tasks', params: { ...teamParams, scope: 'org' } }
-            ];
-
-            const aggregatedRankingTasks = [];
-            for (const ep of endpoints) {
-                try {
-                    const res = await api.get(ep.url, { params: ep.params });
-                    const rows = res?.data?.data || res?.data || [];
-                    if (Array.isArray(rows) && rows.length > 0) {
-                        rows.forEach(r => aggregatedRankingTasks.push(r));
-                    }
-                } catch (e) {
-                    if (e.response?.status === 422) continue;
-                    console.warn(`Fetch to ${ep.url} failed:`, e.message);
-                }
-            }
-            
-            const dashData = dashRes?.data?.data || dashRes?.data || {};
+            // 2. Process own dashboard summary
+            const dashData = dashRes.status === 'fulfilled'
+                ? (dashRes.value?.data?.data || dashRes.value?.data || {})
+                : {};
             setSummary(dashData);
 
-            const fetchedTasks = tasksRes?.data?.data || tasksRes?.data || [];
-            const myTasks = Array.isArray(fetchedTasks) ? fetchedTasks : [];
+            // 3. Process own tasks
+            const rawTasks = myTasksRes.status === 'fulfilled'
+                ? (myTasksRes.value?.data?.data || myTasksRes.value?.data || [])
+                : [];
+            const myTasks = Array.isArray(rawTasks) ? rawTasks : [];
             setTasks(myTasks);
 
-            // ── Build Top Performer Per Department ──
-            // Combine all available tasks for a comprehensive ranking
-            const rankingTasks = [...aggregatedRankingTasks, ...myTasks];
-
-            const deptEmployeeMap = {};
-            rankingTasks.forEach(t => {
-                const deptId = t.department_id || t.departmentId || user?.department_id;
-                const deptName = t.department_name || t.department || user?.department_name || user?.department || 'My Department';
-                if (!deptId && !deptName) return;
-
-                const deptKey = deptId ? String(deptId) : String(deptName);
-                if (!deptEmployeeMap[deptKey]) {
-                    deptEmployeeMap[deptKey] = {
-                        departmentName: deptName || `Dept-${deptId}`,
-                        employees: {},
-                    };
-                }
-
-                // Robust ID and Name detection
-                const empId = t.assigned_to_emp_id || t.assignee_id || t.assigned_to_id || t.employee_id || t.assignedToId || t.emp_id || t.employeeId || t.userId || (t.user?.id);
-                const empName = t.assigned_to_name || t.assignee_name || t.employee_name || t.assigneeName || t.assignee || t.assigned_to || (t.user?.name) || (t.employee?.name) || (t.name);
+            // 4. ── PRIMARY SOURCE: /reports/employee/department-top-performer ──
+            //    This is the ONLY source for the Top High Performers card.
+            //    The logged-in employee's own score must NEVER appear in this card.
+            const ranked = [];
+            if (topPerformerRes.status === 'fulfilled') {
+                const rawResponse = topPerformerRes.value?.data;
+                const tpData = rawResponse?.data || rawResponse || {};
                 
-                if (!empId && !empName) return;
+                // Allow backend to return an array of performers or a `top_performers` field
+                const performersList = Array.isArray(tpData) ? tpData 
+                    : (tpData.top_performers || tpData.performers || (tpData.top_performer ? [tpData.top_performer] : []));
+                
+                console.log('[TopPerformer] Parsed performers list:', JSON.stringify(performersList));
+                
+                performersList.forEach((tp, index) => {
+                    if (tp && tp.name && !tp.detail) {
+                        ranked.push({
+                            name: tp.name,
+                            score: typeof tp.score === 'number'
+                                ? Math.round(tp.score)
+                                : Math.round(Number(tp.score || tp.performance_score || tp.performance_index || 0)),
+                            total: tp.total_tasks || tp.total || 0,
+                            completed: tp.approved_tasks || tp.completed_tasks || tp.completed || 0,
+                            department: tpData.department_name || tp.department_name || tp.department || myDept,
+                            empId: String(tp.emp_id || tp.employee_id || tp.id || `dept_top_${index}`)
+                        });
+                    }
+                });
+            } else {
+                console.error('[TopPerformer] ❌ API call failed:', topPerformerRes.reason);
+            }
 
-                const empKey = empId ? String(empId) : String(empName);
-                if (!deptEmployeeMap[deptKey].employees[empKey]) {
-                    deptEmployeeMap[deptKey].employees[empKey] = {
-                        name: empName || `Emp-${empId}`,
-                        total: 0,
-                        completed: 0,
-                    };
-                }
+            // 5. Build ranked list — ONLY from the department-top-performer endpoint.
+            //    Do NOT add the logged-in user's own score here.
+            if (ranked.length === 0) {
+                ranked.push({
+                    name: 'Awaiting Stats',
+                    score: null,
+                    total: 0,
+                    completed: 0,
+                    department: myDept,
+                    empId: 'awaiting'
+                });
+            }
 
-                deptEmployeeMap[deptKey].employees[empKey].total += 1;
-                if (['APPROVED', 'COMPLETED'].includes((t.status || '').toUpperCase())) {
-                    deptEmployeeMap[deptKey].employees[empKey].completed += 1;
-                }
-            });
-
-            const ranked = Object.values(deptEmployeeMap)
-                .map(({ departmentName, employees }) => {
-                    const empRanked = Object.values(employees)
-                        .filter(e => e.total > 0)
-                        .map(e => ({
-                            name: e.name,
-                            score: Math.round((e.completed / e.total) * 100),
-                            total: e.total,
-                            completed: e.completed,
-                        }))
-                        .sort((a, b) => b.score - a.score || b.completed - a.completed);
-
-                    const best = empRanked[0];
-                    if (!best) return null;
-                    return { department: departmentName, ...best };
-                })
-                .filter(Boolean)
-                .sort((a, b) => b.score - a.score || b.completed - a.completed);
-
-            setTopPerformers(ranked.slice(0, 5));
+            console.log('[TopPerformer] Final ranked list:', JSON.stringify(ranked));
+            setTopPerformers(ranked);
         } catch (err) {
-            console.error("Failed to fetch employee report data", err);
+            console.error('Failed to fetch employee report data', err);
         } finally {
             setLoading(false);
         }
@@ -408,7 +376,7 @@ const EmployeePersonalReport = () => {
 
                 <div className="flex flex-col lg:flex-row items-center gap-12">
                     <div className="relative w-[280px] h-[280px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                             <PieChart>
                                 <Pie 
                                     data={pieData.length > 0 ? pieData : [{name:'None', value: 1}]}
@@ -465,7 +433,7 @@ const EmployeePersonalReport = () => {
             <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm mb-6">
                 <h3 className="text-[16px] font-semibold text-[#1E1B4B] mb-6">Monthly Performance Trend</h3>
                 <div className="h-[250px] w-full mt-4">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                         <ComposedChart data={trendData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12, fontWeight: 600}} dy={10} />
@@ -540,8 +508,9 @@ const EmployeePersonalReport = () => {
                             {topPerformers.length > 0 ? (
                                 topPerformers.map((performer, idx) => {
                                     const isMe = (performer.name === (user?.name || '')) || (String(performer.empId) === String(user?.emp_id || user?.id));
+                                    const isMyDept = (performer.department === (user?.department_name || user?.department));
                                     return (
-                                        <tr key={idx} className={isMe ? 'bg-indigo-50/20' : ''}>
+                                        <tr key={idx} className={isMyDept ? 'bg-indigo-50/20' : ''}>
                                             <td className="py-4 w-16">
                                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[13px] ${idx === 0 ? 'bg-amber-100 text-amber-600 shadow-sm' : 'bg-slate-50 text-slate-400'}`}>
                                                     {idx + 1}
@@ -549,37 +518,18 @@ const EmployeePersonalReport = () => {
                                             </td>
                                             <td className="py-4">
                                                 <p className="text-[14px] font-semibold text-[#1E1B4B]">
-                                                    {performer.name || 'Employee'}
-                                                    {isMe && <span className="ml-2 text-[10px] bg-indigo-100/50 text-indigo-600 px-2 py-0.5 rounded-full font-bold">You</span>}
+                                                    {performer.name || 'Awaiting Stats'}
+                                                    {(isMe && isMyDept) && <span className="ml-2 text-[10px] bg-indigo-100/50 text-indigo-600 px-2 py-0.5 rounded-full font-bold">You</span>}
                                                 </p>
                                                 <p className="text-[11px] font-medium text-slate-400 mt-1 uppercase tracking-wider">
-                                                    {performer.department || 'Accounts Payables'} • {performer.completed}/{performer.total} tasks
+                                                    {performer.department || 'Department'}
+                                                    {performer.total > 0 && ` • ${performer.completed}/${performer.total} tasks`}
                                                 </p>
                                             </td>
-                                            <td className="py-4 text-right text-[15px] font-bold text-indigo-600">{performer.score}%</td>
+                                             <td className="py-4 text-right text-[15px] font-bold text-indigo-600">{performer.score != null ? `${performer.score}%` : 'N/A'}</td>
                                         </tr>
                                     );
                                 })
-                            ) : (summary.top_department_performer || summary.top_performer) ? (
-                                <tr>
-                                    <td className="py-5 w-16">
-                                        <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-[13px]">1</div>
-                                    </td>
-                                    <td className="py-5">
-                                        <p className="text-[14px] font-semibold text-[#1E1B4B]">
-                                            {summary.top_department_performer?.name || summary.top_performer?.name || 'Top Performer'}
-                                        </p>
-                                        <p className="text-[11px] font-medium text-slate-400 mt-1 uppercase tracking-wider">
-                                            {summary.top_department_performer?.department || summary.top_performer?.department || 'Operations'}
-                                            {(summary.top_department_performer?.total_tasks || summary.top_performer?.total_tasks) ? 
-                                               ` • ${(summary.top_department_performer?.approved_tasks || summary.top_performer?.approved_tasks || 0)}/${(summary.top_department_performer?.total_tasks || summary.top_performer?.total_tasks)} tasks` 
-                                               : ''}
-                                        </p>
-                                    </td>
-                                    <td className="py-5 text-right text-[15px] font-bold text-indigo-600">
-                                        {Math.round(summary.top_department_performer?.score ?? summary.top_performance_score ?? 0)}%
-                                    </td>
-                                </tr>
                             ) : (
                                 <tr>
                                     <td className="py-4 w-16">
@@ -587,18 +537,18 @@ const EmployeePersonalReport = () => {
                                     </td>
                                     <td className="py-4">
                                         <p className="text-[14px] font-semibold text-[#1E1B4B]">
-                                            {user?.name || 'You'}
-                                            <span className="ml-2 text-[10px] bg-indigo-100/50 text-indigo-600 px-2 py-0.5 rounded-full font-bold">You</span>
+                                            {user?.department_name || user?.department || 'My Department'}
                                         </p>
                                         <p className="text-[11px] font-medium text-slate-400 mt-1 uppercase tracking-wider">
-                                            {user?.department_name || user?.department || 'My Department'} • {tasks.filter(t => ['APPROVED', 'COMPLETED'].includes(t.status?.toUpperCase())).length}/{tasks.length} tasks
+                                            Awaiting Department Top Performer..
                                         </p>
                                     </td>
                                     <td className="py-4 text-right text-[15px] font-bold text-indigo-600">
-                                        {tasks.length > 0 ? Math.round((tasks.filter(t => ['APPROVED', 'COMPLETED'].includes(t.status?.toUpperCase())).length / tasks.length) * 100) : 0}%
+                                        N/A
                                     </td>
                                 </tr>
                             )}
+
                         </tbody>
                     </table>
                 </div>

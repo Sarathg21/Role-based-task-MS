@@ -66,7 +66,7 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
         isFetchingNotifs.current = true;
         try {
             // Notifications should fail fast if the server is slow
-            const res = await api.get('/notifications', { timeout: 10000 });
+            const res = await api.get('/notifications', { timeout: 10000, params: { limit: 50 } });
             const raw = res.data;
             let data = [];
             if (Array.isArray(raw)) {

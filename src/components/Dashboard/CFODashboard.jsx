@@ -1163,6 +1163,21 @@ const CFODashboard = () => {
                                     <button onClick={() => navigate('/performance-dashboard')} className="text-[10px] font-semibold text-indigo-500 capitalize tracking-widest hover:underline">View All</button>
                                 </div>
 
+                                {/* Status Legend */}
+                                <div className="flex items-center gap-2 flex-wrap mb-4 px-1">
+                                    {[
+                                        { label: 'On Track', dot: 'bg-emerald-500', bg: 'bg-emerald-50/50', text: 'text-emerald-700' },
+                                        { label: 'Watch', dot: 'bg-blue-500', bg: 'bg-blue-50/50', text: 'text-blue-700' },
+                                        { label: 'At Risk', dot: 'bg-amber-500', bg: 'bg-amber-50/50', text: 'text-amber-700' },
+                                        { label: 'Off Track', dot: 'bg-rose-500', bg: 'bg-rose-50/50', text: 'text-rose-700' },
+                                    ].map(({ label, dot, bg, text }) => (
+                                        <div key={label} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border border-white/60 ${bg}`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                                            <span className={`text-[9px] font-bold ${text} whitespace-nowrap`}>{label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
                                 <div className="flex items-center text-[12px] font-bold text-slate-500 capitalize pb-2 border-b border-slate-100 mb-3 px-1">
                                     <span className="w-[45%]">Employee</span>
                                     <span className="w-[15%] text-center">Act</span>
@@ -1205,8 +1220,13 @@ const CFODashboard = () => {
                                         );
 
                                         return items.map((emp, i) => {
-                                            const statusLabel = emp.healthScore >= 90 ? 'Perfect..' : emp.healthScore >= 70 ? 'Monitor' : emp.healthScore >= 50 ? 'Action' : 'Off track';
-                                            const statusColor = emp.healthScore >= 90 ? 'bg-emerald-500 text-white' : emp.healthScore >= 70 ? 'bg-amber-500 text-white' : emp.healthScore >= 50 ? 'bg-rose-500 text-white' : 'bg-rose-700 text-white';
+                                            const riskConfig = emp.overdue === 0 
+                                                ? { label: 'On Track', bg: 'bg-emerald-500 text-white' }
+                                                : emp.overdue === 1
+                                                ? { label: 'Watch', bg: 'bg-blue-500 text-white' }
+                                                : emp.overdue === 2
+                                                ? { label: 'At Risk', bg: 'bg-amber-500 text-white' }
+                                                : { label: 'Off Track', bg: 'bg-rose-500 text-white' };
                                             
                                             return (
                                                 <div key={i} className="flex items-center gap-1 py-1.5 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 rounded-lg transition-all px-1">
@@ -1222,8 +1242,8 @@ const CFODashboard = () => {
                                                     <div className="w-[15%] text-center text-[11px] font-medium text-slate-700">{emp.total - emp.completed}</div>
                                                     <div className="w-[15%] text-center text-[11px] font-medium text-slate-800">{emp.healthScore}</div>
                                                     <div className="w-[25%] text-right pr-1">
-                                                        <span className={`text-[10px] font-semibold px-1.5 py-1 rounded-md capitalize tracking-tighter whitespace-nowrap inline-block text-center w-full ${statusColor}`}>
-                                                            {statusLabel}
+                                                        <span className={`text-[10px] font-semibold px-1.5 py-1 rounded-md capitalize tracking-tighter whitespace-nowrap inline-block text-center w-full ${riskConfig.bg}`}>
+                                                            {riskConfig.label}
                                                         </span>
                                                     </div>
                                                 </div>

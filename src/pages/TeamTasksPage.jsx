@@ -502,25 +502,43 @@ const TeamTasksPage = () => {
     const handleAction = async (taskId, action, extra = {}) => {
         if (!taskId) return;
         const task = tasks.find(t => (t.task_id || t.id) === taskId);
-        if (task?.status === 'SUBMITTED' && !isReviewModalOpen && (action === 'APPROVE' || action === 'REWORK')) {
+        
+        // Only open the review modal if we don't already have feedback (comment) 
+        // and we the review modal isn't already open.
+        const needsReviewModal = (action === 'APPROVE' || (action === 'REWORK' && !extra.comment));
+        
+        if (task?.status === 'SUBMITTED' && !isReviewModalOpen && needsReviewModal) {
             setSelectedTask({ ...task, id: task.id ?? task.task_id });
             setIsReviewModalOpen(true);
             return;
         }
-        const confirmMsg = action === 'CANCEL' ? "Cancel this task?" : action === 'APPROVE' ? "Approve completion?" : action === 'REWORK' ? "Request rework?" : null;
+
+        const confirmMsg = action === 'CANCEL' ? "Cancel this task?" : (action === 'APPROVE' && !isReviewModalOpen) ? "Approve completion?" : null;
         if (confirmMsg && !window.confirm(confirmMsg)) return;
 
         try {
+            const payload = { 
+                action, 
+                comment: extra.comment || "" 
+            };
+            
+            await api.post(`/tasks/${taskId}/transition`, payload, {
+                headers: { 'X-EMP-ID': user.id }
+            });
+
             const pastTense = (act) => {
                 const label = act.charAt(0).toUpperCase() + act.slice(1).toLowerCase();
                 return label.endsWith('e') ? label + 'd' : label + 'ed';
             };
             toast.success(`Task ${pastTense(action)} successfully!`);
-            fetchTasks(pagination.page); fetchMetrics();
+            fetchTasks(pagination.page); 
+            fetchMetrics();
             window.dispatchEvent(new Event('refresh-notifications'));
-            setIsReviewModalOpen(false); setIsReworkModalOpen(false);
+            setIsReviewModalOpen(false); 
+            setIsReworkModalOpen(false);
         } catch (err) {
-            toast.error(err.response?.data?.message || "Action failed");
+            console.error(`[handleAction] ${action} failed:`, err);
+            toast.error(err.response?.data?.message || err.response?.data?.detail || "Action failed");
         }
     };
 
