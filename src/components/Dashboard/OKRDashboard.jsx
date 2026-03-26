@@ -427,7 +427,12 @@ const OKRDashboard = () => {
                 { label: 'Overall Progress', value: `${data.overall_progress || 0}%`, color: 'amber', icon: TrendingUp },
                 { label: 'At Risk Objectives', value: data.at_risk || 0, color: 'rose', icon: AlertTriangle },
                 { label: 'Avg Completion Rate', value: data.avg_health_score || 0, color: 'green', icon: CheckCircle },
-                { label: 'Team Performance Score', value: `${summaryData.team_score_current || 0}%`, color: 'violet', icon: TrendingUp },
+                { 
+                    label: 'Team Performance Score', 
+                    value: `${summaryData.team_score_current || data.overall_progress || 0}%`, 
+                    color: 'violet', 
+                    icon: TrendingUp 
+                },
             ]);
 
             setObjCompletionData((data.objective_completion || []).map(obj => ({
