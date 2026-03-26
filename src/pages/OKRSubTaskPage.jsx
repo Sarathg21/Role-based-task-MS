@@ -160,11 +160,10 @@ const OKRSubTaskPage = () => {
                 api.get(`/reports/cfo/okr/objectives/${targetId}/summary`, { params }).catch(() => ({ data: {} })),
                 api.get(`/reports/cfo/okr/objectives/${targetId}/subtasks`, { params }).catch(() => ({ data: [] })),
                 api.get(`/reports/cfo/okr/objectives/${targetId}/departments`, { params }).catch(() => ({ data: [] })),
-                api.get('/tasks', { params: { parent_task_id: targetId, limit: 200 } }).catch(() => ({ data: [] })),
-                api.get('/tasks', { params: { parent_task_id: targetId, limit: 200, scope: 'org' } }).catch(() => ({ data: [] })),
-                // Broader fetch: get more tasks and filter client-side (in case backend ignores parent_task_id param)
-                // Using limit: 200 to avoid 422 Unprocessable Entity error
-                api.get('/tasks', { params: { limit: 200, scope: 'org' } }).catch(() => ({ data: [] }))
+                api.get('/tasks', { params: { parent_task_id: targetId, limit: 300 } }).catch(() => ({ data: [] })),
+                api.get('/tasks', { params: { parent_task_id: targetId, limit: 300, scope: 'org' } }).catch(() => ({ data: [] })),
+                // Broader fetch: capture more tasks and filter client-side
+                api.get('/tasks', { params: { limit: 300, scope: 'org' } }).catch(() => ({ data: [] }))
             ]);
 
             // Universal array extractor to handle varying backend payloads gracefully
@@ -205,24 +204,34 @@ const OKRSubTaskPage = () => {
                 return true;
             });
 
-            // Use whichever source returned the most results (most complete dataset)
-            if (Array.isArray(rawTasks) && rawTasks.length > 0) {
-                subtasks = rawTasks;
-                 
-                 // Rebuild department groupings structurally so other departments appear
-                 const dMap = {};
-                 subtasks.forEach(t => {
-                     const dName = t.department_name && t.department_name !== 'N/A' ? t.department_name : (t.department && t.department !== 'N/A' ? t.department : 'Unknown');
-                     if (!dMap[dName]) dMap[dName] = { department_name: dName, total_subtasks: 0 };
-                     dMap[dName].total_subtasks++;
-                 });
-                 depts = Object.values(dMap);
-                 
-                 // Sync summary metrics
-                 summary.total_subtasks = subtasks.length;
-                 summary.completed_subtasks = subtasks.filter(s => ['COMPLETED','APPROVED'].includes((s.status||'').toUpperCase())).length;
-                 summary.progress_pct = summary.total_subtasks > 0 ? Math.round((summary.completed_subtasks / summary.total_subtasks) * 100) : 0;
-            } else if (subtasks.length > 0) {
+             // Use the specialized subtask dataset, but supplement it with any broader matches
+             const combined = Array.from(new Map([...subtasks, ...rawTasks].map(s => [s.id || s.task_id, s])).values());
+             if (combined.length > 0) {
+                 subtasks = combined;
+                  
+                  // Rebuild department groupings structurally
+                  const dMap = {};
+                  subtasks.forEach(t => {
+                      const dName = t.department_name && t.department_name !== 'N/A' ? t.department_name : (t.department && t.department !== 'N/A' ? t.department : 'Unknown');
+                      if (!dMap[dName]) dMap[dName] = { department_name: dName, total_subtasks: 0 };
+                      dMap[dName].total_subtasks++;
+                  });
+                  depts = Object.values(dMap);
+                  
+                  // Helper for inclusive status checking
+                  const isDone = (s) => {
+                      const st = (s.status || s.task_status || '').toUpperCase();
+                      return ['COMPLETED', 'APPROVED', 'DONE', 'FINISHED', 'SUCCESS'].includes(st) || s.is_completed === true || s.is_done === true;
+                  };
+
+                  // Sync summary metrics only if manual count is better than server
+                  const manualTotal = subtasks.length;
+                  const manualDone = subtasks.filter(isDone).length;
+
+                  summary.total_subtasks = Math.max(summary.total_subtasks || 0, manualTotal);
+                  summary.completed_subtasks = Math.max(summary.completed_subtasks || 0, manualDone);
+                  summary.progress_pct = summary.total_subtasks > 0 ? Math.round((summary.completed_subtasks / summary.total_subtasks) * 100) : 0;
+             } else if (subtasks.length > 0) {
                  // Safe fallback if depts res failed completely
                  const dMap = {};
                  subtasks.forEach(t => {

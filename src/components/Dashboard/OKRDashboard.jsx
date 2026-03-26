@@ -139,11 +139,11 @@ const OKRDashboard = () => {
             // ✅ COMPREHENSIVE TASK FETCH - catches recurring-generated tasks + standard tasks
             try {
                 // Fetch from all available scopes to ensure recurring-generated tasks are included
-                // Using limit: 200 to avoid 422 Unprocessable Entity errors encountered with higher limits
+                // Increased limit to 300 - more data without hitting 422 Unprocessable Entity
                 const settled = await Promise.allSettled([
-                    api.get('/tasks', { params: { limit: 200 } }),
-                    api.get('/tasks', { params: { limit: 200, scope: 'org' } }),
-                    api.get('/tasks', { params: { limit: 200, scope: 'department' } }).catch(() => null)
+                    api.get('/tasks', { params: { limit: 300 } }),
+                    api.get('/tasks', { params: { limit: 300, scope: 'org' } }),
+                    api.get('/tasks', { params: { limit: 300, scope: 'department' } }).catch(() => null)
                 ]);
                 tasksReq = settled[0];
                 orgTasksReq = settled[1];
@@ -230,8 +230,8 @@ const OKRDashboard = () => {
                     
                     const completedSub = uniqueSubs.filter(s => {
                         const status = getNormStatus(s);
-                        return ['APPROVED', 'COMPLETED', 'FINISHED', 'DONE', 'SUBMITTED'].includes(status) || 
-                               s.is_completed === true || s.is_done === true;
+                        return ['APPROVED', 'COMPLETED', 'FINISHED', 'DONE', 'SUBMITTED', 'SUCCESS'].includes(status) || 
+                               s.is_completed === true || s.is_done === true || s.is_finished === true;
                     }).length;
 
                     const activeSub = uniqueSubs.filter(s => {
@@ -294,20 +294,19 @@ const OKRDashboard = () => {
                         existing.objective_title = mObj.objective_title; 
                         
                         // ONLY fallback to local empirical calculations if server is missing data 
-                        // The user says the backend is showing the correct values now.
-                        if (!existing.department_count || existing.department_count === 0)
-                            existing.department_count = mObj.department_count;
-                        // Always prefer locally-computed subtask counts — the server often returns 0
-                        // because it counts from a cached/derived field that misses recurring tasks.
-                        if (mObj.total_subtasks > 0) {
+                        const sTotal = existing.total_subtasks || existing.sub_total || existing.total_tasks || 0;
+                        const sDone = existing.completed_subtasks || existing.sub_comp || existing.completed_count || existing.completed_tasks || 0;
+
+                        if (mObj.total_subtasks > sTotal) {
                             existing.total_subtasks = mObj.total_subtasks;
-                        } else if (!existing.total_subtasks) {
-                            existing.total_subtasks = 0;
+                        } else {
+                            existing.total_subtasks = sTotal;
                         }
-                        if (mObj.completed_subtasks > 0) {
+
+                        if (mObj.completed_subtasks > sDone) {
                             existing.completed_subtasks = mObj.completed_subtasks;
-                        } else if (!existing.completed_subtasks) {
-                            existing.completed_subtasks = 0;
+                        } else {
+                            existing.completed_subtasks = sDone;
                         }
                         // Recompute progress from the authoritative subtask counts
                         if (existing.total_subtasks > 0) {
