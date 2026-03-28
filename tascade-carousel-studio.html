@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tascade Carousel Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Outfit:wght@600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0f0c29;
+            --bg-purple: #302b63;
+            --bg-blue: #24243e;
+            --glass-bg: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --accent-glow: #6366f1;
+            --text-main: #ffffff;
+            --text-muted: rgba(255, 255, 255, 0.7);
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background: #111;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            margin-bottom: 20px;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .controls {
+            margin-bottom: 30px;
+            background: #222;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            display: flex;
+            gap: 15px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            background: var(--accent-glow);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+
+        .carousel-view {
+            display: flex;
+            gap: 40px;
+            overflow-x: auto;
+            padding-bottom: 40px;
+            max-width: 95vw;
+        }
+
+        /* The Slide */
+        .slide {
+            min-width: 540px; /* 1080px / 2 for preview */
+            width: 540px;
+            height: 540px;
+            background: 
+                url('tascade_carousel_background.png'),
+                linear-gradient(135deg, var(--bg-deep), var(--bg-purple), var(--bg-blue));
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            border-radius: 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+            transition: transform 0.3s;
+        }
+
+        /* Glass Card */
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 40px;
+            width: 85%;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        .logo-area {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--accent-glow);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .brand-name {
+            font-family: 'Outfit', sans-serif;
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .tagline {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+
+        h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 28px;
+            margin: 20px 0;
+            line-height: 1.2;
+        }
+
+        .list-item {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 12px 20px;
+            margin: 10px 0;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+        }
+
+        .list-item i {
+            margin-right: 15px;
+            color: #4ade80;
+        }
+
+        .footer-text {
+            margin-top: 20px;
+            font-size: 14px;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        [contenteditable]:focus {
+            outline: 2px solid var(--accent-glow);
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Tascade Carousel Studio</h1>
+    <p style="color: grey; margin-bottom: 20px;">Edit the text directly on the cards. All changes are local.</p>
+
+    <div class="controls">
+        <button onclick="addSlide()">Add New Slide</button>
+        <button onclick="window.print()">Save as PDF / Print</button>
+    </div>
+
+    <div class="carousel-view" id="carousel">
+        
+        <!-- Slide 1: Intro -->
+        <div class="slide">
+            <div class="glass-card">
+                <div class="logo-area">
+                    <div class="logo-icon">📊</div>
+                    <div class="brand-name" contenteditable="true">TASCADE</div>
+                    <div class="tagline" contenteditable="true">Track. Measure. Succeed.</div>
+                </div>
+                <h2 contenteditable="true">The missing system between <br> <span style="color: #6366f1;">TASKS</span> and <span style="color: #a855f7;">PERFORMANCE</span></h2>
+            </div>
+        </div>
+
+        <!-- Slide 2: Problem -->
+        <div class="slide">
+            <div class="glass-card">
+                <h2 contenteditable="true" style="text-align: left;">Tasks are everywhere:</h2>
+                <div class="list-item" contenteditable="true">📧 Emails</div>
+                <div class="list-item" contenteditable="true">📊 Excel Sheets</div>
+                <div class="list-item" contenteditable="true">💬 WhatsApp Groups</div>
+                <p class="footer-text" contenteditable="true">But ownership is nowhere.</p>
+            </div>
+        </div>
+
+        <!-- Slide 3: Solution -->
+        <div class="slide">
+            <div class="glass-card">
+                <h2 contenteditable="true">Built for execution:</h2>
+                <div class="list-item" contenteditable="true">✅ Role-based access</div>
+                <div class="list-item" contenteditable="true">✅ Structured workflows</div>
+                <div class="list-item" contenteditable="true">✅ Subtasks & hierarchy</div>
+                <div class="list-item" contenteditable="true">✅ Audit trail</div>
+                <div class="list-item" contenteditable="true">✅ Smart reassignment</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function addSlide() {
+            const carousel = document.getElementById('carousel');
+            const newSlide = document.createElement('div');
+            newSlide.className = 'slide';
+            newSlide.innerHTML = `
+                <div class="glass-card">
+                    <h2 contenteditable="true">Headline Goes Here</h2>
+                    <div class="list-item" contenteditable="true">Bullet Point 1</div>
+                    <div class="list-item" contenteditable="true">Bullet Point 2</div>
+                    <div class="list-item" contenteditable="true">Bullet Point 3</div>
+                    <p class="footer-text" contenteditable="true">Supporting subtext or call to action.</p>
+                </div>
+            `;
+            carousel.appendChild(newSlide);
+        }
+    </script>
+</body>
+</html>
