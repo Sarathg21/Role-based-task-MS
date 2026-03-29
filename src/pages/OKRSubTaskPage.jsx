@@ -320,7 +320,7 @@ const OKRSubTaskPage = () => {
                     <div className="bg-white/10 p-2 rounded-lg backdrop-blur-md">
                         <ShieldCheck className="text-blue-200" size={24} />
                     </div>
-                    <h1 className="text-xl font-bold tracking-tight capitalize text-white" style={{ color: 'white', textTransform: 'capitalize' }}>FJ Group — OKR Execution Dashboard</h1>
+                    <h1 className="text-xl font-bold tracking-tight text-white">FJ GROUP OKR Dashboard</h1>
                  </div>
                  <div className="hidden lg:flex items-center gap-3 text-xs font-bold text-white capitalize tracking-tight" style={{ color: 'white', textTransform: 'capitalize' }}>
                     <Calendar size={14} />
