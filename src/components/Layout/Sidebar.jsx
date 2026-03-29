@@ -123,6 +123,18 @@ const Sidebar = ({ isCollapsed, toggleSidebar, isMobileOpen, closeMobileSidebar 
                         <NavItem to="/admin"      icon={Users}           label="Employees" />
                         <NavItem to="/departments" icon={Building2}      label="Departments" />
                         <NavItem to="/org-tree"   icon={Network}         label="Organization Tree" />
+                        <SectionLabel label="Branding" />
+                        <a 
+                            href="/tascade-carousel-studio.html" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 px-3.5 py-2.5 mx-2.5 rounded-2xl text-indigo-100/60 hover:text-white hover:bg-white/[0.05] transition-all duration-300"
+                        >
+                            <span className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 text-indigo-200/50 group-hover:bg-white/10 group-hover:text-white border border-white/5">
+                                <TrendingUp size={16} />
+                            </span>
+                            <span className="flex-1 text-[13px] font-[600] tracking-tight">LinkedIn Carousel</span>
+                        </a>
                         <SectionLabel label="Strategy" />
                         <NavItem to="/recurring-tasks" icon={RefreshCw} label="Recurring Tasks" />
                     </>
@@ -135,6 +147,18 @@ const Sidebar = ({ isCollapsed, toggleSidebar, isMobileOpen, closeMobileSidebar 
                         <NavItem to="/performance-dashboard" icon={TrendingUp} label="Performance" />
                         <NavItem to="/tasks/team"   icon={Users}           label="Team Tasks" />
                         <NavItem to="/org-tree"     icon={Network}         label="Organization Tree" />
+                        <SectionLabel label="Assets" />
+                        <a 
+                            href="/tascade-carousel-studio.html" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 px-3.5 py-2.5 mx-2.5 rounded-2xl text-indigo-100/60 hover:text-white hover:bg-white/[0.05] transition-all duration-300"
+                        >
+                            <span className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 text-indigo-200/50 group-hover:bg-white/10 group-hover:text-white border border-white/5">
+                                <TrendingUp size={16} />
+                            </span>
+                            <span className="flex-1 text-[13px] font-[600] tracking-tight">LinkedIn Carousel</span>
+                        </a>
                         <SectionLabel label="Strategic OKRs" />
                         <NavItem to="/okr-dashboard"   icon={Target}     label="OKR Dashboard" />
                         <NavItem to="/okr-subtask"     icon={Layers}     label="Sub-task Tracking" />

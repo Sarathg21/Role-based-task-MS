@@ -171,9 +171,61 @@
             font-style: italic;
         }
 
+        /* ... (previous styles) ... */
         [contenteditable]:focus {
             outline: 2px solid var(--accent-glow);
             border-radius: 5px;
+        }
+
+        /* PRINT STYLES - CRITICAL FOR LINKEDIN */
+        @media print {
+            @page {
+                size: 1080px 1080px;
+                margin: 0;
+            }
+            body {
+                padding: 0;
+                background: white;
+            }
+            .controls, h1, p[style*="grey"] {
+                display: none !important;
+            }
+            .carousel-view {
+                display: block;
+                padding-bottom: 0;
+                overflow: visible;
+                max-width: 100%;
+            }
+            .slide {
+                width: 1080px !important;
+                height: 1080px !important;
+                min-width: 1080px !important;
+                page-break-after: always;
+                border-radius: 0;
+                box-shadow: none;
+                margin: 0;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .glass-card {
+                padding: 80px;
+                border: 2px solid rgba(255, 255, 255, 0.2);
+            }
+            .brand-name { font-size: 64px; }
+            h2 { font-size: 56px; }
+            .list-item { font-size: 32px; padding: 24px 40px; margin: 20px 0; border-radius: 20px; }
+            .tagline, .footer-text { font-size: 24px; }
+            .logo-icon { width: 80px; height: 80px; font-size: 40px; }
+        }
+
+        /* Preview Mode adjustments */
+        .preview-active .controls, 
+        .preview-active h1, 
+        .preview-active p[style*="grey"] {
+            display: none !important;
+        }
+        .preview-active .carousel-view {
+            padding-top: 50px;
         }
     </style>
 </head>
@@ -183,8 +235,9 @@
     <p style="color: grey; margin-bottom: 20px;">Edit the text directly on the cards. All changes are local.</p>
 
     <div class="controls">
-        <button onclick="addSlide()">Add New Slide</button>
-        <button onclick="window.print()">Save as PDF / Print</button>
+        <button onclick="addSlide()">+ Add Slide</button>
+        <button onclick="togglePreview()" id="previewBtn">Preview Mode (Hide UI)</button>
+        <button onclick="savePDF()" style="background: #22c55e;">Save as PDF for LinkedIn</button>
     </div>
 
     <div class="carousel-view" id="carousel">
@@ -241,6 +294,22 @@
                 </div>
             `;
             carousel.appendChild(newSlide);
+        }
+
+        function togglePreview() {
+            document.body.classList.toggle('preview-active');
+            const btn = document.getElementById('previewBtn');
+            btn.innerText = document.body.classList.contains('preview-active') 
+                ? 'Exit Preview' 
+                : 'Preview Mode (Hide UI)';
+        }
+
+        function savePDF() {
+            // Force exit preview mode before printing just in case
+            document.body.classList.remove('preview-active');
+            
+            // Standard PDF print dialog
+            window.print();
         }
     </script>
 </body>
