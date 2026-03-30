@@ -3,294 +3,690 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tascade Carousel Studio</title>
+    <title>Tascade LinkedIn Carousel Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Outfit:wght@600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,500;1,700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <!-- PDF Generation Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
-        :root {
-            --bg-deep: #0f0c29;
-            --bg-purple: #302b63;
-            --bg-blue: #24243e;
-            --glass-bg: rgba(255, 255, 255, 0.08);
-            --glass-border: rgba(255, 255, 255, 0.15);
-            --accent-glow: #6366f1;
-            --text-main: #ffffff;
-            --text-muted: rgba(255, 255, 255, 0.7);
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            margin: 0;
             font-family: 'Inter', sans-serif;
-            background: #111;
+            background: #0a0a0f;
             color: white;
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 40px;
+            padding: 40px 20px;
+            min-height: 100vh;
         }
 
-        h1 {
+        /* ── Studio Header ── */
+        .studio-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 10px;
+        }
+        .studio-logo {
+            width: 48px; height: 48px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px;
+        }
+        .studio-title {
             font-family: 'Outfit', sans-serif;
-            margin-bottom: 20px;
-            background: linear-gradient(to right, #818cf8, #c084fc);
+            font-size: 28px; font-weight: 800;
+            background: linear-gradient(to right, #60a5fa, #c084fc);
+            background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+        .studio-subtitle { color: #6b7280; font-size: 13px; margin-bottom: 24px; }
 
+        /* ── Controls ── */
         .controls {
-            margin-bottom: 30px;
-            background: #222;
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid #333;
-            display: flex;
-            gap: 15px;
+            display: flex; gap: 12px; flex-wrap: wrap;
+            margin-bottom: 36px;
+            background: #111827;
+            padding: 16px 20px;
+            border-radius: 14px;
+            border: 1px solid #1f2937;
+        }
+        .controls button {
+            padding: 10px 22px; border-radius: 10px; border: none;
+            font-weight: 700; font-size: 13px; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-add { background: #1d4ed8; color: white; }
+        .btn-preview { background: #374151; color: #d1d5db; }
+        .btn-pdf { background: #16a34a; color: white; }
+        .controls button:hover { transform: translateY(-2px); filter: brightness(1.15); }
+
+        /* ── Carousel Scroll Track ── */
+        .carousel-track {
+            display: flex; gap: 32px;
+            overflow-x: auto; padding-bottom: 30px;
+            max-width: 100vw;
+            scrollbar-width: thin; scrollbar-color: #374151 transparent;
         }
 
-        button {
-            padding: 10px 20px;
-            border-radius: 8px;
-            border: none;
-            background: var(--accent-glow);
-            color: white;
-            font-weight: 600;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-
-        button:hover {
-            transform: translateY(-2px);
-            filter: brightness(1.1);
-        }
-
-        .carousel-view {
-            display: flex;
-            gap: 40px;
-            overflow-x: auto;
-            padding-bottom: 40px;
-            max-width: 95vw;
-        }
-
-        /* The Slide */
+        /* ══════════════════════════════════════
+           THE SLIDE — 540×540 preview (1080×1080 on export)
+        ══════════════════════════════════════ */
         .slide {
-            min-width: 540px; /* 1080px / 2 for preview */
-            width: 540px;
-            height: 540px;
-            background: 
-                url('tascade_carousel_background.png'),
-                linear-gradient(135deg, var(--bg-deep), var(--bg-purple), var(--bg-blue));
+            flex-shrink: 0;
+            width: 540px; height: 540px;
+            position: relative;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.7);
+        }
+
+        /* Slide backgrounds — photo + dark overlay */
+        .slide-bg {
+            position: absolute; inset: 0;
             background-size: cover;
             background-position: center;
+            background-repeat: no-repeat;
+        }
+        .slide-bg::after {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(145deg,
+                rgba(3,5,15,0.42) 0%,
+                rgba(5,10,28,0.38) 40%,
+                rgba(8,14,30,0.35) 70%,
+                rgba(2,4,10,0.48) 100%);
+        }
+
+        /* Gold shimmer overlay on top of photos */
+        .slide-bg::before {
+            content: '';
+            position: absolute; inset: 0; z-index: 1;
+            background-image:
+                radial-gradient(circle at 15% 85%, rgba(234,179,8,0.45) 0px, transparent 4px),
+                radial-gradient(circle at 25% 60%, rgba(59,130,246,0.6) 0px, transparent 3px),
+                radial-gradient(circle at 40% 30%, rgba(234,179,8,0.35) 0px, transparent 3px),
+                radial-gradient(circle at 55% 80%, rgba(96,165,250,0.5) 0px, transparent 3px),
+                radial-gradient(circle at 65% 45%, rgba(234,179,8,0.4) 0px, transparent 4px),
+                radial-gradient(circle at 80% 70%, rgba(234,179,8,0.5) 0px, transparent 3px),
+                radial-gradient(circle at 85% 25%, rgba(59,130,246,0.5) 0px, transparent 3px),
+                radial-gradient(circle at 70% 10%, rgba(234,179,8,0.35) 0px, transparent 3px);
+        }
+
+        /* Per-slide unique backgrounds */
+        .slide-cover    .slide-bg { background-image: url('slide1_busy_team.png'); }
+        .slide-problem  .slide-bg { background-image: url('slide2_real_problem.png'); }
+        .slide-cost     .slide-bg { background-image: url('slide3_cost_business.png'); }
+        .slide-insight  .slide-bg { background-image: url('slide4_insight.png'); }
+        .slide-meet     .slide-bg { background-image: url('slide5_meet_tascade.png'); }
+        .slide-cta      .slide-bg { background-image: url('slide6_chaos_growth.png'); }
+
+        /* ── Layout ── */
+        .slide-content {
             position: relative;
-            border-radius: 20px;
+            z-index: 5;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 0 100px;
+        }
+
+        /* ── Brand Logos ── */
+        .tascade-logo-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 60px;
+        }
+        .tascade-icon {
+            width: 58px; height: 58px;
+            display: flex; align-items: center; justify-content: center;
             overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 30px;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
-            transition: transform 0.3s;
+            flex-shrink: 0;
         }
-
-        /* Glass Card */
-        .glass-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 40px;
-            width: 85%;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-            text-align: center;
+        .tascade-icon img {
+            width: 100%; height: 100%; object-fit: contain;
         }
-
-        .logo-area {
-            margin-bottom: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .logo-icon {
-            width: 40px;
-            height: 40px;
-            background: var(--accent-glow);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 10px;
-            box-shadow: 0 0 20px var(--accent-glow);
-        }
-
-        .brand-name {
+        .tascade-wordmark { display: flex; flex-direction: column; gap: 2px; }
+        .tascade-name {
             font-family: 'Outfit', sans-serif;
-            font-size: 32px;
-            font-weight: 800;
-            letter-spacing: 2px;
-            text-transform: uppercase;
+            font-size: 32px; font-weight: 800;
+            color: white; line-height: 1;
+            letter-spacing: -0.5px;
+            position: relative;
+        }
+        .tascade-name span { color: #3b82f6; }
+
+        /* ── Zenith Logo Position ── */
+        .zenith-logo {
+            position: absolute; top: 18px; right: 20px;
+            width: 90px; height: 65px;
+            z-index: 10;
+            overflow: hidden;
+        }
+        .zenith-logo img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            object-position: center 30%;
+            filter: brightness(1.2) drop-shadow(0 0 10px rgba(59, 130, 246, 0.4));
         }
 
-        .tagline {
-            font-size: 14px;
-            color: var(--text-muted);
-            margin-top: 5px;
-        }
+        /* ── Utility: Logo Cleaning for Export ── */
+        /* Since html2canvas misses filters, we clean them via canvas on-demand */
+        /* No special export cleanup needed as filters are now handled via canvas or simplified */
 
-        h2 {
+        /* ── Slide-specific layouts ── */
+
+        /* COVER slide */
+        .slide-cover .slide-content {
+            justify-content: space-between;
+        }
+        .cover-body {
+            flex: 1; display: flex; flex-direction: column;
+            justify-content: center; gap: 10px;
+        }
+        .cover-headline {
             font-family: 'Outfit', sans-serif;
-            font-size: 28px;
-            margin: 20px 0;
-            line-height: 1.2;
+            font-size: 52px; font-weight: 900;
+            line-height: 1.1;
+            color: white;
+        }
+        .cover-headline .gold { color: #f59e0b; }
+        .cover-sub {
+            font-size: 20px; font-weight: 500;
+            color: rgba(255,255,255,0.8);
+            line-height: 1.5;
+            margin-top: 10px;
+        }
+        .cover-cta {
+            display: inline-flex; align-items: center; gap: 10px;
+            background: linear-gradient(90deg, #1d4ed8, #3b82f6);
+            color: white; font-weight: 700; font-size: 18px;
+            padding: 14px 28px; border-radius: 50px;
+            width: fit-content; margin-top: 16px;
+            box-shadow: 0 4px 20px rgba(59,130,246,0.5);
         }
 
-        .list-item {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 12px 20px;
-            margin: 10px 0;
-            text-align: left;
-            display: flex;
-            align-items: center;
-            font-weight: 500;
+        /* PROBLEM slide */
+        .slide-problem .slide-content { justify-content: space-between; }
+        .problem-headline {
+            font-family: 'Outfit', sans-serif;
+            font-size: 42px; font-weight: 900; line-height: 1.1;
+            color: white; margin-bottom: 8px;
+        }
+        .problem-headline .gold { color: #f59e0b; }
+        .problem-sub { font-size: 18px; color: rgba(255,255,255,0.6); margin-bottom: 20px; }
+        .x-list { display: flex; flex-direction: column; gap: 14px; }
+        .x-item {
+            display: flex; align-items: flex-start; gap: 14px;
+            font-size: 18px; font-weight: 600; color: rgba(255,255,255,0.95);
+            line-height: 1.35;
+        }
+        .x-mark {
+            width: 22px; height: 22px; flex-shrink: 0;
+            background: rgba(239,68,68,0.2);
+            border: 1px solid rgba(239,68,68,0.5);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 900; color: #f87171;
+            margin-top: 1px;
+        }
+        .x-item .highlight { color: #f59e0b; font-weight: 700; font-style: italic; }
+        .x-item .highlight-blue { color: #60a5fa; font-weight: 700; }
+
+        /* COST slide */
+        .slide-cost .slide-content { justify-content: space-between; }
+        .cost-headline {
+            font-family: 'Outfit', sans-serif;
+            font-size: 38px; font-weight: 900; line-height: 1.2; color: white;
+        }
+        .cost-headline .gold { color: #f59e0b; font-style: italic; }
+
+        /* INSIGHT slide */
+        .slide-insight .slide-content {
+            justify-content: center; align-items: center; text-align: center;
+        }
+        .insight-eyebrow {
+            font-size: 14px; font-weight: 800; letter-spacing: 4px;
+            text-transform: uppercase; color: #f59e0b; margin-bottom: 20px;
+        }
+        .insight-headline {
+            font-family: 'Outfit', sans-serif;
+            font-size: 48px; font-weight: 900; line-height: 1.1;
+            color: white; margin-bottom: 30px;
+        }
+        .insight-equations { display: flex; flex-direction: column; gap: 14px; }
+        .equation-row {
+            display: flex; align-items: center; justify-content: center; gap: 18px;
+            font-size: 28px; font-weight: 800;
+        }
+        .eq-term { color: rgba(255,255,255,0.95); }
+        .eq-ne { color: #ef4444; font-size: 32px; }
+        .eq-eq { color: #22c55e; font-size: 32px; }
+        .eq-result { color: #f59e0b; }
+        .equation-divider {
+            width: 160px; height: 1px;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
+            margin: 0 auto;
         }
 
-        .list-item i {
-            margin-right: 15px;
-            color: #4ade80;
+        /* MEET TASCADE slide */
+        .slide-meet .slide-content { justify-content: space-between; }
+        .meet-headline {
+            font-family: 'Outfit', sans-serif;
+            font-size: 44px; font-weight: 900; line-height: 1.1; color: white;
+        }
+        .meet-sub {
+            font-size: 16px; color: rgba(255,255,255,0.6);
+            letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px;
+        }
+        .check-list { display: flex; flex-direction: column; gap: 12px; }
+        .check-item {
+            display: flex; align-items: center; gap: 14px;
+            font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.95);
+        }
+        .check-mark {
+            width: 22px; height: 22px; flex-shrink: 0;
+            background: rgba(34,197,94,0.2);
+            border: 1px solid rgba(34,197,94,0.5);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; color: #4ade80;
+        }
+        .meet-footer {
+            padding-top: 16px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        .meet-footer-text {
+            font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.5;
+        }
+        .meet-footer-email { color: #60a5fa; font-weight: 700; }
+
+        /* CTA (Chaos → Growth) slide */
+        .slide-cta .slide-content {
+            justify-content: space-between; align-items: center; text-align: center;
+        }
+        .cta-eyebrow {
+            font-size: 14px; font-weight: 800; letter-spacing: 4px;
+            text-transform: uppercase; color: #f59e0b; margin-bottom: 12px;
+        }
+        .cta-headline {
+            font-family: 'Outfit', sans-serif;
+            font-size: 48px; font-weight: 900; line-height: 1.1; color: white;
+        }
+        .cta-headline .chaos { color: #f87171; }
+        .cta-headline .arrow { color: rgba(255,255,255,0.3); margin: 0 8px; }
+        .cta-headline .growth { color: #4ade80; }
+        .cta-body {
+            flex: 1; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; gap: 16px;
+            padding: 30px 0;
+        }
+        .cta-desc {
+            font-size: 22px; font-weight: 500;
+            color: rgba(255,255,255,0.65); line-height: 1.6;
+            max-width: 500px; text-align: center;
+        }
+        .cta-btn {
+            display: inline-flex; align-items: center; gap: 12px;
+            background: linear-gradient(90deg, #1d4ed8, #3b82f6);
+            color: white; font-weight: 800; font-size: 20px; letter-spacing: 0.5px;
+            padding: 18px 40px; border-radius: 60px; margin-top: 20px;
+            box-shadow: 0 8px 40px rgba(59,130,246,0.6);
+        }
+        .cta-contact {
+            font-size: 18px; color: rgba(255,255,255,0.4);
+            margin-top: 12px;
+        }
+        .cta-contact span { color: #60a5fa; font-weight: 600; }
+
+        /* ── Slide number badge ── */
+        .slide-num {
+            position: absolute; bottom: 35px; right: 40px; z-index: 10;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.35);
+            font-size: 16px; font-weight: 700; letter-spacing: 1px;
+            padding: 8px 16px; border-radius: 20px;
+            backdrop-filter: blur(8px);
         }
 
-        .footer-text {
-            margin-top: 20px;
-            font-size: 14px;
-            color: var(--text-muted);
-            font-style: italic;
-        }
-
-        /* ... (previous styles) ... */
+        /* ── Contenteditable focus ── */
         [contenteditable]:focus {
-            outline: 2px solid var(--accent-glow);
-            border-radius: 5px;
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+            border-radius: 4px;
         }
 
-        /* PRINT STYLES - CRITICAL FOR LINKEDIN */
+        /* ═══════════════════════════════════════
+           PRINT / PDF EXPORT — LinkedIn 1080×1080
+        ═══════════════════════════════════════ */
         @media print {
-            @page {
-                size: 1080px 1080px;
-                margin: 0;
-            }
-            body {
-                padding: 0;
-                background: white;
-            }
-            .controls, h1, p[style*="grey"] {
-                display: none !important;
-            }
-            .carousel-view {
-                display: block;
-                padding-bottom: 0;
-                overflow: visible;
-                max-width: 100%;
+            @page { size: 1080px 1080px; margin: 0; }
+            body { padding: 0; background: #050810; }
+            .controls, h1, .studio-header, .studio-subtitle, p[style*="grey"] { display: none !important; }
+            .carousel-track {
+                display: block; padding-bottom: 0;
+                overflow: visible; max-width: 100%;
             }
             .slide {
-                width: 1080px !important;
-                height: 1080px !important;
-                min-width: 1080px !important;
+                width: 1080px !important; height: 1080px !important; min-width: 1080px !important;
+                border-radius: 0 !important;
                 page-break-after: always;
-                border-radius: 0;
                 box-shadow: none;
-                margin: 0;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
-            .glass-card {
-                padding: 80px;
-                border: 2px solid rgba(255, 255, 255, 0.2);
-            }
-            .brand-name { font-size: 64px; }
-            h2 { font-size: 56px; }
-            .list-item { font-size: 32px; padding: 24px 40px; margin: 20px 0; border-radius: 20px; }
-            .tagline, .footer-text { font-size: 24px; }
-            .logo-icon { width: 80px; height: 80px; font-size: 40px; }
+            .slide-content { padding: 72px 76px; }
+            .tascade-icon { width: 96px; height: 96px; font-size: 44px; border-radius: 24px; }
+            .tascade-name { font-size: 52px; }
+            .tascade-tagline { font-size: 18px; }
+            .cover-headline { font-size: 76px; }
+            .cover-sub { font-size: 28px; }
+            .cover-cta { font-size: 22px; padding: 18px 40px; }
+            .problem-headline { font-size: 60px; }
+            .problem-sub { font-size: 24px; }
+            .x-item { font-size: 28px; gap: 20px; }
+            .x-mark { width: 36px; height: 36px; font-size: 18px; }
+            .x-list { gap: 20px; }
+            .cost-headline { font-size: 52px; }
+            .insight-headline { font-size: 68px; }
+            .equation-row { font-size: 40px; gap: 24px; }
+            .eq-ne, .eq-eq { font-size: 48px; }
+            .meet-headline { font-size: 64px; }
+            .meet-sub { font-size: 24px; }
+            .check-item { font-size: 28px; gap: 20px; }
+            .check-mark { width: 36px; height: 36px; font-size: 18px; }
+            .cta-headline { font-size: 84px; }
+            .cta-desc { font-size: 30px; }
+            .cta-btn { font-size: 26px; padding: 22px 56px; }
+            .slide-num { font-size: 18px; padding: 8px 18px; top: 28px; right: 28px; }
         }
 
-        /* Preview Mode adjustments */
-        .preview-active .controls, 
-        .preview-active h1, 
-        .preview-active p[style*="grey"] {
-            display: none !important;
-        }
-        .preview-active .carousel-view {
-            padding-top: 50px;
-        }
+        /* Preview Mode */
+        .preview-active .controls,
+        .preview-active .studio-header,
+        .preview-active .studio-subtitle { display: none !important; }
+        .preview-active { padding-top: 30px; }
+
+        /* Exporting state — hide UI but keep slides visible */
+        .exporting .controls,
+        .exporting .studio-header,
+        .exporting .studio-subtitle { visibility: hidden; }
     </style>
 </head>
 <body>
 
-    <h1>Tascade Carousel Studio</h1>
-    <p style="color: grey; margin-bottom: 20px;">Edit the text directly on the cards. All changes are local.</p>
+    <!-- Studio Header -->
+    <div class="studio-header">
+        <div class="studio-logo" style="background:none;"><img src="/images/logo.png" alt="Logo" style="width:100%; height:100%; object-fit:contain;"></div>
+        <div class="studio-title">Tascade Carousel Studio</div>
+    </div>
+    <p class="studio-subtitle">Click any text on the cards to edit it. All changes are local.</p>
 
+    <!-- Controls -->
     <div class="controls">
-        <button onclick="addSlide()">+ Add Slide</button>
-        <button onclick="togglePreview()" id="previewBtn">Preview Mode (Hide UI)</button>
-        <button onclick="savePDF()" style="background: #22c55e;">Save as PDF for LinkedIn</button>
+        <button class="btn-add" onclick="addSlide()">+ Add Slide</button>
+        <button class="btn-preview" onclick="togglePreview()" id="previewBtn">👁 Preview Mode</button>
+        <button class="btn-pdf" id="pngBtn" style="background:#0284c7;" onclick="savePNGs()">📸 Save PNG Slides (Individual)</button>
+        <button class="btn-pdf" id="pdfBtn" style="background:#16a34a;" onclick="savePDF()">📄 Save as Single PDF (Full Reel)</button>
     </div>
 
-    <div class="carousel-view" id="carousel">
-        
-        <!-- Slide 1: Intro -->
-        <div class="slide">
-            <div class="glass-card">
-                <div class="logo-area">
-                    <div class="logo-icon">📊</div>
-                    <div class="brand-name" contenteditable="true">TASCADE</div>
-                    <div class="tagline" contenteditable="true">Track. Measure. Succeed.</div>
+    <!-- Carousel Cards -->
+    <div class="carousel-track" id="carousel">
+
+        <!-- ═══ SLIDE 1: COVER ═══ -->
+        <div class="slide slide-cover">
+            <div class="slide-bg"></div>
+            <div class="zenith-logo"><img src="/images/zenith_logo.jpeg" alt="Zenith Logo"></div>
+            <span class="slide-num">01</span>
+            <div class="slide-content">
+                <div class="tascade-logo-row">
+                    <div class="tascade-icon"><img src="/images/logo.png" alt="Logo"></div>
+                    <div class="tascade-wordmark">
+                        <div class="tascade-name" contenteditable="true">Tas<span>cade</span></div>
+                        <div class="tascade-tagline" contenteditable="true">Track • Measure • Succeed</div>
+                    </div>
                 </div>
-                <h2 contenteditable="true">The missing system between <br> <span style="color: #6366f1;">TASKS</span> and <span style="color: #a855f7;">PERFORMANCE</span></h2>
+                <div class="cover-body">
+                    <div class="cover-headline" contenteditable="true">
+                        Is Your Team <span class="gold">Busy…</span><br>
+                        But Not Productive?
+                    </div>
+                    <div class="cover-sub" contenteditable="true">
+                        Work is happening.<br>Progress is not.
+                    </div>
+                    <div class="cover-cta" contenteditable="true">▶ Swipe to discover why →</div>
+                </div>
             </div>
         </div>
 
-        <!-- Slide 2: Problem -->
-        <div class="slide">
-            <div class="glass-card">
-                <h2 contenteditable="true" style="text-align: left;">Tasks are everywhere:</h2>
-                <div class="list-item" contenteditable="true">📧 Emails</div>
-                <div class="list-item" contenteditable="true">📊 Excel Sheets</div>
-                <div class="list-item" contenteditable="true">💬 WhatsApp Groups</div>
-                <p class="footer-text" contenteditable="true">But ownership is nowhere.</p>
+        <!-- ═══ SLIDE 2: THE REAL PROBLEM ═══ -->
+        <div class="slide slide-problem">
+            <div class="slide-bg"></div>
+            <div class="zenith-logo"><img src="/images/zenith_logo.jpeg" alt="Zenith Logo"></div>
+            <span class="slide-num">02</span>
+            <div class="slide-content">
+                <div class="tascade-logo-row">
+                    <div class="tascade-icon"><img src="/images/logo.png" alt="Logo"></div>
+                    <div class="tascade-wordmark">
+                        <div class="tascade-name" contenteditable="true">Tas<span>cade</span></div>
+                        <div class="tascade-tagline" contenteditable="true">Track • Measure • Succeed</div>
+                    </div>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <div class="problem-headline" contenteditable="true">
+                        The <span class="gold">Real</span> Problem:
+                    </div>
+                    <div class="problem-sub" contenteditable="true">Why most teams fail to grow despite working hard</div>
+                </div>
+                <div class="x-list">
+                    <div class="x-item">
+                        <span class="x-mark">✕</span>
+                        <span contenteditable="true"><span class="highlight">"I'm busy"</span> — but output is unclear</span>
+                    </div>
+                    <div class="x-item">
+                        <span class="x-mark">✕</span>
+                        <span contenteditable="true">No real-time <span class="highlight-blue">visibility</span> into progress</span>
+                    </div>
+                    <div class="x-item">
+                        <span class="x-mark">✕</span>
+                        <span contenteditable="true">Managers chasing updates manually</span>
+                    </div>
+                    <div class="x-item">
+                        <span class="x-mark">✕</span>
+                        <span contenteditable="true"><span class="highlight">Hidden delays</span> & inefficiencies</span>
+                    </div>
+                    <div class="x-item">
+                        <span class="x-mark">✕</span>
+                        <span contenteditable="true">No ownership or <span class="highlight">accountability</span></span>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Slide 3: Solution -->
-        <div class="slide">
-            <div class="glass-card">
-                <h2 contenteditable="true">Built for execution:</h2>
-                <div class="list-item" contenteditable="true">✅ Role-based access</div>
-                <div class="list-item" contenteditable="true">✅ Structured workflows</div>
-                <div class="list-item" contenteditable="true">✅ Subtasks & hierarchy</div>
-                <div class="list-item" contenteditable="true">✅ Audit trail</div>
-                <div class="list-item" contenteditable="true">✅ Smart reassignment</div>
+        <!-- ═══ SLIDE 3: WHAT THIS COSTS ═══ -->
+        <div class="slide slide-cost">
+            <div class="slide-bg"></div>
+            <div class="zenith-logo"><img src="/images/zenith_logo.jpeg" alt="Zenith Logo"></div>
+            <span class="slide-num">03</span>
+            <div class="slide-content">
+                <div class="tascade-logo-row">
+                    <div class="tascade-icon"><img src="/images/logo.png" alt="Logo"></div>
+                    <div class="tascade-wordmark">
+                        <div class="tascade-name" contenteditable="true">Tas<span>cade</span></div>
+                        <div class="tascade-tagline" contenteditable="true">Track • Measure • Succeed</div>
+                    </div>
+                </div>
+                <div style="margin-bottom: 24px;">
+                    <div class="cost-headline" contenteditable="true">
+                        What <span class="gold">This</span> Costs<br>Your Business:
+                    </div>
+                </div>
+                <div class="x-list">
+                    <div class="x-item">
+                        <span class="x-mark">✕</span>
+                        <span contenteditable="true">Missed deadlines, missed targets</span>
+                    </div>
+                    <div class="x-item">
+                        <span class="x-mark">✕</span>
+                        <span contenteditable="true">Poor performance tracking</span>
+                    </div>
+                    <div class="x-item">
+                        <span class="x-mark">✕</span>
+                        <span contenteditable="true">Inefficient, disengaged teams</span>
+                    </div>
+                    <div class="x-item">
+                        <span class="x-mark">✕</span>
+                        <span contenteditable="true">Lost growth opportunities</span>
+                    </div>
+                </div>
+                <div class="cover-cta" style="margin-top: 30px;" contenteditable="true">
+                    Sound familiar? → Here's the fix
+                </div>
             </div>
         </div>
 
-    </div>
+        <!-- ═══ SLIDE 4: THE INSIGHT ═══ -->
+        <div class="slide slide-insight">
+            <div class="slide-bg"></div>
+            <div class="zenith-logo"><img src="/images/zenith_logo.jpeg" alt="Zenith Logo"></div>
+            <span class="slide-num">04</span>
+            <div class="slide-content">
+                <div class="tascade-logo-row" style="justify-content: center; margin-bottom: 40px;">
+                    <div class="tascade-icon"><img src="/images/logo.png" alt="Logo"></div>
+                    <div class="tascade-wordmark">
+                        <div class="tascade-name" contenteditable="true">Tas<span>cade</span></div>
+                    </div>
+                </div>
+                <div class="insight-eyebrow" contenteditable="true">A KEY INSIGHT</div>
+                <div class="insight-headline" contenteditable="true">The Insight:</div>
+                <div class="insight-equations">
+                    <div class="equation-row">
+                        <span class="eq-term" contenteditable="true">Activity</span>
+                        <span class="eq-ne">≠</span>
+                        <span class="eq-result" contenteditable="true">Productivity</span>
+                    </div>
+                    <div class="equation-divider"></div>
+                    <div class="equation-row">
+                        <span class="eq-term" contenteditable="true">Visibility</span>
+                        <span class="eq-eq">=</span>
+                        <span class="eq-result" contenteditable="true">Control</span>
+                    </div>
+                    <div class="equation-divider"></div>
+                    <div class="equation-row">
+                        <span class="eq-term" contenteditable="true">Control</span>
+                        <span class="eq-eq">=</span>
+                        <span class="eq-result" contenteditable="true">Performance</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ SLIDE 5: MEET TASCADE ═══ -->
+        <div class="slide slide-meet">
+            <div class="slide-bg"></div>
+            <div class="zenith-logo"><img src="/images/zenith_logo.jpeg" alt="Zenith Logo"></div>
+            <span class="slide-num">05</span>
+            <div class="slide-content">
+                <div class="tascade-logo-row">
+                    <div class="tascade-icon"><img src="/images/logo.png" alt="Logo"></div>
+                    <div class="tascade-wordmark">
+                        <div class="tascade-name" contenteditable="true">Tas<span>cade</span></div>
+                        <div class="tascade-tagline" contenteditable="true">Track • Measure • Succeed</div>
+                    </div>
+                </div>
+                <div style="margin-top: 10px;">
+                    <div style="color: #f59e0b; font-weight:800; text-transform:uppercase; letter-spacing:3px; margin-bottom: 12px;" contenteditable="true">The Solution</div>
+                    <div class="meet-headline" contenteditable="true">The Power of Tascade</div>
+                    <div class="meet-sub" contenteditable="true">Your Partner in Performance</div>
+                </div>
+                <div class="check-list">
+                    <div class="check-item">
+                        <span class="check-mark">✓</span>
+                        <span contenteditable="true">Real-time Task Tracking</span>
+                    </div>
+                    <div class="check-item">
+                        <span class="check-mark">✓</span>
+                        <span contenteditable="true">Automated Productivity Scoring</span>
+                    </div>
+                    <div class="check-item">
+                        <span class="check-mark">✓</span>
+                        <span contenteditable="true">Comprehensive Team Dashboards</span>
+                    </div>
+                    <div class="check-item">
+                        <span class="check-mark">✓</span>
+                        <span contenteditable="true">Eliminate Management Overhead</span>
+                    </div>
+                </div>
+                <div class="meet-footer">
+                    <div class="meet-footer-text" contenteditable="true">
+                        Ready to transform your productivity?<br>
+                        Contact us at <span class="meet-footer-email">support@zenith.com</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ SLIDE 6: TRANSFORMATION ═══ -->
+        <div class="slide slide-cta">
+            <div class="slide-bg"></div>
+            <div class="zenith-logo"><img src="/images/zenith_logo.jpeg" alt="Zenith Logo"></div>
+            <span class="slide-num">06</span>
+            <div class="slide-content">
+                <div class="tascade-logo-row">
+                    <div class="tascade-icon"><img src="/images/logo.png" alt="Logo"></div>
+                    <div class="tascade-wordmark">
+                        <div class="tascade-name" contenteditable="true">Tas<span>cade</span></div>
+                    </div>
+                </div>
+                <div class="cta-eyebrow" contenteditable="true">THE TRANSFORMATION</div>
+                <div class="cta-headline" contenteditable="true">
+                    <span class="chaos">Chaos</span> <span class="arrow">→</span> <span class="growth">Growth</span>
+                </div>
+                <div class="cta-body">
+                    <div class="cta-desc" contenteditable="true">
+                        Don’t just work hard.<br>Work <span style="color:#22c55e;">visible</span>. Work <span style="color:#f59e0b;">measured</span>.
+                    </div>
+                    <div class="cta-btn" contenteditable="true">
+                        Start Your Free Trial →
+                    </div>
+                    <div class="cta-contact" contenteditable="true">
+                        Visit <span>www.zenith.com</span> to learn more.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- end carousel-track -->
 
     <script>
         function addSlide() {
             const carousel = document.getElementById('carousel');
+            const slideNum = carousel.children.length + 1;
             const newSlide = document.createElement('div');
-            newSlide.className = 'slide';
+            newSlide.className = 'slide slide-meet';
             newSlide.innerHTML = `
-                <div class="glass-card">
-                    <h2 contenteditable="true">Headline Goes Here</h2>
-                    <div class="list-item" contenteditable="true">Bullet Point 1</div>
-                    <div class="list-item" contenteditable="true">Bullet Point 2</div>
-                    <div class="list-item" contenteditable="true">Bullet Point 3</div>
-                    <p class="footer-text" contenteditable="true">Supporting subtext or call to action.</p>
+                <div class="slide-bg"></div>
+                <span class="slide-num">${String(slideNum).padStart(2,'0')}</span>
+                <div class="slide-content">
+                    <div>
+                        <div class="meet-headline" contenteditable="true">New Slide Headline</div>
+                        <div class="meet-sub" contenteditable="true">Your supporting tagline here</div>
+                    </div>
+                    <div class="check-list">
+                        <div class="check-item"><span class="check-mark">✓</span><span contenteditable="true">Key Point One</span></div>
+                        <div class="check-item"><span class="check-mark">✓</span><span contenteditable="true">Key Point Two</span></div>
+                        <div class="check-item"><span class="check-mark">✓</span><span contenteditable="true">Key Point Three</span></div>
+                    </div>
+                    <div class="meet-footer">
+                        <div class="meet-footer-text" contenteditable="true">Supporting call to action or closing thought.</div>
+                    </div>
                 </div>
             `;
             carousel.appendChild(newSlide);
@@ -299,18 +695,96 @@
         function togglePreview() {
             document.body.classList.toggle('preview-active');
             const btn = document.getElementById('previewBtn');
-            btn.innerText = document.body.classList.contains('preview-active') 
-                ? 'Exit Preview' 
-                : 'Preview Mode (Hide UI)';
+            btn.textContent = document.body.classList.contains('preview-active')
+                ? '✕ Exit Preview'
+                : '👁 Preview Mode';
         }
 
-        function savePDF() {
-            // Force exit preview mode before printing just in case
-            document.body.classList.remove('preview-active');
+        // ----- Pixel-level Logo Background Remover (for Exports) -----
+
+
+
+        // ----- PNG Individual Export -----
+        async function savePNGs() {
+            const btn = document.getElementById('pngBtn');
+            const originalText = btn.innerHTML;
+            const slides = document.querySelectorAll('#carousel .slide');
+            if (!slides.length) return;
+
+            btn.innerHTML = '⏳ Exporting...';
+            btn.disabled = true;
+            document.body.classList.add('exporting');
+
+            for (let i = 0; i < slides.length; i++) {
+                const slide = slides[i];
+                btn.innerHTML = `⏳ Saving PNG ${i+1}/${slides.length}...`;
+                const origCss = slide.style.cssText;
+                slide.style.cssText += 'width:1080px!important;height:1080px!important;transform:none!important;border-radius:0!important;';
+                
+                const canvas = await html2canvas(slide, { scale: 1, useCORS: true, allowTaint: true, width: 1080, height: 1080 });
+                slide.style.cssText = origCss;
+
+                const link = document.createElement('a');
+                link.download = `Tascade-Slide-${i+1}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                await new Promise(r => setTimeout(r, 600));
+            }
             
-            // Standard PDF print dialog
-            window.print();
+
+            document.body.classList.remove('exporting');
+            btn.innerHTML = '✅ PNGs Saved!';
+            setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 3000);
         }
+
+        // ----- Single PDF Export (Robust Version) -----
+        async function savePDF() {
+            const btn = document.getElementById('pdfBtn');
+            const originalText = btn.innerHTML;
+            const slides = document.querySelectorAll('#carousel .slide');
+            if (!slides.length) return;
+
+            btn.innerHTML = '⏳ Exporting...';
+            btn.disabled = true;
+            document.body.classList.add('exporting');
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({ 
+                    unit: 'px', format: [1080, 1080], orientation: 'p', compress: true 
+                });
+
+                for (let i = 0; i < slides.length; i++) {
+                    const slide = slides[i];
+                    btn.innerHTML = `⏳ Processing Page ${i+1}/${slides.length}...`;
+
+                    const origCss = slide.style.cssText;
+                    slide.style.cssText += 'width:1080px!important; height:1080px!important; min-width:1080px!important; border-radius:0!important; transform:none!important;';
+
+                    await new Promise(r => setTimeout(r, 300));
+
+                    const canvas = await html2canvas(slide, {
+                        scale: 1, useCORS: true, allowTaint: true, width: 1080, height: 1080
+                    });
+
+                    slide.style.cssText = origCss;
+                    const imgData = canvas.toDataURL('image/jpeg', 0.85);
+                    if (i > 0) pdf.addPage([1080, 1080], 'p');
+                    pdf.addImage(imgData, 'JPEG', 0, 0, 1080, 1080, undefined, 'FAST');
+                }
+
+                pdf.save('Tascade-LinkedIn-Carousel.pdf');
+                btn.innerHTML = '✅ PDF Downloaded!';
+            } catch (err) {
+                console.error(err);
+                btn.innerHTML = '❌ Export Error';
+            }
+
+
+            document.body.classList.remove('exporting');
+            setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 3000);
+        }
+
     </script>
 </body>
 </html>

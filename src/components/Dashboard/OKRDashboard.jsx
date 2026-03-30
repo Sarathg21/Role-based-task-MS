@@ -83,8 +83,8 @@ const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
                 </div>
                 
                 {Icon && (
-                    <div className={`flex-shrink-0 w-10 h-10 rounded-xl ${c.icon} backdrop-blur-md flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 border border-white/25 shadow-lg`}>
-                        <Icon size={18} className="text-white drop-shadow-md" strokeWidth={2.5} />
+                    <div className="flex-shrink-0">
+                        <Icon size={24} className="text-white drop-shadow-md" strokeWidth={2.5} />
                     </div>
                 )}
             </div>
@@ -111,7 +111,6 @@ const OKRDashboard = () => {
     
     const fetchDashboardData = async () => {
         setLoading(true);
-        // Declare extractTasks in outer scope so trend block can access it
         let tasksReq = null, orgTasksReq = null;
         const extractTasks = (res) => {
             if (!res || res.status !== 'fulfilled' || !res.value) return [];
@@ -143,10 +142,7 @@ const OKRDashboard = () => {
             let data = res.data?.data || res.data || {};
             const summaryData = summaryRes.data?.data || summaryRes.data || {};
 
-            // ✅ COMPREHENSIVE TASK FETCH - catches recurring-generated tasks + standard tasks
             try {
-                // Fetch from all available scopes to ensure recurring-generated tasks are included
-                // Moderate limit at 200 - more data while adhering to server constraints
                 const settled = await Promise.allSettled([
                     api.get('/tasks', { params: { limit: 200 } }),
                     api.get('/tasks', { params: { limit: 200, scope: 'org' } }),
@@ -156,19 +152,16 @@ const OKRDashboard = () => {
                 orgTasksReq = settled[1];
                 const deptTasksReq = settled[2];
 
-                // Merge and deduplicate by task ID
                 const rawMerged = [...extractTasks(tasksReq), ...extractTasks(orgTasksReq), ...extractTasks(deptTasksReq)];
                 const seenIds = new Set();
                 const allTasks = rawMerged.filter(t => {
                     const id = String(t.id || t.task_id);
                     if (!id || id === 'undefined' || seenIds.has(id)) return false;
-                    // ✅ EXCLUDE CANCELLED TASKS
                     if ((t.status || '').toUpperCase() === 'CANCELLED') return false;
                     seenIds.add(id);
                     return true;
                 });
 
-                // Build parent->subtask map
                 const subtaskMap = {};
                 const parentSet = new Set();
                 const potentialParents = new Map();
@@ -186,22 +179,16 @@ const OKRDashboard = () => {
                     potentialParents.set(id, t);
                 });
 
-                // Identify parent tasks:
-                // 1. Tasks that have subtasks referencing them
-                // 2. Tasks explicitly flagged as parent
-                // 3. Tasks generated from recurring templates (have recurring_task_id)
                 const parents = allTasks.filter(t => {
                     const id = String(t.id || t.task_id);
                     const isParentByChildren = parentSet.has(id);
                     const isParentByFlag = t.is_parent || t.task_type === 'PARENT' || (t.subtask_count && t.subtask_count > 0);
                     const isRecurring = !!(t.recurring_task_id || t.recurring_id || t.automation_id);
                     const hasNoParent = !t.parent_task_id && !t.parent_id;
-                    // ✅ EXCLUDE CANCELLED OBJECTIVES
                     const notCancelled = (t.status || '').toUpperCase() !== 'CANCELLED';
                     return hasNoParent && (isParentByChildren || isParentByFlag || isRecurring) && notCancelled;
                 });
 
-                // Helper: extract department name from any task object
                 const getDeptName = (item) => {
                     if (!item) return null;
                     const candidates = [
@@ -226,13 +213,11 @@ const OKRDashboard = () => {
                     const directSubs = Array.isArray(p.subtasks) ? p.subtasks : [];
                     const subs = [...(subtaskMap[pid] || []), ...directSubs];
 
-                    // Deduplicate subtasks
                     const uniqueSubs = Array.from(
                         new Map(subs.filter(Boolean).map(s => [s.id || s.task_id || Math.random(), s])).values()
                     );
 
                     const totalSub = uniqueSubs.length;
-                    // Robust status check: normalize to uppercase and trim
                     const getNormStatus = (s) => (s?.status || s?.task_status || s?.status_name || s || '').toString().trim().toUpperCase();
                     
                     const completedSub = uniqueSubs.filter(s => {
@@ -248,9 +233,8 @@ const OKRDashboard = () => {
                     
                     const progress = totalSub > 0
                         ? Math.round((completedSub / totalSub) * 100)
-                        : 0; // Strictly 0 if no subtasks are found. Prevents phantom 100% scores.
+                        : 0;
 
-                    // Collect all departments from parent + subtasks
                     const depts = new Set();
                     const pDept = getDeptName(p);
                     if (pDept) depts.add(pDept);
@@ -259,14 +243,13 @@ const OKRDashboard = () => {
                         if (sDept) depts.add(sDept);
                     });
 
-                    // If still no dept found, use a meaningful fallback
                     const deptsArray = depts.size > 0 ? Array.from(depts) : ['Corporate'];
 
                     const isOverdue = p.due_date && new Date(p.due_date) < new Date() &&
                         !['APPROVED', 'COMPLETED'].includes((p.status || '').toUpperCase());
                         
                     let riskLabel = 'Low';
-                    let score = progress; // Base health strictly on actual progress (0 done = 0 health)
+                    let score = progress;
                     
                     if (isOverdue) {
                         riskLabel = progress < 40 ? 'High' : 'Medium';
@@ -287,7 +270,6 @@ const OKRDashboard = () => {
                     };
                 });
 
-                // Merge manual objectives with server objectives (server is authoritative for existing, manual fills gaps)
                 const serverObjs = Array.isArray(data.objective_completion) ? [...data.objective_completion] : [];
 
                 manualObjs.forEach(mObj => {
@@ -297,10 +279,8 @@ const OKRDashboard = () => {
                     if (!existing) {
                         serverObjs.push(mObj);
                     } else {
-                        // Use the real latest parent task name from the local check
                         existing.objective_title = mObj.objective_title; 
                         
-                        // ONLY fallback to local empirical calculations if server is missing data 
                         const sTotal = existing.total_subtasks || existing.sub_total || existing.total_tasks || 0;
                         const sDone = existing.completed_subtasks || existing.sub_comp || existing.completed_count || existing.completed_tasks || 0;
 
@@ -315,31 +295,23 @@ const OKRDashboard = () => {
                         } else {
                             existing.completed_subtasks = sDone;
                         }
-                        // Recompute progress from the authoritative subtask counts
                         if (existing.total_subtasks > 0) {
                             existing.progress_pct = Math.round((existing.completed_subtasks / existing.total_subtasks) * 100);
                         } else {
-                            // If we have 0 locally detected subtasks, force it to 0 or 
-                            // fallback ONLY if mObj had a value (which it doesn't here).
                             existing.progress_pct = mObj.progress_pct || 0;
                         }
                         
-                        // Force consistency: if Total is 0, progress and health MUST be 0.
                         if (!existing.total_subtasks || existing.total_subtasks === 0) {
                             existing.progress_pct = 0;
                             existing.health_score = 0;
                         } else {
-                            // Otherwise update health score to match progress
                             existing.health_score = existing.progress_pct;
                         }
                         
-                        // Determine the final health and risk dynamically if server didn't give a good one
                         if (!existing.risk_rating) {
                             existing.risk_rating = mObj.risk_rating || 'Low';
                         }
                         
-                        // Per client request: health score of 100 is impossible when 0 tasks are done.
-                        // ONLY override when the server sends an impossible value (>=100) with 0/0 subtasks.
                         const doneCount = existing.completed_subtasks ?? 0;
                         const totalCount = existing.total_subtasks ?? 0;
                         if (existing.health_score >= 100 && doneCount === 0 && totalCount === 0) {
@@ -353,24 +325,19 @@ const OKRDashboard = () => {
                     }
                 });
 
-                // Force minimum dept_count=1 and sanitize fallback scores on all server objectives too
                 serverObjs.forEach(o => {
                     if (!o.department_count || o.department_count === 0) o.department_count = 1;
                     if (!o.deptsArray) o.deptsArray = ['Corporate'];
                     
-                    // Surgical sanitize: only fix impossible values.
-                    // Force consistency: if Done=0 and Total=0, Progress and Health must be 0.
                     const oDone = o.completed_subtasks ?? 0;
                     const oTotal = o.total_subtasks ?? 0;
                     if (oTotal === 0) {
                         o.progress_pct = 0;
                         o.health_score = 0;
                     } else if (o.health_score >= 100 && oDone === 0) {
-                        // Impossible: Health 100 with zero work done.
                         o.progress_pct = 0;
                         o.health_score = 0;
                     } else if (!o.health_score || o.health_score === 100) {
-                        // Inherit from progress if health is missing or defaults to 100
                         o.health_score = o.progress_pct;
                     }
                 });
@@ -378,7 +345,6 @@ const OKRDashboard = () => {
                 data.objective_completion = serverObjs;
                 data.total_objectives = serverObjs.length;
 
-                // Global KPI recalculation
                 data.total_subtasks = serverObjs.reduce((acc, o) => acc + Math.max(o.total_subtasks || 0, 1), 0);
                 data.completed_tasks = serverObjs.reduce((acc, o) => {
                     const done = o.completed_subtasks || 0;
@@ -394,7 +360,6 @@ const OKRDashboard = () => {
                     ? Math.round(serverObjs.reduce((acc, o) => acc + (o.health_score || 0), 0) / serverObjs.length)
                     : 0;
 
-                // Rebuild department contribution from actual data
                 const deptMap = {};
                 serverObjs.forEach(o => {
                     (o.deptsArray || ['Corporate']).forEach(d => {
@@ -405,7 +370,6 @@ const OKRDashboard = () => {
                     .map(([name, count]) => ({ department_name: name, subtask_count: count }))
                     .sort((a, b) => b.subtask_count - a.subtask_count);
 
-                // Rebuild risk overview
                 if (!data.risk_overview || data.risk_overview.length === 0) {
                     data.risk_overview = serverObjs.map(o => ({
                         objective_title: o.objective_title,
@@ -417,8 +381,6 @@ const OKRDashboard = () => {
             } catch (fallbackErr) {
                 console.warn('OKR Dashboard fallback data compilation failed', fallbackErr);
             }
-
-
 
             setMetrics([
                 { label: 'Total Objectives', value: data.total_objectives || 0, color: 'blue', icon: Target },
@@ -482,8 +444,6 @@ const OKRDashboard = () => {
                 };
             }));
 
-            // ── Build Completion Trend ──
-            // Prioritize the actual historical trend data from the server's /dashboard/trends endpoint
             let computedTrend = [];
             const trData = trendsRes.data?.data || trendsRes.data || [];
             
@@ -499,8 +459,6 @@ const OKRDashboard = () => {
                     return { name: t.month || t.date || t.name, value: Math.min(100, pct) };
                 });
             } else {
-                // Fallback: Build trend cumulatively from current task completion statuses 
-                // grouped by creation month if server trend is empty
                 const monthBuckets = {}; 
                 const allTasksFlat = [...(extractTasks(tasksReq)), ...(extractTasks(orgTasksReq))];
                 const flatSeen = new Set();
@@ -514,7 +472,7 @@ const OKRDashboard = () => {
                 uniqueFlat.forEach(t => {
                     const rawDate = t.created_at || t.due_date || t.updated_at;
                     if (!rawDate) return;
-                    const monthKey = rawDate.slice(0, 7); // 'YYYY-MM'
+                    const monthKey = rawDate.slice(0, 7);
                     if (!monthBuckets[monthKey]) monthBuckets[monthKey] = { total: 0, completed: 0 };
                     monthBuckets[monthKey].total += 1;
                     if (['APPROVED', 'COMPLETED'].includes((t.status || '').toUpperCase())) {
@@ -532,7 +490,6 @@ const OKRDashboard = () => {
                 });
             }
 
-            // If still only 1 point, synthesise a rolling trend from objective progress
             if (computedTrend.length <= 1) {
                 const avgProgress = serverObjs.length > 0
                     ? Math.round(serverObjs.reduce((s, o) => s + (o.progress_pct || 0), 0) / serverObjs.length)
@@ -542,7 +499,6 @@ const OKRDashboard = () => {
                 computedTrend = Array.from({ length: 6 }, (_, i) => {
                     const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
                     const label = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                    // Ramp from baseline to avgProgress
                     const fraction = i / 5;
                     return { name: label, value: Math.round(baseline + (avgProgress - baseline) * fraction) };
                 });
@@ -564,7 +520,6 @@ const OKRDashboard = () => {
                 }
             }
             
-            // Sort overdue by most days late
             okrOverdue.sort((a,b) => b.days_late - a.days_late);
             setOverdueTasks(okrOverdue);
 
@@ -593,7 +548,7 @@ const OKRDashboard = () => {
             {/* ── HEADER ── */}
             <div className="bg-[#1E1B4B] text-white py-4 px-6 rounded-2xl flex justify-between items-center shadow-xl border border-white/10 mb-2">
                  <div className="flex items-center gap-4">
-                    <div className="bg-indigo-500/20 p-2.5 rounded-xl backdrop-blur-md border border-white/20">
+                    <div className="p-1">
                         <ShieldCheck className="text-indigo-200" size={26} strokeWidth={2.5} />
                     </div>
                     <h1 className="text-2xl font-black text-white tracking-tight">FJ GROUP OKR Dashboard</h1>

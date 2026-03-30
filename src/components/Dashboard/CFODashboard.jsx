@@ -365,7 +365,8 @@ const TaskTrendsChart = ({ data }) => {
                         <Bar dataKey="New" fill="#3b82f6" barSize={10} radius={[5, 5, 0, 0]} />
                         <Bar dataKey="Pending" fill="#febc6b" barSize={10} radius={[5, 5, 0, 0]} />
                         <Bar dataKey="Overdue" fill="#ff697e" barSize={10} radius={[5, 5, 0, 0]} />
-                        <Bar dataKey="Completed" fill="#38b2ac" barSize={10} radius={[5, 5, 0, 0]} />
+                        {/* Bar is hidden from tooltip/legend — only used as a visual column; Line handles the tooltip entry */}
+                        <Bar dataKey="Completed" fill="#38b2ac" barSize={10} radius={[5, 5, 0, 0]} legendType="none" tooltipType="none" />
 
                         <Line
                             type="monotone"
@@ -375,6 +376,7 @@ const TaskTrendsChart = ({ data }) => {
                             dot={{ fill: '#fff', stroke: '#38b2ac', strokeWidth: 3, r: 6 }}
                             activeDot={{ r: 8, strokeWidth: 0 }}
                             connectNulls
+                            name="Completed"
                         />
                     </ComposedChart>
                 </ResponsiveContainer>

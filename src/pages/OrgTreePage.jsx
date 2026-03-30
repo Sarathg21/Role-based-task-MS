@@ -142,7 +142,7 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
                        <img 
                           src={`https://i.pravatar.cc/150?u=${emp_id}`} 
                           alt={name} 
-                          className="w-full h-full object-cover opacity-90 mix-blend-overlay" 
+                          className="w-full h-full object-cover opacity-90" 
                           onError={(e) => { e.currentTarget.style.display = 'none'; }}
                        />
                        <span className="absolute inset-0 flex items-center justify-center pointer-events-none">{initials}</span>

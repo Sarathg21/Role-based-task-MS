@@ -27,27 +27,40 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
 
     if (!isOpen || !currentTask) return null;
 
-    /* Candidate employees:
-       - Manager: only their own department (excluding current assignee)
-       - CFO: all employees (excluding current assignee) */
-    /* Candidate employees:
-       - Manager: only their own department (excluding current assignee)
-       - CFO: all employees (excluding current assignee) */
+    /* Candidate employees — SAME DEPARTMENT AS THE TASK ONLY.
+       Cross-department reassignment is NOT allowed for any role. */
+    const taskDept = String(
+        currentTask.department_id || currentTask.department_name || currentTask.department || ''
+    ).trim().toLowerCase();
+
     const candidateEmployees = employees.filter(u => {
         const uId = u.emp_id || u.id;
         const uRole = (u.role || '').toUpperCase();
-        // Exclude current assignee (check all possible ID fields on the task)
+
+        // Exclude current assignee
         const currentAssigneeId = currentTask.assigned_to_emp_id || currentTask.employee_id || currentTask.assigned_to_id || currentTask.id;
         if (uId && currentAssigneeId && String(uId) === String(currentAssigneeId)) return false;
-        // Only include Employee and Manager roles
+
+        // Only Employees and Managers are valid reassignment targets
         if (!['EMPLOYEE', 'MANAGER'].includes(uRole)) return false;
-        // Manager: scope to same department, checking both department and department_id fields
+
+        // ── DEPARTMENT MATCH (always enforced, regardless of current user's role) ──
+        if (taskDept) {
+            const empDept = String(
+                u.department_id || u.department || ''
+            ).trim().toLowerCase();
+            // Match by name or id — allow partial match to handle name vs id mismatches
+            return empDept === taskDept || empDept.includes(taskDept) || taskDept.includes(empDept);
+        }
+
+        // If task has no department info, fall back to same-department-as-current-user
         if (currentUser?.role?.toUpperCase() === 'MANAGER') {
-            const userDept = currentUser.department || currentUser.department_id || '';
-            const empDept = u.department_id || u.department || '';
+            const userDept = String(currentUser.department || currentUser.department_id || '').toLowerCase();
+            const empDept = String(u.department_id || u.department || '').toLowerCase();
             return empDept === userDept;
         }
-        return true; // CFO sees all
+
+        return true; // Last resort fallback (should rarely hit)
     });
 
     const currentAssigneeId = currentTask.assigned_to_emp_id || currentTask.employee_id || currentTask.assigned_to_id;

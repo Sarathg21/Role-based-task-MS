@@ -58,7 +58,7 @@ const LoginPage = () => {
             {/* ─── LEFT SIDE (hidden on mobile) ─── */}
             <div className="flex-[0_0_50%] w-1/2 flex-col justify-between p-14 relative overflow-hidden z-[2] hidden lg:flex">
                 <div className="relative z-[1] flex-1 flex flex-col justify-center items-center text-center">
-                    <div className="w-[120px] h-[120px] rounded-[28px] backdrop-blur-2xl flex items-center justify-center mb-8 self-center bg-white/5">
+                    <div className="w-[120px] h-[120px] flex items-center justify-center mb-8 self-center">
                         <img
                             src="/images/logo.png"
                             alt="Tascade Logo"
@@ -85,7 +85,7 @@ const LoginPage = () => {
                         <img
                             src="/images/fj1.png.png"
                             alt="FJ Group logo"
-                            className="h-[180px] w-[180px] sm:h-[240px] sm:w-[240px] object-contain block mix-blend-multiply"
+                            className="h-[180px] w-[180px] sm:h-[240px] sm:w-[240px] object-contain block"
                             onError={e => { e.currentTarget.style.display = 'none'; }}
                         />
                     </div>

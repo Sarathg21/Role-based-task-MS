@@ -84,7 +84,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, isMobileOpen, closeMobileSidebar 
                         <img
                             src="/images/fj.png.png"
                             alt="FJ logo"
-                            className="absolute -left-2 top-1/2 -translate-y-1/2 w-[160px] h-[160px] object-contain object-left filter drop-shadow-[0_4px_10px_rgba(30,27,75,0.15)] transform scale-[1.2]"
+                            className="absolute -left-2 top-1/2 -translate-y-1/2 w-[160px] h-[160px] object-contain object-left transform scale-[1.2]"
                         />
                     </div>
                 )}
