@@ -123,7 +123,7 @@ const OKRDashboard = () => {
             const role = (user?.role || '').toUpperCase();
             const isAdmin = role === 'ADMIN';
 
-            const [res, trendsRes, todayRes, summaryRes] = await Promise.all([
+            const [res, trendsRes, todayRes, summaryRes, objListRes] = await Promise.all([
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/reports/cfo/okr/overview', {
                     params: {
                         from_date: filters.from_date,
@@ -137,10 +137,19 @@ const OKRDashboard = () => {
                         from_date: filters.from_date,
                         to_date: filters.to_date
                     }
-                }).catch(() => ({ data: {} }))
+                }).catch(() => ({ data: {} })),
+                isAdmin ? Promise.resolve({ data: [] }) : api.get('/reports/cfo/okr/objectives', {
+                    params: {
+                        from_date: filters.from_date,
+                        to_date: filters.to_date
+                    }
+                }).catch(() => ({ data: [] }))
             ]);
             let data = res.data?.data || res.data || {};
             const summaryData = summaryRes.data?.data || summaryRes.data || {};
+            // Objectives list — authoritative source for per-objective subtask counts
+            const rawObjList = objListRes.data?.data || objListRes.data || [];
+            const objectivesList = Array.isArray(rawObjList) ? rawObjList : [];
 
             try {
                 const settled = await Promise.allSettled([
@@ -341,6 +350,30 @@ const OKRDashboard = () => {
                         o.health_score = o.progress_pct;
                     }
                 });
+
+                // ── Patch subtask counts from /reports/cfo/okr/objectives ──
+                // This endpoint is the authoritative source; the overview may return 0
+                // for total_subtasks even when subtasks exist (e.g. OBJ-37 scenario).
+                if (objectivesList.length > 0) {
+                    serverObjs.forEach(obj => {
+                        const objId = String(obj.parent_task_id || obj.id || '');
+                        const match = objectivesList.find(o =>
+                            String(o.parent_task_id || o.id || '') === objId
+                        );
+                        if (!match) return;
+                        const listTotal = Number(match.total_subtasks ?? match.sub_total ?? 0);
+                        const listDone  = Number(match.completed_subtasks ?? match.sub_comp ?? 0);
+                        // Always trust the objectives list if it says there are subtasks
+                        if (listTotal > (obj.total_subtasks || 0)) {
+                            obj.total_subtasks      = listTotal;
+                            obj.completed_subtasks  = listDone;
+                            obj.progress_pct        = listTotal > 0
+                                ? Math.round((listDone / listTotal) * 100)
+                                : 0;
+                            obj.health_score        = obj.progress_pct;
+                        }
+                    });
+                }
 
                 data.objective_completion = serverObjs;
                 data.total_objectives = serverObjs.length;
