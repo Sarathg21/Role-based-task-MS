@@ -7,9 +7,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,500;1,700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
-    <!-- PDF Generation Libraries -->
+    <!-- Export Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -343,7 +344,7 @@
             font-size: 18px; color: rgba(255,255,255,0.4);
             margin-top: 12px;
         }
-        .cta-contact span { color: #60a5fa; font-weight: 600; }
+        .cta-contact span { color: #ffffff; font-weight: 600; }
 
         /* ── Slide number badge ── */
         .slide-num {
@@ -433,7 +434,7 @@
     <div class="controls">
         <button class="btn-add" onclick="addSlide()">+ Add Slide</button>
         <button class="btn-preview" onclick="togglePreview()" id="previewBtn">👁 Preview Mode</button>
-        <button class="btn-pdf" id="pngBtn" style="background:#0284c7;" onclick="savePNGs()">📸 Save PNG Slides (Individual)</button>
+        <button class="btn-pdf" id="pngBtn" style="background:#0284c7;" onclick="savePNGs()">📦 Download All Slides (ZIP)</button>
         <button class="btn-pdf" id="pdfBtn" style="background:#16a34a;" onclick="savePDF()">📄 Save as Single PDF (Full Reel)</button>
     </div>
 
@@ -657,7 +658,7 @@
                         Start Your Free Trial →
                     </div>
                     <div class="cta-contact" contenteditable="true">
-                        Visit <span>www.zenith.com</span> to learn more.
+                        Contact <span>zenithdata.ai@gmail.com</span>
                     </div>
                 </div>
             </div>
@@ -704,37 +705,95 @@
 
 
 
-        // ----- PNG Individual Export -----
+        // ----- Helper: Render a slide to canvas at 1080x1080 -----
+        async function renderSlideToCanvas(slide) {
+            const origCss = slide.style.cssText;
+            slide.style.cssText += ';width:1080px!important;height:1080px!important;transform:none!important;border-radius:0!important;position:relative!important;flex-shrink:0!important;';
+            await new Promise(r => setTimeout(r, 150));
+            const canvas = await html2canvas(slide, {
+                scale: 1,
+                useCORS: true,
+                allowTaint: true,
+                width: 1080,
+                height: 1080,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: 1080,
+                windowHeight: 1080,
+                backgroundColor: '#050810'
+            });
+            slide.style.cssText = origCss;
+            return canvas;
+        }
+
+        // ----- Helper: Canvas to Blob Promise -----
+        function canvasToBlob(canvas) {
+            return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        }
+
+        // ----- Download ALL Slides as a ZIP of PNGs -----
         async function savePNGs() {
             const btn = document.getElementById('pngBtn');
             const originalText = btn.innerHTML;
             const slides = document.querySelectorAll('#carousel .slide');
             if (!slides.length) return;
 
-            btn.innerHTML = '⏳ Exporting...';
+            btn.innerHTML = '⏳ Rendering slides...';
             btn.disabled = true;
             document.body.classList.add('exporting');
 
-            for (let i = 0; i < slides.length; i++) {
-                const slide = slides[i];
-                btn.innerHTML = `⏳ Saving PNG ${i+1}/${slides.length}...`;
-                const origCss = slide.style.cssText;
-                slide.style.cssText += 'width:1080px!important;height:1080px!important;transform:none!important;border-radius:0!important;';
-                
-                const canvas = await html2canvas(slide, { scale: 1, useCORS: true, allowTaint: true, width: 1080, height: 1080 });
-                slide.style.cssText = origCss;
+            try {
+                const zip = new JSZip();
+                const folder = zip.folder('Tascade-Slides');
 
-                const link = document.createElement('a');
-                link.download = `Tascade-Slide-${i+1}.png`;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-                await new Promise(r => setTimeout(r, 600));
+                for (let i = 0; i < slides.length; i++) {
+                    btn.innerHTML = `⏳ Processing ${i + 1} / ${slides.length}...`;
+                    const canvas = await renderSlideToCanvas(slides[i]);
+                    const blob = await canvasToBlob(canvas);
+                    folder.file(`Tascade-Slide-${i + 1}.png`, blob);
+                }
+
+                btn.innerHTML = '⏳ Zipping files...';
+                const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+
+                // Use showSaveFilePicker (File System Access API) so the file lands
+                // in the user-chosen folder (e.g. Downloads) — not Edge's temp cache.
+                if (window.showSaveFilePicker) {
+                    try {
+                        const handle = await window.showSaveFilePicker({
+                            suggestedName: 'Tascade-LinkedIn-Slides.zip',
+                            startIn: 'downloads',
+                            types: [{ description: 'ZIP Archive', accept: { 'application/zip': ['.zip'] } }]
+                        });
+                        const writable = await handle.createWritable();
+                        await writable.write(zipBlob);
+                        await writable.close();
+                    } catch (pickErr) {
+                        if (pickErr.name !== 'AbortError') throw pickErr; // user cancelled — silent
+                    }
+                } else {
+                    // Fallback for browsers without File System Access API
+                    const url = URL.createObjectURL(zipBlob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = 'Tascade-LinkedIn-Slides.zip';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => URL.revokeObjectURL(url), 10000);
+                }
+
+                btn.innerHTML = '✅ ZIP Downloaded!';
+            } catch (err) {
+                console.error('PNG ZIP Export failed:', err);
+                btn.innerHTML = '❌ Export Error — Check Console';
+            } finally {
+                document.body.classList.remove('exporting');
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 3000);
             }
-            
-
-            document.body.classList.remove('exporting');
-            btn.innerHTML = '✅ PNGs Saved!';
-            setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 3000);
         }
 
         // ----- Single PDF Export (Robust Version) -----
@@ -773,7 +832,24 @@
                     pdf.addImage(imgData, 'JPEG', 0, 0, 1080, 1080, undefined, 'FAST');
                 }
 
-                pdf.save('Tascade-LinkedIn-Carousel.pdf');
+                // Use showSaveFilePicker so PDF lands in Downloads, not Edge temp cache
+                const pdfBlob = pdf.output('blob');
+                if (window.showSaveFilePicker) {
+                    try {
+                        const handle = await window.showSaveFilePicker({
+                            suggestedName: 'Tascade-LinkedIn-Carousel.pdf',
+                            startIn: 'downloads',
+                            types: [{ description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } }]
+                        });
+                        const writable = await handle.createWritable();
+                        await writable.write(pdfBlob);
+                        await writable.close();
+                    } catch (pickErr) {
+                        if (pickErr.name !== 'AbortError') throw pickErr;
+                    }
+                } else {
+                    pdf.save('Tascade-LinkedIn-Carousel.pdf');
+                }
                 btn.innerHTML = '✅ PDF Downloaded!';
             } catch (err) {
                 console.error(err);
