@@ -29,38 +29,65 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
 
     /* Candidate employees — SAME DEPARTMENT AS THE TASK ONLY.
        Cross-department reassignment is NOT allowed for any role. */
-    const taskDept = String(
-        currentTask.department_id || currentTask.department_name || currentTask.department || ''
-    ).trim().toLowerCase();
+
+    // Collect all possible dept identifiers from the task (name AND id)
+    const taskDeptName = String(currentTask.department_name || currentTask.department || '').trim().toLowerCase();
+    const taskDeptId   = String(currentTask.department_id || '').trim().toLowerCase();
+    const hasDeptInfo  = taskDeptName !== '' || taskDeptId !== '';
+
+    // Helper: get all dept identifiers from an employee object
+    const getEmpDept = (u) => ({
+        name: String(u.department_name || u.department || u.dept_name || u.dept || '').trim().toLowerCase(),
+        id:   String(u.department_id   || u.dept_id   || '').trim().toLowerCase(),
+    });
+
+    // Helper: does employee belong to same dept as the task?
+    const isSameDept = (u) => {
+        const emp = getEmpDept(u);
+        // If employee has no dept info at all, exclude them (can't verify)
+        if (emp.name === '' && emp.id === '') return false;
+
+        // Match by ID (exact)
+        if (taskDeptId && emp.id && taskDeptId === emp.id) return true;
+
+        // Match by name (exact first, then partial — but ONLY if both sides are non-empty)
+        if (taskDeptName && emp.name) {
+            if (taskDeptName === emp.name) return true;
+            // Allow partial only when one is clearly a substring (e.g. "AP" vs "Accounts Payable")
+            if (emp.name.includes(taskDeptName) || taskDeptName.includes(emp.name)) return true;
+        }
+
+        return false;
+    };
 
     const candidateEmployees = employees.filter(u => {
-        const uId = u.emp_id || u.id;
+        const uId   = u.emp_id || u.id;
         const uRole = (u.role || '').toUpperCase();
 
         // Exclude current assignee
-        const currentAssigneeId = currentTask.assigned_to_emp_id || currentTask.employee_id || currentTask.assigned_to_id || currentTask.id;
+        const currentAssigneeId = currentTask.assigned_to_emp_id || currentTask.employee_id || currentTask.assigned_to_id;
         if (uId && currentAssigneeId && String(uId) === String(currentAssigneeId)) return false;
 
         // Only Employees and Managers are valid reassignment targets
         if (!['EMPLOYEE', 'MANAGER'].includes(uRole)) return false;
 
-        // ── DEPARTMENT MATCH (always enforced, regardless of current user's role) ──
-        if (taskDept) {
-            const empDept = String(
-                u.department_id || u.department || ''
-            ).trim().toLowerCase();
-            // Match by name or id — allow partial match to handle name vs id mismatches
-            return empDept === taskDept || empDept.includes(taskDept) || taskDept.includes(empDept);
+        // ── DEPARTMENT MATCH — always enforced ──
+        if (hasDeptInfo) {
+            return isSameDept(u);
         }
 
-        // If task has no department info, fall back to same-department-as-current-user
+        // Task has NO dept info → fall back to same dept as the current logged-in manager
         if (currentUser?.role?.toUpperCase() === 'MANAGER') {
-            const userDept = String(currentUser.department || currentUser.department_id || '').toLowerCase();
-            const empDept = String(u.department_id || u.department || '').toLowerCase();
-            return empDept === userDept;
+            const userDeptName = String(currentUser.department_name || currentUser.department || '').trim().toLowerCase();
+            const userDeptId   = String(currentUser.department_id || '').trim().toLowerCase();
+            const emp = getEmpDept(u);
+            if (emp.name === '' && emp.id === '') return false;
+            if (userDeptId && emp.id && userDeptId === emp.id) return true;
+            if (userDeptName && emp.name && (userDeptName === emp.name || emp.name.includes(userDeptName) || userDeptName.includes(emp.name))) return true;
+            return false;
         }
 
-        return true; // Last resort fallback (should rarely hit)
+        return false; // Default: exclude if dept cannot be verified
     });
 
     const currentAssigneeId = currentTask.assigned_to_emp_id || currentTask.employee_id || currentTask.assigned_to_id;
@@ -180,7 +207,15 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
 
                     {/* ── EDITABLE FIELDS ── */}
                     <form id="reassign-form" onSubmit={handleSubmit} className="space-y-4">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">New Assignment</p>
+                        <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">New Assignment</p>
+                            {hasDeptInfo && (
+                                <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-indigo-500 bg-indigo-50 px-2 py-1 rounded-full border border-indigo-100">
+                                    <Building2 size={10} />
+                                    {taskDeptName || taskDeptId} only
+                                </span>
+                            )}
+                        </div>
 
                         {/* New Assigned To — mandatory */}
                         <div>
@@ -198,16 +233,19 @@ const ReassignTaskModal = ({ isOpen, onClose, onReassign, employees, currentTask
                                     <option key="placeholder" value="">— Select employee —</option>
                                     {candidateEmployees.map(emp => {
                                         const eId = emp.emp_id || emp.id;
+                                        const deptLabel = emp.department_name || emp.department || emp.dept_name || emp.dept || '';
                                         return (
                                             <option key={eId} value={eId}>
-                                                {emp.name} ({emp.department})
+                                                {emp.name}{deptLabel ? ` (${deptLabel})` : ''}
                                             </option>
                                         );
                                     })}
                                 </select>
                             </div>
                             {candidateEmployees.length === 0 && (
-                                <p className="text-xs text-rose-500 mt-1">No eligible employees found for this department.</p>
+                                <p className="text-xs text-rose-500 mt-1">
+                                    No eligible employees found{hasDeptInfo ? ` in the "${taskDeptName || taskDeptId}" department` : ''}. Cross-department reassignment is not allowed.
+                                </p>
                             )}
                         </div>
 

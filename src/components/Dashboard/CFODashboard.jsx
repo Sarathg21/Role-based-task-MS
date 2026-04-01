@@ -361,12 +361,36 @@ const TaskTrendsChart = ({ data }) => {
                         <Tooltip
                             contentStyle={{ borderRadius: '1.5rem', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', padding: '15px' }}
                             cursor={{ fill: '#f7fafc', opacity: 0.4 }}
+                            content={({ active, payload, label }) => {
+                                if (!active || !payload || !payload.length) return null;
+                                // Deduplicate: keep only the first occurrence of each dataKey
+                                const seen = new Set();
+                                const unique = payload.filter(p => {
+                                    if (seen.has(p.dataKey)) return false;
+                                    seen.add(p.dataKey);
+                                    return true;
+                                });
+                                const colorMap = {
+                                    New: '#3b82f6',
+                                    Pending: '#febc6b',
+                                    Overdue: '#ff697e',
+                                    Completed: '#38b2ac',
+                                };
+                                return (
+                                    <div style={{ background: '#fff', borderRadius: '1.5rem', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', padding: '15px', minWidth: '140px' }}>
+                                        <p style={{ fontWeight: 800, fontSize: '13px', color: '#334155', marginBottom: '8px' }}>{label}</p>
+                                        {unique.map((p, i) => (
+                                            <p key={i} style={{ fontSize: '12px', fontWeight: 600, color: colorMap[p.dataKey] || p.color, margin: '3px 0' }}>
+                                                {p.name} : {p.value}
+                                            </p>
+                                        ))}
+                                    </div>
+                                );
+                            }}
                         />
                         <Bar dataKey="New" fill="#3b82f6" barSize={10} radius={[5, 5, 0, 0]} />
                         <Bar dataKey="Pending" fill="#febc6b" barSize={10} radius={[5, 5, 0, 0]} />
                         <Bar dataKey="Overdue" fill="#ff697e" barSize={10} radius={[5, 5, 0, 0]} />
-                        {/* Bar is hidden from tooltip/legend — only used as a visual column; Line handles the tooltip entry */}
-                        <Bar dataKey="Completed" fill="#38b2ac" barSize={10} radius={[5, 5, 0, 0]} legendType="none" tooltipType="none" />
 
                         <Line
                             type="monotone"

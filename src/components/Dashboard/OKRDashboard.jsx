@@ -102,12 +102,33 @@ const OKRDashboard = () => {
     const [tableData, setTableData] = useState([]);
     const [trendData, setTrendData] = useState([]);
     const [overdueTasks, setOverdueTasks] = useState([]);
-    const [filters, setFilters] = useState({
-        from_date: new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10),
-        to_date: new Date().toISOString().slice(0, 10)
+    const getStoredFilters = () => ({
+        from_date: localStorage.getItem('dashboard_from_date') || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
+        to_date: localStorage.getItem('dashboard_to_date') || new Date().toISOString().slice(0, 10)
     });
 
+    const [filters, setFilters] = useState(getStoredFilters());
+
     const { user } = useAuth();
+
+    // Listen for global filter changes from Navbar
+    useEffect(() => {
+        const handleFilterChange = () => {
+            const next = getStoredFilters();
+            setFilters(prev => {
+                if (prev.from_date === next.from_date && prev.to_date === next.to_date) return prev;
+                return next;
+            });
+        };
+        window.addEventListener('dashboard-filter-change', handleFilterChange);
+        return () => window.removeEventListener('dashboard-filter-change', handleFilterChange);
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem('dashboard_from_date', filters.from_date);
+        localStorage.setItem('dashboard_to_date', filters.to_date);
+        window.dispatchEvent(new Event('dashboard-filter-change'));
+    }, [filters.from_date, filters.to_date]);
     
     const fetchDashboardData = async () => {
         setLoading(true);
@@ -124,7 +145,8 @@ const OKRDashboard = () => {
             const isAdmin = role === 'ADMIN';
 
             const [res, trendsRes, todayRes, summaryRes, objListRes] = await Promise.all([
-                isAdmin ? Promise.resolve({ data: {} }) : api.get('/reports/cfo/okr/overview', {
+                // Always fetch OKR overview — both admin and CFO need authoritative subtask counts
+                api.get('/reports/cfo/okr/overview', {
                     params: {
                         from_date: filters.from_date,
                         to_date: filters.to_date
@@ -138,7 +160,8 @@ const OKRDashboard = () => {
                         to_date: filters.to_date
                     }
                 }).catch(() => ({ data: {} })),
-                isAdmin ? Promise.resolve({ data: [] }) : api.get('/reports/cfo/okr/objectives', {
+                // Always fetch objectives list — this is the authoritative source for per-objective subtask counts
+                api.get('/reports/cfo/okr/objectives', {
                     params: {
                         from_date: filters.from_date,
                         to_date: filters.to_date
@@ -147,9 +170,21 @@ const OKRDashboard = () => {
             ]);
             let data = res.data?.data || res.data || {};
             const summaryData = summaryRes.data?.data || summaryRes.data || {};
+
             // Objectives list — authoritative source for per-objective subtask counts
-            const rawObjList = objListRes.data?.data || objListRes.data || [];
-            const objectivesList = Array.isArray(rawObjList) ? rawObjList : [];
+            // Try every possible nesting the backend might use
+            const objRaw = objListRes.data;
+            const objectivesList = (() => {
+                const candidates = [
+                    objRaw?.data, objRaw?.objectives, objRaw?.items,
+                    objRaw?.results, objRaw?.records, objRaw
+                ];
+                for (const c of candidates) {
+                    if (Array.isArray(c) && c.length > 0) return c;
+                }
+                return [];
+            })();
+            console.log('[OKR] objectivesList length:', objectivesList.length, '| sample:', objectivesList[0]);
 
             try {
                 const settled = await Promise.allSettled([
@@ -355,19 +390,36 @@ const OKRDashboard = () => {
                 // This endpoint is the authoritative source; the overview may return 0
                 // for total_subtasks even when subtasks exist (e.g. OBJ-37 scenario).
                 if (objectivesList.length > 0) {
-                    serverObjs.forEach(obj => {
-                        // Broad ID extraction — handle parent_task_id, id, task_id
-                        const objId = String(obj.parent_task_id ?? obj.id ?? obj.task_id ?? '');
-                        const match = objectivesList.find(o => {
-                            const oId = String(o.parent_task_id ?? o.id ?? o.task_id ?? '');
-                            return oId === objId && oId !== '';
+                    // Helper: extract all possible numeric IDs from an entry
+                    const getEntryIds = (entry) => {
+                        const ids = new Set();
+                        ['parent_task_id','id','task_id','objective_id'].forEach(key => {
+                            const v = entry[key];
+                            if (v !== undefined && v !== null && v !== '') ids.add(String(v));
                         });
-                        if (!match) return;
+                        return ids;
+                    };
+
+                    // PASS 1: Update existing entries in serverObjs with authoritative data
+                    serverObjs.forEach(obj => {
+                        const objIds = getEntryIds(obj);
+                        const match = objectivesList.find(o => {
+                            const oIds = getEntryIds(o);
+                            // Check if any ID from the objectives list matches any ID from the serverObj
+                            for (const oId of oIds) {
+                                if (oId && objIds.has(oId)) return true;
+                            }
+                            return false;
+                        });
+                        if (!match) {
+                            console.warn('[OKR] No objectives-list match for serverObj:', obj.parent_task_id ?? obj.id, '| IDs checked:', [...objIds]);
+                            return;
+                        }
                         const listTotal = Number(match.total_subtasks ?? match.sub_total ?? match.total_tasks ?? 0);
                         const listDone  = Number(match.completed_subtasks ?? match.sub_comp ?? match.completed_tasks ?? 0);
                         const listRisk  = match.risk_rating || match.risk_level || null;
                         const listProgress = match.progress_pct ?? match.progress ?? null;
-                        // Always trust the objectives API if it returns a non-zero subtask count
+                        // Always trust the objectives API — it is the authoritative source
                         if (listTotal > 0) {
                             obj.total_subtasks     = listTotal;
                             obj.completed_subtasks = listDone;
@@ -382,6 +434,111 @@ const OKRDashboard = () => {
                         if (listRisk) {
                             obj.risk_rating = getRiskLabel(listRisk);
                         }
+                        // Sync dept count from authoritative source
+                        if (match.departments_involved) {
+                            obj.department_count = match.departments_involved;
+                        }
+                    });
+
+                    // PASS 2: Insert objectives that /reports/cfo/okr/objectives knows about
+                    // but the tasks API failed to detect (e.g. OBJ-37 parent-child not resolved).
+                    objectivesList.forEach(listObj => {
+                        const listObjIds = getEntryIds(listObj);
+                        const alreadyPresent = serverObjs.some(obj => {
+                            const objIds = getEntryIds(obj);
+                            for (const oId of listObjIds) {
+                                if (oId && objIds.has(oId)) return true;
+                            }
+                            return false;
+                        });
+                        if (alreadyPresent) return; // already handled in PASS 1
+                        const lId = String(listObj.parent_task_id ?? listObj.id ?? listObj.task_id ?? '');
+                        if (!lId) return;
+                        const listTotal = Number(listObj.total_subtasks ?? listObj.sub_total ?? 0);
+                        const listDone  = Number(listObj.completed_subtasks ?? listObj.sub_comp ?? 0);
+                        const progress  = listTotal > 0 ? Math.round((listDone / listTotal) * 100) : (listObj.progress_pct ?? 0);
+                        const riskLabel = getRiskLabel(listObj.risk_rating || listObj.risk_level || 'Low');
+                        console.log('[OKR] PASS 2 inserting from objectives list:', lId, listObj.objective_title, '| total_subtasks:', listTotal);
+                        serverObjs.push({
+                            parent_task_id:    Number(lId),
+                            id:                Number(lId),
+                            objective_title:   listObj.objective_title || listObj.title || listObj.name || 'Strategic Objective',
+                            total_subtasks:    listTotal,
+                            completed_subtasks: listDone,
+                            progress_pct:      progress,
+                            health_score:      progress,
+                            risk_rating:       riskLabel,
+                            department_count:  listObj.departments_involved || listObj.department_count || 1,
+                            deptsArray:        ['Corporate'],
+                        });
+                    });
+                }
+
+                // ── FINAL AUTHORITATIVE OVERRIDE ──
+                // After all merging, do one last pass to stamp authoritative
+                // values from /reports/cfo/okr/objectives directly onto serverObjs.
+                // This ensures values like OBJ-37's total_subtasks:3 are NEVER lost.
+                if (objectivesList.length > 0) {
+                    const getIds = (entry) => {
+                        const ids = new Set();
+                        ['parent_task_id','id','task_id','objective_id'].forEach(k => {
+                            const v = entry[k];
+                            if (v != null && v !== '') ids.add(String(v));
+                        });
+                        return ids;
+                    };
+                    serverObjs.forEach(obj => {
+                        const objIds = getIds(obj);
+                        const auth = objectivesList.find(o => {
+                            for (const id of getIds(o)) {
+                                if (objIds.has(id)) return true;
+                            }
+                            return false;
+                        });
+                        if (!auth) return;
+                        const authTotal = Number(auth.total_subtasks ?? auth.sub_total ?? auth.total_tasks ?? 0);
+                        const authDone  = Number(auth.completed_subtasks ?? auth.sub_comp ?? auth.completed_tasks ?? 0);
+                        const authPct   = Number(auth.progress_pct ?? auth.progress ?? 0);
+                        const authRisk  = auth.risk_rating || auth.risk_level || null;
+                        const authDepts = Number(auth.departments_involved || auth.department_count || 0);
+                        // Stamp directly — no conditions, this is the source of truth
+                        if (authTotal > 0 || authPct > 0) {
+                            obj.total_subtasks     = authTotal;
+                            obj.completed_subtasks = authDone;
+                            obj.progress_pct       = authTotal > 0 ? Math.round((authDone / authTotal) * 100) : authPct;
+                            obj.health_score       = obj.progress_pct;
+                        }
+                        if (authRisk)  obj.risk_rating      = getRiskLabel(authRisk);
+                        if (authDepts) obj.department_count = authDepts;
+                    });
+
+                    // For objectives ONLY in the authoritative list (not in serverObjs at all)
+                    objectivesList.forEach(auth => {
+                        const authIds = getIds(auth);
+                        const present = serverObjs.some(obj => {
+                            for (const id of getIds(obj)) {
+                                if (authIds.has(id)) return true;
+                            }
+                            return false;
+                        });
+                        if (present) return;
+                        const lId      = String(auth.parent_task_id ?? auth.id ?? auth.task_id ?? '');
+                        const authTotal= Number(auth.total_subtasks ?? 0);
+                        const authDone = Number(auth.completed_subtasks ?? 0);
+                        const pct      = authTotal > 0 ? Math.round((authDone / authTotal) * 100) : Number(auth.progress_pct ?? 0);
+                        console.log('[OKR] Final pass inserting OBJ-' + lId, '| total:', authTotal, '| done:', authDone);
+                        serverObjs.push({
+                            parent_task_id:    Number(lId),
+                            id:                Number(lId),
+                            objective_title:   auth.objective_title || auth.title || auth.name || 'Strategic Objective',
+                            total_subtasks:    authTotal,
+                            completed_subtasks: authDone,
+                            progress_pct:      pct,
+                            health_score:      pct,
+                            risk_rating:       getRiskLabel(auth.risk_rating || 'Low'),
+                            department_count:  Number(auth.departments_involved || auth.department_count || 1),
+                            deptsArray:        ['Corporate'],
+                        });
                     });
                 }
 
@@ -425,19 +582,35 @@ const OKRDashboard = () => {
                 console.warn('OKR Dashboard fallback data compilation failed', fallbackErr);
             }
 
+            const cleanNum = (val) => {
+                if (val === undefined || val === null) return 0;
+                if (typeof val === 'number') return val;
+                const parsed = parseFloat(String(val).replace(/[^0-9.]/g, ''));
+                return isNaN(parsed) ? 0 : parsed;
+            };
+
+            const totalTasksRaw = cleanNum(data.total_subtasks || data.sub_total || data.total_tasks || summaryData.total_tasks || 0);
+            const doneTasksRaw = cleanNum(data.completed_tasks || data.completed_count || data.sub_comp || summaryData.completed_count || 0);
+            // Final normalization of KPIs for display — prioritize any non-zero source
+            const finalTotalObjectives = Math.max(serverObjs.length, totalObjsFromData, objectivesList.length);
+            const finalOverallProgress = cleanNum(data.overall_progress || data.progress_pct || summaryData.overall_progress || 0) || (totalTasksRaw > 0 ? Math.round((doneTasksRaw / totalTasksRaw) * 100) : 0);
+            
+            // Force use of overall progress if team score is reported as 0 but progress exists
+            const rawScore = cleanNum(summaryData.team_score_current || summaryData.score || summaryData.team_performance || summaryData.overall_progress || 0);
+            const finalTeamScore = (rawScore > 0 ? rawScore : finalOverallProgress) || 0;
+            
+            const totalSubtasksSubmitted = cleanNum(data.total_subtasks || data.sub_total || summaryData.total_tasks || totalTasksRaw);
+            const totalSubtasksCompleted = cleanNum(data.completed_tasks || data.completed_count || summaryData.completed_count || doneTasksRaw);
+
+            console.log('[OKR] Dashboard Metrics Parsed:', { totalTasksRaw: totalSubtasksSubmitted, doneTasksRaw: totalSubtasksCompleted, finalOverallProgress, finalTeamScore, finalTotalObjectives });
+
             setMetrics([
-                { label: 'Total Objectives', value: data.total_objectives || 0, color: 'blue', icon: Target },
-                { label: 'Total Subtasks', value: data.total_subtasks || 0, color: 'indigo', icon: ShieldCheck },
-                { label: 'Completed Tasks', value: data.completed_tasks || 0, color: 'green', icon: CheckCircle2 },
-                { label: 'Overall Progress', value: `${data.overall_progress || 0}%`, color: 'amber', icon: TrendingUp },
-                { label: 'At Risk Objectives', value: data.at_risk || 0, color: 'rose', icon: AlertTriangle },
-                { label: 'Avg Completion Rate', value: data.avg_health_score || 0, color: 'green', icon: CheckCircle },
-                { 
-                    label: 'Team Performance Score', 
-                    value: `${summaryData.team_score_current || data.overall_progress || 0}%`, 
-                    color: 'violet', 
-                    icon: TrendingUp 
-                },
+                { label: 'Total Objectives', value: finalTotalObjectives, color: 'indigo', icon: Target },
+                { label: 'Team Performance Score', value: `${finalTeamScore}%`, color: 'violet', icon: TrendingUp },
+                { label: 'Total Subtasks Completed', value: `${totalSubtasksCompleted} / ${totalSubtasksSubmitted}`, color: 'green', icon: CheckCircle2 },
+                { label: 'Overall Progress', value: `${finalOverallProgress}%`, color: 'amber', icon: TrendingUp },
+                { label: 'At Risk Objectives', value: cleanNum(data.at_risk || data.risk_count || 0), color: 'rose', icon: AlertTriangle },
+                { label: 'Avg Completion Rate', value: `${cleanNum(data.avg_health_score || data.average_progress || 0)}%`, color: 'green', icon: CheckCircle },
             ]);
 
             setObjCompletionData((data.objective_completion || []).map(obj => ({
@@ -465,24 +638,53 @@ const OKRDashboard = () => {
                 };
             }));
 
+            // Build a quick lookup from the authoritative objectives list for final safety net
+            const authLookup = new Map();
+            objectivesList.forEach(o => {
+                const id = String(o.parent_task_id ?? o.id ?? o.task_id ?? '');
+                if (id) authLookup.set(id, o);
+            });
+
             setTableData((data.objective_completion || []).map(o => {
-                const riskLabel = getRiskLabel(o.risk_rating || o.risk_level || o.rating);
+                const objId = String(o.parent_task_id ?? o.id ?? '');
+                // Always try authoritative lookup first as safety net
+                const auth = authLookup.get(objId);
+                const riskLabel = getRiskLabel(
+                    auth?.risk_rating || o.risk_rating || o.risk_level || o.rating
+                );
+                // Use Number() + nullish coalescing to correctly handle 0 vs missing
+                const subTotal = auth
+                    ? Number(auth.total_subtasks ?? auth.sub_total ?? 0)
+                    : Number(o.total_subtasks ?? o.sub_total ?? o.total_tasks ?? 0);
+                const subComp = auth
+                    ? Number(auth.completed_subtasks ?? auth.sub_comp ?? 0)
+                    : Number(o.completed_subtasks ?? o.sub_comp ?? o.completed_tasks ?? 0);
+                const progress = auth && subTotal > 0
+                    ? Math.round((subComp / subTotal) * 100)
+                    : Number(o.progress_pct ?? o.progress ?? 0);
+                const score = auth && subTotal > 0
+                    ? Math.round((subComp / subTotal) * 100)
+                    : Number(o.health_score ?? o.score ?? 0);
+                const depts = Math.max(1, Number(
+                    auth?.departments_involved || o.department_count ||
+                    o.departments_involved || o.dept_count || o.depts || 1
+                ));
                 return {
                     id: o.parent_task_id || o.id,
                     objective: o.objective_title || o.objective,
-                    progress: o.progress_pct || o.progress || 0,
-                    subComp: o.completed_subtasks || o.sub_comp || 0,
-                    subTotal: o.total_subtasks || o.sub_total || 0,
-                    depts: Math.max(1, Number(o.department_count || o.dept_count || o.depts || 0)),
+                    progress,
+                    subComp,
+                    subTotal,
+                    depts,
                     days: o.total_days || o.days_total || 45,
                     left: o.days_left || o.days_remaining || 0,
-                    score: o.health_score || o.score || 0,
+                    score,
                     rating: riskLabel,
                     ratingColor: riskLabel === 'High' ? 'bg-rose-100 text-rose-700' :
                                  riskLabel === 'Medium' ? 'bg-amber-100 text-amber-700' :
                                  'bg-emerald-100 text-emerald-700',
-                    scoreColor: (o.health_score || o.score || 0) >= 80 ? 'text-emerald-600' :
-                                (o.health_score || o.score || 0) >= 50 ? 'text-amber-500' :
+                    scoreColor: score >= 80 ? 'text-emerald-600' :
+                                score >= 50 ? 'text-amber-500' :
                                 'text-rose-600'
                 };
             }));

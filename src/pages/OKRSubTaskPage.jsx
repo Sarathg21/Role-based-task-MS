@@ -58,88 +58,132 @@ const OKRSubTaskPage = () => {
     const [selectedOKR, setSelectedOKR] = useState(null);
     const [subtasks, setSubtasks] = useState([]);
     const [deptStats, setDeptStats] = useState([]);
-    const [filters, setFilters] = useState({
+    const getStoredFilters = () => ({
         currentOkrId: okrId || '',
-        from_date: new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10),
-        to_date: new Date().toISOString().slice(0, 10)
+        from_date: localStorage.getItem('dashboard_from_date') || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
+        to_date: localStorage.getItem('dashboard_to_date') || new Date().toISOString().slice(0, 10)
     });
+
+    const [filters, setFilters] = useState(getStoredFilters());
+
+    // Listen for global filter changes from Navbar
+    useEffect(() => {
+        const handleFilterChange = () => {
+            const next = getStoredFilters();
+            setFilters(prev => {
+                if (prev.from_date === next.from_date && prev.to_date === next.to_date) return prev;
+                return { 
+                    ...prev, 
+                    from_date: next.from_date, 
+                    to_date: next.to_date 
+                };
+            });
+        };
+        window.addEventListener('dashboard-filter-change', handleFilterChange);
+        return () => window.removeEventListener('dashboard-filter-change', handleFilterChange);
+    }, []);
 
     const fetchInitialData = async () => {
         // Admin role has no access to task/OKR APIs — skip all calls
         if (isAdmin) { setLoading(false); return; }
         try {
+            setLoading(true);
             if (isCFOorManager || userRole === 'EMPLOYEE') {
-                // Fetch from multiple scopes in parallel to capture recurring-generated tasks
-                const scopeParam = userRole === 'EMPLOYEE' ? 'mine' : 'org';
-                const [overviewRes, listRes, tasksRes, orgTasksRes, summaryRes] = await Promise.all([
-                    api.get(userRole === 'EMPLOYEE' ? '/reports/employee/performance' : '/reports/cfo/okr/overview').catch(() => ({ data: {} })),
-                    api.get(isCFOorManager ? '/reports/cfo/okr/objectives' : '/tasks', { params: { scope: 'mine', limit: 50 } }).catch(() => ({ data: [] })),
-                    api.get('/tasks', { params: { limit: 200, scope: (userRole === 'EMPLOYEE' ? 'mine' : 'department') } }).catch(() => ({ data: [] })),
-                    api.get('/tasks', { params: { limit: 200, scope: (userRole === 'EMPLOYEE' ? 'mine' : 'org') } }).catch(() => ({ data: [] })),
-                    api.get('/dashboard/cfo').catch(() => ({ data: {} }))
+                const params = {
+                    from_date: filters.from_date,
+                    to_date: filters.to_date
+                };
+
+                // Use strictly the authoritative OKR objectives list endpoint for the dropdown
+                const [overviewRes, listRes, summaryRes] = await Promise.all([
+                    api.get(userRole === 'EMPLOYEE' ? '/reports/employee/performance' : '/reports/cfo/okr/overview', { params }).catch(() => ({ data: {} })),
+                    api.get('/reports/cfo/okr/objectives', { params }).catch(() => ({ data: [] })),
+                    api.get('/dashboard/cfo', { params }).catch(() => ({ data: {} }))
                 ]);
 
                 const globalData = overviewRes.data?.data || overviewRes.data || {};
-                const teamScore = summaryRes.data?.data?.team_score_current || summaryRes.data?.team_score_current || globalData.overall_progress || 0;
+                const summaryData = summaryRes.data?.data || summaryRes.data || {};
+                
+                const rawList = listRes.data;
+                const list = (() => {
+                    const c = [
+                        rawList?.data,
+                        rawList?.objectives,
+                        rawList?.items,
+                        rawList?.results,
+                        rawList?.records,
+                        rawList?.rows,
+                        rawList
+                    ];
+                    for (const arr of c) {
+                        if (Array.isArray(arr)) return arr;
+                    }
+                    return [];
+                })();
+
+                // Strictly map to specified label/value requirements:
+                // label = objective_title (mapped to dropdown item display)
+                // value = parent_task_id (mapped to selection key)
+                const dropdownList = list.map(item => ({
+                    parent_task_id: item.parent_task_id,
+                    objective_title: item.objective_title,
+                    total_subtasks: item.total_subtasks ?? item.sub_total ?? item.total_tasks ?? item.subtask_count ?? 0,
+                    completed_subtasks: item.completed_subtasks ?? item.sub_comp ?? item.completed_tasks ?? item.completed_count ?? 0,
+                    submitted_subtasks: item.submitted_subtasks ?? item.sub_submitted ?? item.submitted_count ?? 0
+                })).filter(item => !!item.parent_task_id && !!item.objective_title);
+
+                setObjectivesList(dropdownList);
+
+                const cleanNum = (val) => {
+                    if (val === undefined || val === null) return 0;
+                    if (typeof val === 'number') return val;
+                    const parsed = parseFloat(String(val).replace(/[^0-9.]/g, ''));
+                    return isNaN(parsed) ? 0 : parsed;
+                };
+
+                const listTotals = dropdownList.reduce((acc, item) => {
+                    acc.total += cleanNum(item.total_subtasks);
+                    acc.completed += cleanNum(item.completed_subtasks);
+                    acc.submitted += cleanNum(item.submitted_subtasks);
+                    return acc;
+                }, { total: 0, completed: 0, submitted: 0 });
+
+                const totalTasksRaw = Math.max(
+                    cleanNum(globalData.total_subtasks || globalData.sub_total || globalData.total_tasks || summaryData.total_tasks || 0),
+                    listTotals.total
+                );
+                const doneTasksRaw = Math.max(
+                    cleanNum(globalData.completed_tasks || globalData.completed_count || globalData.sub_comp || summaryData.completed_count || 0),
+                    listTotals.completed
+                );
+                const submittedTasksRaw = Math.max(
+                    cleanNum(globalData.submitted_tasks || globalData.submitted_count || globalData.pending_approval || summaryData.pending_approval || 0),
+                    listTotals.submitted
+                );
+                const finalOverall = cleanNum(globalData.overall_progress || globalData.progress_pct || summaryData.overall_progress || 0) ||
+                    (totalTasksRaw > 0 ? Math.round((doneTasksRaw / totalTasksRaw) * 100) : 0);
+                const teamScore = cleanNum(summaryData.team_score_current || summaryData.score || summaryData.team_performance || summaryData.overall_progress || 0) || finalOverall;
+                
+                console.log('[OKR] Global Metrics Parsed:', { totalTasksRaw, doneTasksRaw, finalOverall, teamScore, role: userRole });
+
                 setGlobalOverview({
                     ...globalData,
-                    team_score_current: teamScore
-                });
-                let list = listRes.data?.data || listRes.data || [];
-                if (!Array.isArray(list)) list = [];
-
-                // Merge + deduplicate tasks from both scopes
-                const rawA = Array.isArray(tasksRes.data?.data) ? tasksRes.data.data
-                    : Array.isArray(tasksRes.data) ? tasksRes.data : [];
-                const rawB = Array.isArray(orgTasksRes.data?.data) ? orgTasksRes.data.data
-                    : Array.isArray(orgTasksRes.data) ? orgTasksRes.data : [];
-
-                const seenIds = new Set();
-                const allTasks = [...rawA, ...rawB].filter(t => {
-                    const id = t.id || t.task_id;
-                    if (!id || seenIds.has(String(id))) return false;
-                    // ✅ EXCLUDE CANCELLED TASKS/OBJECTIVES
-                    if ((t.status || '').toUpperCase() === 'CANCELLED') return false;
-                    seenIds.add(String(id));
-                    return true;
+                    total_objectives: Math.max(
+                        dropdownList.length, 
+                        cleanNum(globalData.total_objectives || globalData.total_okrs || globalData.objective_count || 0)
+                    ),
+                    team_score_current: teamScore,
+                    overall_progress: finalOverall,
+                    total_subtasks: totalTasksRaw,
+                    completed_tasks: doneTasksRaw,
+                    submitted_tasks: submittedTasksRaw,
+                    at_risk: cleanNum(globalData.at_risk || globalData.risk_count || 0),
+                    avg_health_score: cleanNum(globalData.avg_health_score || globalData.average_progress || 0)
                 });
 
-                // Build a set of IDs that are referenced as parent by any subtask
-                const childParentIds = new Set();
-                allTasks.forEach(t => {
-                    const pid = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
-                    if (pid) childParentIds.add(String(pid));
-                });
-
-                // Identify parent tasks using 3 criteria:
-                // 1. Has children referencing them
-                // 2. is_parent/PARENT type flag
-                // 3. Is a recurring-generated task (has recurring_task_id)
-                const localParents = allTasks.filter(t => {
-                    const hasNoParent = !t.parent_task_id && !t.parent_id;
-                    const id = String(t.id || t.task_id);
-                    const isParentByChildren = childParentIds.has(id);
-                    const isParentByFlag = t.is_parent || t.task_type === 'PARENT' || (t.subtask_count && t.subtask_count > 0);
-                    const isRecurring = !!(t.recurring_task_id || t.recurring_id || t.automation_id);
-                    return hasNoParent && (isParentByChildren || isParentByFlag || isRecurring);
-                });
-
-                // Inject any parent tasks not already present in the objectives list
-                localParents.forEach(p => {
-                    const pid = p.id || p.task_id;
-                    if (!list.find(o => String(o.parent_task_id || o.id) === String(pid))) {
-                        list.push({
-                            parent_task_id: pid,
-                            parent_task_title: p.title || p.task_name || p.name || p.objective_title || 'Strategic Objective',
-                            objective_title: p.title || p.task_name || p.name || p.objective_title || 'Strategic Objective',
-                        });
-                    }
-                });
-
-                setObjectivesList(list);
-
-                if (!okrId && list.length > 0) {
-                    const firstId = list[0].parent_task_id || list[0].id;
+                const hasCurrent = dropdownList.some(o => String(o.parent_task_id) === String(filters.currentOkrId));
+                if ((!okrId || !hasCurrent) && dropdownList.length > 0) {
+                    const firstId = dropdownList[0].parent_task_id;
                     setFilters(prev => ({ ...prev, currentOkrId: firstId }));
                 }
             }
@@ -150,26 +194,22 @@ const OKRSubTaskPage = () => {
         }
     };
 
-    const fetchDrilldownData = async () => {
-        const targetId = filters.currentOkrId;
+    const fetchDrilldownData = async (override = {}) => {
+        const targetId = override.okrId ?? filters.currentOkrId;
         if (!targetId) return;
 
         setLoading(true);
         try {
             const params = {
-                from_date: filters.from_date,
-                to_date: filters.to_date
+                from_date: override.from_date ?? filters.from_date,
+                to_date: override.to_date ?? filters.to_date
             };
 
-            // Fetch from API endpoints + raw DB with org scope to capture all recurring tasks
-            const [summaryRes, subtasksRes, deptsRes, rawTasksRes, orgRawTasksRes, allTasksRes] = await Promise.all([
+            // Use strictly the parent-specific drilldown endpoints as requested
+            const [summaryRes, subtasksRes, deptsRes] = await Promise.all([
                 api.get(`/reports/cfo/okr/objectives/${targetId}/summary`, { params }).catch(() => ({ data: {} })),
                 api.get(`/reports/cfo/okr/objectives/${targetId}/subtasks`, { params }).catch(() => ({ data: [] })),
-                api.get(`/reports/cfo/okr/objectives/${targetId}/departments`, { params }).catch(() => ({ data: [] })),
-                api.get('/tasks', { params: { parent_task_id: targetId, limit: 200 } }).catch(() => ({ data: [] })),
-                api.get('/tasks', { params: { parent_task_id: targetId, limit: 200, scope: 'org' } }).catch(() => ({ data: [] })),
-                // Broader fetch: capture more tasks and filter client-side
-                api.get('/tasks', { params: { limit: 200, scope: 'org' } }).catch(() => ({ data: [] }))
+                api.get(`/reports/cfo/okr/objectives/${targetId}/departments`, { params }).catch(() => ({ data: [] }))
             ]);
 
             // Universal array extractor to handle varying backend payloads gracefully
@@ -180,76 +220,82 @@ const OKRSubTaskPage = () => {
                 return d.data || d.items || d.tasks || d.subtasks || d.departments || d.results || [];
             };
             
-            const summary = summaryRes.data?.data || summaryRes.data || {};
-            let subtasks = extractList(subtasksRes);
+            const summaryData = summaryRes.data?.data || summaryRes.data || {};
+            let subList = extractList(subtasksRes);
             let depts = extractList(deptsRes);
 
-            // If the summary lacks a title (usually happens for live uncached tasks), inherit it from our list
-            if (!summary.objective_title && !summary.parent_task_title) {
-                const matched = objectivesList.find(o => String(o.parent_task_id || o.id) === String(targetId)) || {};
-                summary.objective_title = matched.objective_title || matched.parent_task_title || matched.title || 'Strategic Task';
+            // Inherit title if missing
+            if (!summaryData.objective_title && !summaryData.parent_task_title) {
+                const matched = objectivesList.find(o => String(o.parent_task_id) === String(targetId)) || {};
+                summaryData.objective_title = matched.objective_title || 'Strategic Task';
             }
 
-            // Merge + deduplicate raw tasks from both scopes
-            const rawA = extractList(rawTasksRes);
-            const rawB = extractList(orgRawTasksRes);
-            // Also scan the broad all-tasks fetch for children of this parent
-            const rawC = extractList(allTasksRes);
-            const seenSubs = new Set();
-            const rawTasks = [...rawA, ...rawB, ...rawC].filter(t => {
-                const id = t.id || t.task_id;
-                if (!id || seenSubs.has(String(id))) return false;
-                // EXCLUDE CANCELLED TASKS
-                if ((t.status || '').toUpperCase() === 'CANCELLED') return false;
-                
-                // Filter to only tasks that belong to this parent
-                const pId = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
-                if (String(pId) !== String(targetId)) return false;
+            const isDone = (s) => ['COMPLETED', 'APPROVED', 'DONE', 'FINISHED', 'SUCCESS'].includes((s.status || s.task_status || '').toUpperCase().trim()) || s.is_completed || s.is_done;
+            const isSubmitted = (s) => ['SUBMITTED', 'REVIEW', 'NEW', 'PENDING', 'STARTED', 'IN PROGRESS', 'IN_PROGRESS'].includes((s.status || s.task_status || '').toUpperCase().trim());
+            
+            const manualTotal = subList.length;
+            const manualDone = subList.filter(isDone).length;
+            const manualSubmitted = subList.filter(s => isDone(s) || isSubmitted(s)).length;
 
-                seenSubs.add(String(id));
-                return true;
+            const finalTotal = Math.max(Number(summaryData.total_subtasks || summaryData.sub_total || 0), manualTotal);
+            const finalDone = Math.max(Number(summaryData.completed_subtasks || summaryData.sub_comp || 0), manualDone);
+            const finalSubmitted = Math.max(Number(summaryData.submitted_subtasks || summaryData.sub_submitted || 0), manualSubmitted);
+            
+            const parseDateSafe = (value) => {
+                if (!value) return null;
+                const parsed = new Date(value);
+                return isNaN(parsed.getTime()) ? null : parsed;
+            };
+            const pickDueDate = () => {
+                const primary = summaryData.due_date || summaryData.end_date || summaryData.target_date || summaryData.dueDate;
+                const primaryDate = parseDateSafe(primary);
+                if (primaryDate) return primaryDate;
+                let latest = null;
+                subList.forEach(s => {
+                    const candidate = s.due_date || s.dueDate || s.due || s.end_date;
+                    const d = parseDateSafe(candidate);
+                    if (d && (!latest || d > latest)) latest = d;
+                });
+                return latest;
+            };
+
+            let daysLeft = 0;
+            const dueDate = pickDueDate();
+            if (dueDate) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const diff = dueDate - today;
+                daysLeft = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+            }
+
+            setSelectedOKR({
+                ...summaryData,
+                total_subtasks: finalTotal,
+                completed_subtasks: finalDone,
+                submitted_subtasks: finalSubmitted,
+                progress_pct: finalTotal > 0 ? Math.round((finalDone / finalTotal) * 100) : (summaryData.progress_pct || 0),
+                health_score: finalTotal > 0 ? Math.round((finalDone / finalTotal) * 100) : (summaryData.health_score || 0),
+                days_left: summaryData.days_left ?? daysLeft
             });
 
-             // Use the specialized subtask dataset, but supplement it with any broader matches
-             const combined = Array.from(new Map([...subtasks, ...rawTasks].map(s => [s.id || s.task_id, s])).values());
-             if (combined.length > 0) {
-                 subtasks = combined;
-                  
-                  // Rebuild department groupings structurally
-                  const dMap = {};
-                  subtasks.forEach(t => {
-                      const dName = t.department_name && t.department_name !== 'N/A' ? t.department_name : (t.department && t.department !== 'N/A' ? t.department : 'Unknown');
-                      if (!dMap[dName]) dMap[dName] = { department_name: dName, total_subtasks: 0 };
-                      dMap[dName].total_subtasks++;
-                  });
-                  depts = Object.values(dMap);
-                  
-                  // Helper for inclusive status checking
-                  const isDone = (s) => {
-                      const st = (s.status || s.task_status || '').toUpperCase();
-                      return ['COMPLETED', 'APPROVED', 'DONE', 'FINISHED', 'SUCCESS'].includes(st) || s.is_completed === true || s.is_done === true;
-                  };
+            // Format subtasks for tabular display
+            const formattedSubtasks = subList.map(st => {
+                let daysLeftText = st.days_left_text;
+                const dueValue = st.due_date || st.dueDate || st.due || st.end_date;
+                if (!daysLeftText && dueValue) {
+                    const due = new Date(dueValue);
+                    const now = new Date();
+                    now.setHours(0,0,0,0);
+                    const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+                    if (isDone(st)) daysLeftText = 'Done';
+                    else if (diffDays < 0) daysLeftText = `${Math.abs(diffDays)} days late`;
+                    else if (diffDays === 0) daysLeftText = 'Today';
+                    else daysLeftText = `${diffDays} days left`;
+                }
+                return { ...st, days_left_text: daysLeftText || 'N/A' };
+            });
 
-                  // Sync summary metrics only if manual count is better than server
-                  const manualTotal = subtasks.length;
-                  const manualDone = subtasks.filter(isDone).length;
-
-                  summary.total_subtasks = Math.max(summary.total_subtasks || 0, manualTotal);
-                  summary.completed_subtasks = Math.max(summary.completed_subtasks || 0, manualDone);
-                  summary.progress_pct = summary.total_subtasks > 0 ? Math.round((summary.completed_subtasks / summary.total_subtasks) * 100) : 0;
-             } else if (subtasks.length > 0) {
-                 // Safe fallback if depts res failed completely
-                 const dMap = {};
-                 subtasks.forEach(t => {
-                     const dName = t.department_name && t.department_name !== 'N/A' ? t.department_name : (t.department && t.department !== 'N/A' ? t.department : 'Unknown');
-                     if (!dMap[dName]) dMap[dName] = { department_name: dName, total_subtasks: 0 };
-                     dMap[dName].total_subtasks++;
-                 });
-                 depts = Object.values(dMap);
-            }
-
-            setSelectedOKR(summary);
-            setSubtasks(subtasks);
+            setSubtasks(formattedSubtasks);
             setDeptStats(depts);
 
         } catch (error) {
@@ -260,12 +306,8 @@ const OKRSubTaskPage = () => {
     };
 
     useEffect(() => {
-        fetchInitialData().then(() => {
-            // After initial load: if no okrId in URL, the first objective will be
-            // auto-selected by fetchInitialData. Either way trigger the drilldown.
-            if (filters.currentOkrId) fetchDrilldownData();
-        });
-    }, []);
+        fetchInitialData();
+    }, [filters.from_date, filters.to_date]);
 
     useEffect(() => {
         if (!filters.currentOkrId) return; // Don't fire with empty ID
@@ -275,6 +317,14 @@ const OKRSubTaskPage = () => {
             navigate(`/okr-subtask/${filters.currentOkrId}`, { replace: true });
         }
     }, [filters.currentOkrId, filters.from_date, filters.to_date]);
+
+    const handleApplyFilters = async () => {
+        localStorage.setItem('dashboard_from_date', filters.from_date);
+        localStorage.setItem('dashboard_to_date', filters.to_date);
+        window.dispatchEvent(new Event('dashboard-filter-change'));
+        await fetchInitialData();
+        await fetchDrilldownData();
+    };
 
     const deptDistribution = useMemo(() => {
         const colors = ['#1e3a8a', '#10b981', '#7c3aed', '#f59e0b', '#ef4444'];
@@ -306,11 +356,55 @@ const OKRSubTaskPage = () => {
     if (loading && !selectedOKR) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[600px] bg-[#f8fafc] gap-4">
-                <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+                <div className="relative">
+                    <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <Target className="w-4 h-4 text-blue-300 animate-pulse" />
+                    </div>
+                </div>
                 <p className="text-slate-500 font-bold capitalize tracking-widest text-xs">Syncing Executive Intelligence...</p>
             </div>
         );
     }
+
+    const clean = (val) => {
+        if (val === undefined || val === null) return 0;
+        if (typeof val === 'number') return val;
+        const parsed = parseFloat(String(val).replace(/[^0-9.]/g, ''));
+        return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const g = globalOverview || {};
+    const displayTotalObjectives = Math.max(clean(g.total_objectives || g.total_okrs || g.objective_count), objectivesList.length);
+    const displayOverallProgress = clean(g.overall_progress || g.progress_pct);
+    const displayTeamScore = clean(g.team_score_current || g.score || g.team_performance) || displayOverallProgress;
+    const displayTotalSubtasks = clean(g.total_subtasks || g.sub_total || g.total_tasks);
+    const displayCompletedTasks = clean(g.completed_tasks || g.completed_count || g.sub_comp);
+    const displayAtRisk = clean(g.at_risk || g.risk_count);
+    const displayAvgRate = clean(g.avg_health_score || g.average_progress);
+    const displaySubmittedTasks = clean(g.submitted_tasks || g.submitted_count) || (selectedOKR?.submitted_subtasks || 0);
+
+    const topMetrics = [
+        { label: 'Total Objectives', value: displayTotalObjectives, gradient: 'from-[#4285F4] to-[#2563EB]', icon: Target },
+        { label: 'Team Performance Score', value: `${displayTeamScore}%`, gradient: 'from-[#7C3AED] to-[#5B21B6]', icon: TrendingUp },
+        { 
+            label: 'Total Subtasks Completed', 
+            value: `${displayCompletedTasks} / ${displayTotalSubtasks}`, 
+            sub: `${Math.round((displayCompletedTasks / Math.max(displayTotalSubtasks, 1)) * 100)}%`,
+            gradient: 'from-[#10B981] to-[#059669]', 
+            icon: CheckCircle2 
+        },
+        { 
+            label: 'Total Subtasks Submitted', 
+            value: `${displaySubmittedTasks} / ${displayTotalSubtasks}`, 
+            sub: `${Math.round((displaySubmittedTasks / Math.max(displayTotalSubtasks, 1)) * 100)}%`,
+            gradient: 'from-[#F59E0B] to-[#D97706]', 
+            icon: ShieldCheck 
+        },
+        { label: 'At Risk', value: displayAtRisk, gradient: 'from-[#F43F5E] to-[#E11D48]', icon: AlertTriangle },
+        { label: 'Avg Completion Rate', value: `${displayAvgRate}%`, gradient: 'from-[#06B6D4] to-[#0891B2]', icon: CheckCircle },
+        { label: 'Overall Progress', value: `${displayOverallProgress}%`, gradient: 'from-[#4F46E5] to-[#4338CA]', icon: TrendingUp },
+    ];
 
     return (
         <div className="flex flex-col gap-4 bg-[#f1f5f9] min-h-screen p-4 sm:p-6 text-slate-800 font-sans">
@@ -322,7 +416,7 @@ const OKRSubTaskPage = () => {
                     </div>
                     <h1 className="text-xl font-bold tracking-tight text-white select-none">FJ Group — OKR Execution Dashboard</h1>
                  </div>
-                 <div className="hidden lg:flex items-center gap-3 text-xs font-bold text-white capitalize tracking-tight" style={{ color: 'white', textTransform: 'capitalize' }}>
+                 <div className="hidden lg:flex items-center gap-3 text-xs font-bold text-white capitalize tracking-tight">
                     <Calendar size={14} />
                     <span>Real-time Strategic Insights</span>
                  </div>
@@ -330,19 +424,21 @@ const OKRSubTaskPage = () => {
 
             {/* ── TOP KPI CARDS (GLOBAL OVERVIEW) ── */}
             <div className="grid grid-cols-2 lg:grid-cols-7 gap-4 mb-2">
-                {[
-                    { label: 'Total Objectives', value: globalOverview?.total_objectives || 0, gradient: 'from-[#4285F4] to-[#2563EB]' },
-                    { label: 'Total Subtasks', value: globalOverview?.total_subtasks || 146, gradient: 'from-[#4F46E5] to-[#4338CA]' },
-                    { label: 'Completed Tasks', value: globalOverview?.completed_tasks || 82, gradient: 'from-[#10B981] to-[#059669]' },
-                    { label: 'Overall Progress', value: `${globalOverview?.overall_progress || 56}%`, gradient: 'from-[#F59E0B] to-[#D97706]' },
-                    { label: 'At Risk', value: globalOverview?.at_risk || 3, gradient: 'from-[#F43F5E] to-[#E11D48]' },
-                    { label: 'Avg Completion Rate', value: globalOverview?.avg_health_score || 74, gradient: 'from-[#06B6D4] to-[#0891B2]' },
-                    { label: 'Team Performance Score', value: `${globalOverview?.team_score_current || 0}%`, gradient: 'from-[#7C3AED] to-[#5B21B6]' },
-                ].map((m, i) => (
-                    <div key={i} className={`relative overflow-hidden bg-gradient-to-br ${m.gradient} p-5 rounded-2xl shadow-lg shadow-indigo-200/20 flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.03] group`}>
+                {topMetrics.map((m, i) => (
+                    <div key={i} className={`relative overflow-hidden bg-gradient-to-br ${m.gradient} p-4 rounded-2xl shadow-lg shadow-indigo-200/20 flex flex-col transition-all hover:scale-[1.03] group h-full`}>
                         <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl group-hover:scale-150 transition-transform duration-700" />
-                        <span className="text-[12px] font-black text-white capitalize tracking-tight text-center drop-shadow-sm">{m.label}</span>
-                        <span className="text-3xl font-black text-white tabular-nums tracking-tighter drop-shadow-md">{m.value}</span>
+                        
+                        <div className="flex items-start justify-between relative z-10 w-full mb-1">
+                             <span className="text-[10px] font-black text-white/80 uppercase tracking-[0.1em] drop-shadow-sm line-clamp-1">{m.label}</span>
+                             {m.icon && <m.icon size={16} className="text-white/40 group-hover:text-white/80 transition-colors" />}
+                        </div>
+                        
+                        <div className="relative z-10 flex flex-col">
+                            <span className="text-3xl font-black text-white tabular-nums tracking-tighter drop-shadow-md">{m.value}</span>
+                            {m.sub && (
+                                <span className="text-[11px] font-black text-white/90 drop-shadow-sm mt-0.5">{m.sub}</span>
+                            )}
+                        </div>
                     </div>
                 ))}
             </div>
@@ -362,8 +458,8 @@ const OKRSubTaskPage = () => {
                         >
                             <option value="">Select Parent Task</option>
                             {objectivesList.map(obj => (
-                                <option key={obj.parent_task_id || obj.id} value={obj.parent_task_id || obj.id}>
-                                    {obj.parent_task_title || obj.objective_title || obj.name || (obj.parent_task_id || obj.id)}
+                                <option key={obj.parent_task_id} value={obj.parent_task_id}>
+                                    {obj.objective_title}
                                 </option>
                             ))}
                         </select>
@@ -391,7 +487,7 @@ const OKRSubTaskPage = () => {
                         />
                     </div>
                     <button 
-                        onClick={fetchDrilldownData}
+                        onClick={handleApplyFilters}
                         className="bg-[#1e40af] text-white px-8 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-blue-800 active:scale-95 transition-all outline-none"
                     >
                         Apply
@@ -486,8 +582,12 @@ const OKRSubTaskPage = () => {
 
                         {/* Submitted Bar */}
                         {(() => {
-                            const submittedCount = selectedOKR?.submitted_subtasks ?? subtasks.filter(s => s.status?.toUpperCase() === 'SUBMITTED').length;
-                            const total = selectedOKR?.total_subtasks || 0;
+                            const isDone = (s) => ['COMPLETED', 'APPROVED', 'DONE', 'FINISHED', 'SUCCESS'].includes((s.status || '').toUpperCase().trim());
+                            const isSubmitted = (s) => ['SUBMITTED', 'REVIEW', 'NEW', 'PENDING'].includes((s.status || '').toUpperCase().trim());
+                            
+                            const manualSubCount = subtasks.filter(s => isDone(s) || isSubmitted(s)).length;
+                            const submittedCount = Math.max(Number(selectedOKR?.submitted_subtasks) || 0, manualSubCount);
+                            const total = Math.max(Number(selectedOKR?.total_subtasks) || 0, subtasks.length);
                             const submittedPct = total > 0 ? Math.round((submittedCount / total) * 100) : 0;
                             return (
                                 <>
@@ -558,21 +658,18 @@ const OKRSubTaskPage = () => {
                         </div>
 
                         {/* Stats Cards */}
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
                              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col items-center">
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">Total Subtasks</span>
-                                <div className="flex items-end gap-2">
-                                    <span className="text-2xl font-black text-slate-800 tabular-nums leading-none">{selectedOKR?.total_subtasks || 0}</span>
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tight ${
-                                        selectedOKR?.health_score > 70 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-600'
-                                    }`}>
-                                        {selectedOKR?.risk_rating || 'Low'}
-                                    </span>
-                                </div>
+                                <span className="text-sm font-black text-slate-800">{selectedOKR?.total_subtasks || 0}</span>
                              </div>
-                             <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col items-center justify-center">
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">Completion Rate</span>
-                                <span className="text-2xl font-black text-emerald-600 tabular-nums leading-none">{selectedOKR?.health_score || 0}</span>
+                             <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col items-center">
+                                <span className="text-[9px] font-black text-blue-600 uppercase tracking-[0.15em] mb-1">Days Left</span>
+                                <span className="text-sm font-black text-blue-700">{selectedOKR?.days_left ?? '---'}</span>
+                             </div>
+                             <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col items-center">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">Sub-Depts</span>
+                                <span className="text-sm font-black text-slate-800">{selectedOKR?.department_count || 1}</span>
                              </div>
                         </div>
                     </div>

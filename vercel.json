@@ -1,6 +1,5 @@
 {
   "rewrites": [
-    { "source": "/tascade-carousel-studio.html", "destination": "/tascade-carousel-studio.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
