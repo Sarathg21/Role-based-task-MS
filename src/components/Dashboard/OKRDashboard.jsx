@@ -102,9 +102,25 @@ const OKRDashboard = () => {
     const [tableData, setTableData] = useState([]);
     const [trendData, setTrendData] = useState([]);
     const [overdueTasks, setOverdueTasks] = useState([]);
+    const defaultTo = new Date().toISOString().slice(0, 10);
+    const defaultFrom = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+
+    const validDate = (raw, fallback) => {
+        if (!raw) return fallback;
+        const d = new Date(raw);
+        if (isNaN(d.getTime())) return fallback;
+        const yr = d.getFullYear();
+        if (yr < 2020 || yr > 2100) { 
+            localStorage.removeItem('dashboard_from_date');
+            localStorage.removeItem('dashboard_to_date');
+            return fallback; 
+        }
+        return raw;
+    };
+
     const getStoredFilters = () => ({
-        from_date: localStorage.getItem('dashboard_from_date') || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
-        to_date: localStorage.getItem('dashboard_to_date') || new Date().toISOString().slice(0, 10)
+        from_date: validDate(localStorage.getItem('dashboard_from_date'), defaultFrom),
+        to_date:   validDate(localStorage.getItem('dashboard_to_date'),   defaultTo)
     });
 
     const [filters, setFilters] = useState(getStoredFilters());
@@ -592,7 +608,8 @@ const OKRDashboard = () => {
             const totalTasksRaw = cleanNum(data.total_subtasks || data.sub_total || data.total_tasks || summaryData.total_tasks || 0);
             const doneTasksRaw = cleanNum(data.completed_tasks || data.completed_count || data.sub_comp || summaryData.completed_count || 0);
             // Final normalization of KPIs for display — prioritize any non-zero source
-            const finalTotalObjectives = Math.max(serverObjs.length, totalObjsFromData, objectivesList.length);
+            const finalTotalObjectives = Math.max((data.objective_completion || []).length, cleanNum(data.total_objectives || 0), objectivesList.length);
+
             const finalOverallProgress = cleanNum(data.overall_progress || data.progress_pct || summaryData.overall_progress || 0) || (totalTasksRaw > 0 ? Math.round((doneTasksRaw / totalTasksRaw) * 100) : 0);
             
             // Force use of overall progress if team score is reported as 0 but progress exists
