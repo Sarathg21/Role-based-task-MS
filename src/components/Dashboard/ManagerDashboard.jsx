@@ -207,6 +207,15 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
     const [reworkModalOpen, setReworkModalOpen] = useState(false);
     const [taskForRework, setTaskForRework] = useState(null);
 
+    // ── Independent date filters for sub-sections ────────────────────────────
+    const [teamPerfFrom, setTeamPerfFrom] = useState(getFirstDayOfMonth());
+    const [teamPerfTo, setTeamPerfTo] = useState(getToday());
+    const [teamPerfLoading, setTeamPerfLoading] = useState(false);
+
+    const [riskFrom, setRiskFrom] = useState(getFirstDayOfMonth());
+    const [riskTo, setRiskTo] = useState(getToday());
+    const [riskLoading, setRiskLoading] = useState(false);
+
     const formatTimeAgo = (dateStr) => {
         if (!dateStr) return 'Just now';
         try {
@@ -482,6 +491,52 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
         }
     };
 
+    // ── Fetch only Team Performance data with its own date range ────────────
+    const fetchTeamPerformance = async (from, to) => {
+        if (from && to && to < from) {
+            console.warn('[ManagerDashboard] teamPerfTo is before teamPerfFrom — skipping fetch');
+            return;
+        }
+        setTeamPerfLoading(true);
+        try {
+            const params = {};
+            if (from) { params.from_date = from; params.start_date = from; }
+            if (to)   { params.to_date   = to;   params.end_date   = to;   }
+            if (currentDeptId && currentDeptId !== 'all') params.department_id = currentDeptId;
+
+            const res = await api.get('/dashboard/manager/team-performance', { params });
+            const data = res.data?.data || res.data || [];
+            if (Array.isArray(data) && data.length > 0) setReportTeam(data);
+        } catch (err) {
+            console.warn('team-performance fetch failed:', err);
+        } finally {
+            setTeamPerfLoading(false);
+        }
+    };
+
+    // ── Fetch only Employee Risk data with its own date range ─────────────────
+    const fetchEmployeeRisk = async (from, to) => {
+        if (from && to && to < from) {
+            console.warn('[ManagerDashboard] riskTo is before riskFrom — skipping fetch');
+            return;
+        }
+        setRiskLoading(true);
+        try {
+            const params = {};
+            if (from) { params.from_date = from; params.start_date = from; }
+            if (to)   { params.to_date   = to;   params.end_date   = to;   }
+            if (currentDeptId && currentDeptId !== 'all') params.department_id = currentDeptId;
+
+            const res = await api.get('/dashboard/manager/employee-risk', { params });
+            const data = res.data?.data || res.data || [];
+            if (Array.isArray(data)) setEmployeeRisk(data);
+        } catch (err) {
+            console.warn('employee-risk fetch failed:', err);
+        } finally {
+            setRiskLoading(false);
+        }
+    };
+
     const handleReworkRequest = (task) => {
         setTaskForRework(task);
         setReworkModalOpen(true);
@@ -516,6 +571,16 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
             fetchDashboardData();
         }
     }, [user?.id, fromDate, toDate, currentDeptId]);
+
+    // Re-fetch team performance whenever its own dates change (after initial load)
+    useEffect(() => {
+        if (user?.id) fetchTeamPerformance(teamPerfFrom, teamPerfTo);
+    }, [teamPerfFrom, teamPerfTo, currentDeptId]);
+
+    // Re-fetch employee risk whenever its own dates change (after initial load)
+    useEffect(() => {
+        if (user?.id) fetchEmployeeRisk(riskFrom, riskTo);
+    }, [riskFrom, riskTo, currentDeptId]);
 
     useEffect(() => {
         if (isActuallyCFO && !overriddenDept) {
@@ -974,12 +1039,45 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                     </div>
 
                     {/* Employee Risk Monitor */}
-                    {employeeRisk.length > 0 && (
-                        <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100">
-                            <h3 className="text-[15px] font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-slate-100">
+                        {/* Header + date filter */}
+                        <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                            <h3 className="text-[15px] font-bold text-slate-800 flex items-center gap-2 shrink-0">
                                 <AlertTriangle size={16} className="text-rose-500" />
                                 Performance Risk Tracker
                             </h3>
+                            {riskLoading && <Loader2 size={14} className="text-rose-400 animate-spin" />}
+                        </div>
+                        {/* Date pickers */}
+                        <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+                            <div className="flex items-center gap-1 bg-rose-50 border border-rose-100 rounded-lg px-2 py-1">
+                                <Calendar size={11} className="text-rose-400 shrink-0" />
+                                <input
+                                    type="date"
+                                    value={riskFrom}
+                                    max={riskTo}
+                                    onChange={e => setRiskFrom(e.target.value)}
+                                    className="text-[11px] font-semibold text-rose-700 bg-transparent border-none outline-none cursor-pointer w-[105px]"
+                                />
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-bold">→</span>
+                            <div className="flex items-center gap-1 bg-rose-50 border border-rose-100 rounded-lg px-2 py-1">
+                                <Calendar size={11} className="text-rose-400 shrink-0" />
+                                <input
+                                    type="date"
+                                    value={riskTo}
+                                    min={riskFrom}
+                                    onChange={e => setRiskTo(e.target.value)}
+                                    className="text-[11px] font-semibold text-rose-700 bg-transparent border-none outline-none cursor-pointer w-[105px]"
+                                />
+                            </div>
+                        </div>
+                        {employeeRisk.length === 0 ? (
+                            <div className="py-8 text-center bg-rose-50/30 rounded-xl border border-dashed border-rose-100">
+                                <AlertTriangle size={24} className="text-rose-200 mx-auto mb-2" />
+                                <p className="text-[10px] text-rose-400 font-bold uppercase tracking-widest">No risk data for period</p>
+                            </div>
+                        ) : (
                             <div className="space-y-2">
                                 {employeeRisk.slice(0, 4).map((risk, i) => (
                                     <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-rose-50/30 border border-rose-100/50 hover:bg-rose-50 transition-all">
@@ -997,15 +1095,43 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                                     </div>
                                 ))}
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Asset Merit Registry - Full Width Below */}
             <div className="bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden">
-                <div className="flex items-center gap-4 px-6 py-5 border-b border-slate-100 bg-slate-50/10">
-                    <h3 className="text-[17px] font-bold text-slate-800">Asset Merit Registry</h3>
+                <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-slate-100 bg-slate-50/10 flex-wrap">
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-[17px] font-bold text-slate-800">Asset Merit Registry</h3>
+                        {teamPerfLoading && <Loader2 size={15} className="text-violet-400 animate-spin" />}
+                    </div>
+                    {/* Team Performance date filters */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:block">Period:</span>
+                        <div className="flex items-center gap-1 bg-violet-50 border border-violet-100 rounded-lg px-2.5 py-1.5">
+                            <Calendar size={12} className="text-violet-400 shrink-0" />
+                            <input
+                                type="date"
+                                value={teamPerfFrom}
+                                max={teamPerfTo}
+                                onChange={e => setTeamPerfFrom(e.target.value)}
+                                className="text-[11px] font-semibold text-violet-700 bg-transparent border-none outline-none cursor-pointer w-[110px]"
+                            />
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-bold">→</span>
+                        <div className="flex items-center gap-1 bg-violet-50 border border-violet-100 rounded-lg px-2.5 py-1.5">
+                            <Calendar size={12} className="text-violet-400 shrink-0" />
+                            <input
+                                type="date"
+                                value={teamPerfTo}
+                                min={teamPerfFrom}
+                                onChange={e => setTeamPerfTo(e.target.value)}
+                                className="text-[11px] font-semibold text-violet-700 bg-transparent border-none outline-none cursor-pointer w-[110px]"
+                            />
+                        </div>
+                    </div>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">

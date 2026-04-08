@@ -64,8 +64,12 @@ const PerformanceDashboard = () => {
     const [selectedDept, setSelectedDept] = useState(
         (!isCFO && user?.department) ? String(user.department) : ''
     );
-    const [fromDate, setFromDate] = useState(localStorage.getItem('dashboard_from_date') || getSixMonthsAgo());
-    const [toDate, setToDate] = useState(localStorage.getItem('dashboard_to_date') || getToday());
+
+    // Read saved dates but guard against inverted ranges (stale localStorage)
+    const _savedFrom = localStorage.getItem('dashboard_from_date') || getSixMonthsAgo();
+    const _savedTo   = localStorage.getItem('dashboard_to_date')   || getToday();
+    const [fromDate, setFromDate] = useState(_savedFrom);
+    const [toDate,   setToDate]   = useState(_savedTo >= _savedFrom ? _savedTo : getToday());
 
     // Data
     const [summary, setSummary] = useState({
@@ -98,13 +102,26 @@ const PerformanceDashboard = () => {
     const [teamPage, setTeamPage] = useState(1);
     const teamItemsPerPage = 10;
 
-    /* Synchronize with global filter */
+    // ── Independent date filters for sub-sections ────────────────────────────
+    const [teamPerfFrom,    setTeamPerfFrom]    = useState(getFirstDayOfMonth());
+    const [teamPerfTo,      setTeamPerfTo]      = useState(getToday());
+    const [teamPerfLoading, setTeamPerfLoading] = useState(false);
+
+    const [riskFrom,    setRiskFrom]    = useState(getFirstDayOfMonth());
+    const [riskTo,      setRiskTo]      = useState(getToday());
+    const [riskLoading, setRiskLoading] = useState(false);
+
+    /* Synchronize with global filter — guard against inverted range */
     useEffect(() => {
         const handleFilterChange = () => {
             const storedFrom = localStorage.getItem('dashboard_from_date');
-            const storedTo = localStorage.getItem('dashboard_to_date');
+            const storedTo   = localStorage.getItem('dashboard_to_date');
             if (storedFrom) setFromDate(storedFrom);
-            if (storedTo) setToDate(storedTo);
+            if (storedTo) {
+                // Only accept storedTo if it's >= storedFrom (or fromDate as fallback)
+                const effectiveFrom = storedFrom || fromDate;
+                setToDate(storedTo >= effectiveFrom ? storedTo : getToday());
+            }
         };
         window.addEventListener('dashboard-filter-change', handleFilterChange);
         return () => window.removeEventListener('dashboard-filter-change', handleFilterChange);
@@ -280,17 +297,27 @@ const PerformanceDashboard = () => {
     }, [fromDate, toDate]);
 
     const fetchDashData = useCallback(async () => {
+        // ── Normalize dates: never send empty strings to the API ─────────────────
+        const safeFrom = (fromDate && fromDate.length === 10) ? fromDate : getFirstDayOfMonth();
+        const safeTo   = (toDate   && toDate.length   === 10) ? toDate   : getToday();
+
+        // If dates are inverted after normalization, skip fetch
+        if (safeTo < safeFrom) {
+            console.warn('[PerformanceDashboard] Skipping fetch — dates inverted', { safeFrom, safeTo });
+            return;
+        }
+
         setLoading(true);
         try {
-            const startD = new Date(fromDate);
-            const endD = new Date(toDate);
-            const dayRange = Math.ceil(Math.abs(endD - startD) / (1000 * 60 * 60 * 24)) + 1;
+            const startD = new Date(safeFrom);
+            const endD   = new Date(safeTo);
+            const dayRange = Math.max(1, Math.ceil(Math.abs(endD - startD) / (1000 * 60 * 60 * 24)) + 1);
 
-            const params = { 
-                from_date: fromDate, 
-                to_date: toDate,
-                start_date: fromDate,
-                end_date: toDate,
+            const params = {
+                from_date:  safeFrom,
+                to_date:    safeTo,
+                start_date: safeFrom,
+                end_date:   safeTo,
                 scope: (selectedDept && selectedDept !== 'all') ? 'department' : 'org'
             };
 
@@ -348,31 +375,39 @@ const PerformanceDashboard = () => {
                 if (Array.isArray(tData) && tData.length > 0) setTrends(tData);
             }
 
-            // 2. Robust Task Fetching (The Source of Truth for fallback)
+            // 2. Robust Task Fetching (Source of Truth for fallback)
+            // Use safeFrom/safeTo — guaranteed valid YYYY-MM-DD, never empty strings.
+            // /tasks/team consistently returns 422 — dropped entirely.
+            const dateParams = {
+                from_date:  safeFrom,
+                to_date:    safeTo,
+                start_date: safeFrom,
+                end_date:   safeTo,
+                limit:      200,
+            };
+
             let tasks = [];
-            // Only use valid scope values: 'mine', 'department', 'org'
-            // Run in parallel with a 15-second timeout per request to avoid blocking
-            const taskCandidates = [
-                { url: isCFO ? '/tasks' : '/tasks/team', p: { ...params, limit: 100 } },
-                { url: '/tasks', p: { ...params, scope: 'department', limit: 100 } },
-                { url: '/tasks', p: { ...params, scope: 'org', limit: 100 } },
-            ];
+            const taskCandidates = isCFO
+                ? [
+                    { url: '/tasks', p: { ...dateParams, scope: 'org' } },
+                    { url: '/tasks', p: { ...dateParams, scope: 'department', ...(params.department_id ? { department_id: params.department_id } : {}) } },
+                  ]
+                : [
+                    // Manager: scope=department only (scope=org → 403, /tasks/team → 422)
+                    { url: '/tasks', p: { ...dateParams, scope: 'department', ...(params.department_id ? { department_id: params.department_id } : {}) } },
+                  ];
 
-            const withTimeout = (promise, ms = 15000) =>
-                Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
-
-            const taskResults = await Promise.allSettled(
-                taskCandidates.map(cand => 
-                    withTimeout(api.get(cand.url, { params: cand.p }))
-                )
-            );
-
-            for (const result of taskResults) {
-                if (result.status === 'fulfilled') {
-                    const rows = result.value.data?.data || result.value.data || [];
-                    if (Array.isArray(rows) && rows.length > 0) { tasks = rows; break; }
-                } else {
-                    console.warn(`Task fetch candidate failed:`, result.reason?.message);
+            // Sequential: stop on first candidate that returns rows
+            for (const cand of taskCandidates) {
+                try {
+                    const res = await api.get(cand.url, { params: cand.p, timeout: 15000 });
+                    const rows = res.data?.data || res.data || [];
+                    if (Array.isArray(rows) && rows.length > 0) {
+                        tasks = rows;
+                        break;
+                    }
+                } catch (err) {
+                    console.warn(`[PerformanceDashboard] Task candidate failed (${cand.url}):`, err?.message);
                 }
             }
 
@@ -483,9 +518,74 @@ const PerformanceDashboard = () => {
 
     useEffect(() => { fetchDashData(); }, [fetchDashData]);
 
+    // ── Fetch team performance with its own date range ────────────────────────────────
+    const fetchTeamPerf = useCallback(async (from, to) => {
+        const sf = (from && from.length === 10) ? from : getFirstDayOfMonth();
+        const st = (to   && to.length   === 10) ? to   : getToday();
+        if (st < sf) return;
+        setTeamPerfLoading(true);
+        try {
+            const base = isCFO ? '/dashboard/cfo' : '/dashboard/manager';
+            const p = {
+                from_date: sf, to_date: st, start_date: sf, end_date: st,
+                scope: (selectedDept && selectedDept !== 'all') ? 'department' : 'org',
+                ...(selectedDept && selectedDept !== 'all' ? { department_id: selectedDept } : {}),
+                limit: 100,
+            };
+            const res = await api.get(`${base}/team-performance`, { params: p });
+            const data = res.data?.data || res.data || [];
+            if (Array.isArray(data) && data.length > 0) setTeamPerformance(data);
+        } catch (err) {
+            console.warn('[PerformanceDashboard] team-performance fetch failed:', err?.message);
+        } finally {
+            setTeamPerfLoading(false);
+        }
+    }, [isCFO, selectedDept]);
+
+    // ── Fetch employee risk with its own date range ────────────────────────────────
+    const fetchRiskData = useCallback(async (from, to) => {
+        const sf = (from && from.length === 10) ? from : getFirstDayOfMonth();
+        const st = (to   && to.length   === 10) ? to   : getToday();
+        if (st < sf) return;
+        setRiskLoading(true);
+        try {
+            const base = isCFO ? '/dashboard/cfo' : '/dashboard/manager';
+            const p = {
+                from_date: sf, to_date: st, start_date: sf, end_date: st,
+                scope: (selectedDept && selectedDept !== 'all') ? 'department' : 'org',
+                ...(selectedDept && selectedDept !== 'all' ? { department_id: selectedDept } : {}),
+                limit: 50,
+            };
+            const res = await api.get(`${base}/employee-risk`, { params: p });
+            const data = res.data?.data || res.data || [];
+            if (Array.isArray(data)) setEmployeeRisk(data);
+        } catch (err) {
+            console.warn('[PerformanceDashboard] employee-risk fetch failed:', err?.message);
+        } finally {
+            setRiskLoading(false);
+        }
+    }, [isCFO, selectedDept]);
+
+    useEffect(() => { fetchTeamPerf(teamPerfFrom, teamPerfTo); }, [teamPerfFrom, teamPerfTo, fetchTeamPerf]);
+    useEffect(() => { fetchRiskData(riskFrom, riskTo); },       [riskFrom, riskTo, fetchRiskData]);
+
     const handleDateChange = (type, value) => {
-        if (type === 'from') { setFromDate(value); localStorage.setItem('dashboard_from_date', value); }
-        else { setToDate(value); localStorage.setItem('dashboard_to_date', value); }
+        if (type === 'from') {
+            setFromDate(value);
+            localStorage.setItem('dashboard_from_date', value);
+            // If the new fromDate is after the current toDate, reset toDate to today
+            if (value > toDate) {
+                const today = getToday();
+                setToDate(today);
+                localStorage.setItem('dashboard_to_date', today);
+            }
+        } else {
+            // Only allow toDate >= fromDate
+            if (value >= fromDate) {
+                setToDate(value);
+                localStorage.setItem('dashboard_to_date', value);
+            }
+        }
     };
 
     const currentDeptName = useMemo(() => {
@@ -690,7 +790,8 @@ const PerformanceDashboard = () => {
                         </div>
                     </div>
 
-                    <div className="flex-1 min-h-[300px] min-w-0 -ml-6 relative">
+                    {/* BarChart — flex-1 needs an explicit height floor so ResponsiveContainer can measure */}
+                    <div className="flex-1 min-h-[300px] h-[300px] min-w-0 -ml-6 relative">
                         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <BarChart data={activityTrends} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -731,8 +832,9 @@ const PerformanceDashboard = () => {
                         <h3 className="text-xl font-medium text-[#1E1B4B]">Task Completion Overview</h3>
                         <p className="text-[11px] text-slate-400 font-medium mt-1">Department task health · Approved vs Pending vs Overdue</p>
                     </div>
+                    {/* PieChart — use fixed pixel dimensions instead of aspect to avoid -1 warning */}
                     <div className="relative w-48 h-48 min-h-[192px] min-w-[192px]">
-                        <ResponsiveContainer width="100%" aspect={1}>
+                        <ResponsiveContainer width={192} height={192}>
                             <PieChart>
                                 <Pie 
                                     data={[
@@ -777,10 +879,35 @@ const PerformanceDashboard = () => {
 
             {/* TEAM PERFORMANCE MONITOR */}
             <div className="bg-white/90 rounded-[2.5rem] border border-white shadow-2xl mx-4 overflow-hidden mb-20 flex flex-col min-h-[500px]">
-                <div className="p-8 border-b border-indigo-50 flex flex-wrap items-center justify-between gap-4">
+                <div className="p-6 border-b border-indigo-50 flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h3 className="text-xl font-medium text-[#1E1B4B]">Team Execution Monitor</h3>
                         <p className="text-[12px] text-slate-400 font-medium">Workload & Completion Metrics</p>
+                    </div>
+                    {/* Independent date filters */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1 bg-indigo-50 border border-indigo-100 rounded-lg px-2.5 py-1.5">
+                            <Calendar size={12} className="text-indigo-400 shrink-0" />
+                            <input
+                                type="date"
+                                value={teamPerfFrom}
+                                max={teamPerfTo}
+                                onChange={e => setTeamPerfFrom(e.target.value)}
+                                className="text-[11px] font-semibold text-indigo-700 bg-transparent border-none outline-none cursor-pointer w-[110px]"
+                            />
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-bold">→</span>
+                        <div className="flex items-center gap-1 bg-indigo-50 border border-indigo-100 rounded-lg px-2.5 py-1.5">
+                            <Calendar size={12} className="text-indigo-400 shrink-0" />
+                            <input
+                                type="date"
+                                value={teamPerfTo}
+                                min={teamPerfFrom}
+                                onChange={e => setTeamPerfTo(e.target.value)}
+                                className="text-[11px] font-semibold text-indigo-700 bg-transparent border-none outline-none cursor-pointer w-[110px]"
+                            />
+                        </div>
+                        {teamPerfLoading && <Loader2 size={14} className="text-indigo-400 animate-spin" />}
                     </div>
                     <div className="flex items-center gap-6">
                         <button onClick={() => navigate('/tasks?mode=team')} className="flex items-center gap-1.5 text-[11px] font-black text-indigo-600 uppercase tracking-widest hover:underline">
@@ -886,10 +1013,35 @@ const PerformanceDashboard = () => {
 
             {/* EMPLOYEE RISK MONITOR */}
             <div className="bg-white/90 rounded-[2.5rem] border border-white shadow-2xl mx-4 overflow-hidden mb-20 flex flex-col min-h-[400px]">
-                    <div className="flex items-center justify-between p-8 border-b border-indigo-50">
-                        <div>
-                            <h3 className="text-xl font-medium text-[#1E1B4B]">Employee Risk Monitor</h3>
+                <div className="flex flex-wrap items-center justify-between gap-3 p-6 border-b border-indigo-50">
+                    <div>
+                        <h3 className="text-xl font-medium text-[#1E1B4B]">Employee Risk Monitor</h3>
+                    </div>
+                    {/* Independent date filters */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1 bg-rose-50 border border-rose-100 rounded-lg px-2.5 py-1.5">
+                            <Calendar size={12} className="text-rose-400 shrink-0" />
+                            <input
+                                type="date"
+                                value={riskFrom}
+                                max={riskTo}
+                                onChange={e => setRiskFrom(e.target.value)}
+                                className="text-[11px] font-semibold text-rose-700 bg-transparent border-none outline-none cursor-pointer w-[110px]"
+                            />
                         </div>
+                        <span className="text-[11px] text-slate-400 font-bold">→</span>
+                        <div className="flex items-center gap-1 bg-rose-50 border border-rose-100 rounded-lg px-2.5 py-1.5">
+                            <Calendar size={12} className="text-rose-400 shrink-0" />
+                            <input
+                                type="date"
+                                value={riskTo}
+                                min={riskFrom}
+                                onChange={e => setRiskTo(e.target.value)}
+                                className="text-[11px] font-semibold text-rose-700 bg-transparent border-none outline-none cursor-pointer w-[110px]"
+                            />
+                        </div>
+                        {riskLoading && <Loader2 size={14} className="text-rose-400 animate-spin" />}
+                    </div>
                     <button 
                         onClick={() => setShowRiskModal(!showRiskModal)} 
                         className="text-[11px] font-black text-indigo-600 uppercase tracking-widest hover:underline"
