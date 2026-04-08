@@ -73,7 +73,10 @@ const PerformanceDashboard = () => {
         in_progress_tasks: 0,
         pending_approval: 0,
         overdue_tasks: 0,
-        team_score_current: 0
+        team_score_current: 0,
+        manager_score_current: null,
+        manager_personal_score_current: null,
+        manager_score_delta_percent: null,
     });
     const [trends, setTrends] = useState([]);
     const [teamPerformance, setTeamPerformance] = useState([]);
@@ -103,7 +106,6 @@ const PerformanceDashboard = () => {
         const inProgress = tasks.filter(t => (t.status || '').toUpperCase() === 'IN_PROGRESS').length;
         const pending = tasks.filter(t => ['SUBMITTED', 'PENDING', 'PENDING_APPROVAL'].includes((t.status || '').toUpperCase())).length;
         const overdueCount = tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && !['APPROVED', 'COMPLETED', 'CANCELLED'].includes((t.status || '').toUpperCase())).length;
-        
         const metrics = {
             team_tasks: total,
             in_progress_tasks: inProgress,
@@ -112,7 +114,10 @@ const PerformanceDashboard = () => {
             team_score_current: Math.round((done / (total || 1)) * 100)
         };
         console.log("FALLBACK SUCCESS - Calculated Summary:", metrics);
-        setSummary(metrics);
+        setSummary(prev => ({
+            ...prev,
+            ...metrics
+        }));
 
         setDeptMetrics({
             total_tasks: total,
@@ -283,21 +288,34 @@ const PerformanceDashboard = () => {
 
             const base = isCFO ? '/dashboard/cfo' : '/dashboard/manager';
 
-            // 1. Fetch Summary & Metrics
+            // 1. Fetch Summary, Metrics & Analytics (score fields)
+            const analyticsBase = isCFO ? '/dashboard/cfo' : '/dashboard/manager';
             const summaryResults = await Promise.allSettled([
                 api.get(base, { params }),
                 api.get(`${base}/department-metrics`, { params }),
-                api.get(`${base}/trends`, { params: { ...params, days: Math.min(dayRange, 365) } })
+                api.get(`${base}/trends`, { params: { ...params, days: Math.min(dayRange, 365) } }),
+                api.get(`${analyticsBase}/analytics`, { params })
             ]);
 
             if (summaryResults[0].status === 'fulfilled') {
                 const d = summaryResults[0].value.data?.data || summaryResults[0].value.data || {};
+                // Also check analytics response (index 3) for score fields
+                const a = summaryResults[3]?.status === 'fulfilled'
+                    ? (summaryResults[3].value.data?.data || summaryResults[3].value.data || {})
+                    : {};
+                // Merge: analytics overrides base for score fields
+                const merged = { ...d, ...a };
                 setSummary({
-                    team_tasks: Number(d.team_tasks || d.total_tasks || d.total || 0),
-                    in_progress_tasks: Number(d.in_progress_tasks || d.in_progress || 0),
-                    pending_approval: Number(d.pending_approval || d.submitted_tasks || d.submitted || 0),
-                    overdue_tasks: Number(d.overdue_tasks || d.overdue || 0),
-                    team_score_current: Number(d.team_score_current || d.completion_pct || d.completion_rate || 0)
+                    team_tasks: Number(merged.team_tasks || merged.total_tasks || merged.total || 0),
+                    in_progress_tasks: Number(merged.in_progress_tasks || merged.in_progress || 0),
+                    pending_approval: Number(merged.pending_approval || merged.submitted_tasks || merged.submitted || 0),
+                    overdue_tasks: Number(merged.overdue_tasks || merged.overdue || 0),
+                    team_score_current: merged.team_score_current != null
+                        ? Number(merged.team_score_current)
+                        : Number(merged.completion_pct || merged.completion_rate || 0),
+                    manager_score_current: merged.manager_score_current != null ? Number(merged.manager_score_current) : null,
+                    manager_personal_score_current: merged.manager_personal_score_current != null ? Number(merged.manager_personal_score_current) : null,
+                    manager_score_delta_percent: merged.manager_score_delta_percent != null ? Number(merged.manager_score_delta_percent) : null,
                 });
             }
 
@@ -527,7 +545,7 @@ const PerformanceDashboard = () => {
                         <span className="h-[2px] w-10 bg-indigo-600/40 rounded-full" />
                         <p className="text-indigo-600 text-[11px] font-medium tracking-[0.3em] uppercase">Executive Analytics</p>
                     </div>
-                    <h1 className="text-[34px] font-medium text-[#1E1B4B] tracking-tight leading-none mb-4">Employee Performance Dashboard</h1>
+                    <h1 className="text-[34px] font-medium text-[#1E1B4B] tracking-tight leading-none mb-4">Manager Dashboard</h1>
                     <p className="text-[13px] text-slate-500 font-medium mb-6 -mt-2">Cross‑Department Team Performance Monitoring</p>
                     {isCFO && (
                         <div className="flex items-center gap-2.5 text-slate-500 font-medium text-[13px] bg-white/40 backdrop-blur-md px-4 py-2 rounded-2xl w-fit border border-white/60 shadow-sm">
@@ -563,21 +581,70 @@ const PerformanceDashboard = () => {
                 </div>
             </div>
 
-            {/* KPI CARDS — Expanded to 5 items */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5 mb-12 px-4">
+            {/* KPI CARDS — 4 task cards + Manager Score cluster */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-5 mb-12 px-4 items-stretch">
+
+                {/* Task Metric Cards — same size as before */}
                 {[
                     { label: 'Team tasks', val: summary.team_tasks, icon: Briefcase, color: 'from-indigo-500 to-indigo-600' },
                     { label: 'In progress', val: summary.in_progress_tasks, icon: Activity, color: 'from-sky-500 to-sky-600' },
                     { label: 'Pending approval', val: summary.pending_approval, icon: Clock, color: 'from-amber-500 to-amber-600' },
                     { label: 'Overdue tasks', val: summary.overdue_tasks, icon: AlertCircle, color: 'from-rose-500 to-rose-600' },
-                    { label: 'Team Performance Score', val: `${summary.team_score_current}%`, icon: TrendingUp, color: 'from-emerald-500 to-emerald-600' }
                 ].map((kpi, i) => (
-                    <div key={i} className={`p-6 rounded-[2rem] bg-gradient-to-br ${kpi.color} text-white shadow-xl shadow-indigo-100/40 hover:scale-[1.02] transition-all`}>
+                    <div key={i} className={`p-6 rounded-[2rem] bg-gradient-to-br ${kpi.color} text-white shadow-xl shadow-indigo-100/40 hover:scale-[1.02] transition-all flex flex-col`}>
                         <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-4"><kpi.icon size={20} /></div>
                         <p className="text-[10px] font-medium uppercase tracking-widest opacity-80 mb-1">{kpi.label}</p>
-                        <h4 className="text-2xl font-semibold">{kpi.val}</h4>
+                        <h4 className="text-2xl font-semibold mt-auto">{kpi.val}</h4>
                     </div>
                 ))}
+
+                {/* 5th slot: Manager Score (large) + Team Score & Manager Personal Score (compact, stacked) */}
+                <div className="flex gap-3 min-w-[300px]">
+                    {/* Manager Score — large green card, same height as siblings */}
+                    <div className="flex-1 p-6 rounded-[2rem] bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-xl shadow-emerald-100/40 hover:scale-[1.02] transition-all relative overflow-hidden flex flex-col">
+                        <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full bg-white/10 blur-2xl" />
+                        <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-4 relative z-10"><Target size={20} /></div>
+                        <p className="text-[10px] font-medium uppercase tracking-widest opacity-80 mb-1 relative z-10">Manager Score</p>
+                        <h4 className="text-2xl font-semibold mt-auto relative z-10">
+                            {summary.manager_score_current != null ? `${summary.manager_score_current}%` : '—'}
+                        </h4>
+                        <p className="text-[10px] mt-1.5 opacity-70 relative z-10">
+                            {(() => {
+                                const delta = summary.manager_score_delta_percent;
+                                if (delta === null || delta === undefined) return '70% Team · 30% Personal';
+                                const arrow = delta >= 0 ? '▲' : '▼';
+                                return `${arrow} ${Math.abs(delta)}% vs last period`;
+                            })()}
+                        </p>
+                    </div>
+
+                    {/* Team Score + Manager Personal Score — two slim stacked companion cards */}
+                    <div className="flex flex-col gap-3 w-[140px]">
+                        {/* Team Score */}
+                        <div className="flex-1 px-4 py-4 rounded-[1.5rem] bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-100/40 hover:scale-[1.02] transition-all relative overflow-hidden flex flex-col justify-between">
+                            <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/10 blur-xl" />
+                            <div className="flex items-center gap-2 mb-2 relative z-10">
+                                <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center"><Users size={14} /></div>
+                                <p className="text-[9px] font-bold uppercase tracking-widest opacity-80 leading-tight">Team<br/>Score</p>
+                            </div>
+                            <h4 className="text-xl font-bold relative z-10">
+                                {summary.team_score_current != null ? `${summary.team_score_current}%` : '—'}
+                            </h4>
+                        </div>
+
+                        {/* Manager Personal Score */}
+                        <div className="flex-1 px-4 py-4 rounded-[1.5rem] bg-gradient-to-br from-violet-500 to-violet-600 text-white shadow-lg shadow-violet-100/40 hover:scale-[1.02] transition-all relative overflow-hidden flex flex-col justify-between">
+                            <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/10 blur-xl" />
+                            <div className="flex items-center gap-2 mb-2 relative z-10">
+                                <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center"><TrendingUp size={14} /></div>
+                                <p className="text-[9px] font-bold uppercase tracking-widest opacity-80 leading-tight">Personal<br/>Score</p>
+                            </div>
+                            <h4 className="text-xl font-bold relative z-10">
+                                {summary.manager_personal_score_current != null ? `${summary.manager_personal_score_current}%` : '—'}
+                            </h4>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* MAIN CHART & DEPT STATS */}

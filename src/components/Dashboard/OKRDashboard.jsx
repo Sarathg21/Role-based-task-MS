@@ -19,6 +19,13 @@ const getRiskLabel = (rating) => {
     return 'Low';
 };
 
+const extractArr = (resData) => {
+    if (!resData) return [];
+    if (Array.isArray(resData)) return resData;
+    const d = resData.data || resData.results || resData.items || resData.objectives || resData.tasks || [];
+    return Array.isArray(d) ? d : [];
+};
+
 /* Small stat tile — CFO-style large gradient card */
 const Stat = ({ label, value, sub, icon: Icon, color = 'violet' }) => {
     const c = {
@@ -160,46 +167,28 @@ const OKRDashboard = () => {
             const role = (user?.role || '').toUpperCase();
             const isAdmin = role === 'ADMIN';
 
-            const [res, trendsRes, todayRes, summaryRes, objListRes] = await Promise.all([
-                // Always fetch OKR overview — both admin and CFO need authoritative subtask counts
-                api.get('/reports/cfo/okr/overview', {
-                    params: {
-                        from_date: filters.from_date,
-                        to_date: filters.to_date
-                    }
-                }).catch(() => ({ data: {} })),
+            // Priority 1: User's exact range
+            const currentParams = { from_date: filters.from_date, to_date: filters.to_date };
+            // Priority 2: Wide fallback (Jan 1st onwards)
+            const wideParams = { from_date: `${new Date().getFullYear()}-01-01`, to_date: new Date().toISOString().slice(0, 10) };
+
+            const [res, trendsRes, todayRes, summaryRes, objListRes, wideObjListRes] = await Promise.all([
+                api.get('/reports/cfo/okr/overview', { params: currentParams }).catch(() => ({ data: {} })),
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/trends').catch(() => ({ data: {} })),
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/today').catch(() => ({ data: {} })),
-                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo', {
-                    params: {
-                        from_date: filters.from_date,
-                        to_date: filters.to_date
-                    }
-                }).catch(() => ({ data: {} })),
-                // Always fetch objectives list — this is the authoritative source for per-objective subtask counts
-                api.get('/reports/cfo/okr/objectives', {
-                    params: {
-                        from_date: filters.from_date,
-                        to_date: filters.to_date
-                    }
-                }).catch(() => ({ data: [] }))
+                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo', { params: currentParams }).catch(() => ({ data: {} })),
+                api.get('/reports/cfo/okr/objectives', { params: currentParams }).catch(() => ({ data: [] })),
+                api.get('/reports/cfo/okr/objectives', { params: wideParams }).catch(() => ({ data: [] }))
             ]);
             let data = res.data?.data || res.data || {};
             const summaryData = summaryRes.data?.data || summaryRes.data || {};
 
-            // Objectives list — authoritative source for per-objective subtask counts
-            // Try every possible nesting the backend might use
-            const objRaw = objListRes.data;
-            const objectivesList = (() => {
-                const candidates = [
-                    objRaw?.data, objRaw?.objectives, objRaw?.items,
-                    objRaw?.results, objRaw?.records, objRaw
-                ];
-                for (const c of candidates) {
-                    if (Array.isArray(c) && c.length > 0) return c;
-                }
-                return [];
-            })();
+            // Merge lists: trust filtered results if they exist, otherwise fallback to wide
+            const rawCurrentList = extractArr(objListRes.data);
+            const rawWideList    = extractArr(wideObjListRes.data);
+            const objectivesList = rawCurrentList.length > 0 ? rawCurrentList : rawWideList;
+            
+            console.log('[OKR] objectivesList count:', objectivesList.length, '| current results were:', rawCurrentList.length);
             console.log('[OKR] objectivesList length:', objectivesList.length, '| sample:', objectivesList[0]);
 
             try {
@@ -605,26 +594,31 @@ const OKRDashboard = () => {
                 return isNaN(parsed) ? 0 : parsed;
             };
 
-            const totalTasksRaw = cleanNum(data.total_subtasks || data.sub_total || data.total_tasks || summaryData.total_tasks || 0);
-            const doneTasksRaw = cleanNum(data.completed_tasks || data.completed_count || data.sub_comp || summaryData.completed_count || 0);
+            // Normalizing KPIs for display — prioritize any non-zero source from either the specific filter or the wide fallback.
+
             // Final normalization of KPIs for display — prioritize any non-zero source
             const finalTotalObjectives = Math.max((data.objective_completion || []).length, cleanNum(data.total_objectives || 0), objectivesList.length);
 
-            const finalOverallProgress = cleanNum(data.overall_progress || data.progress_pct || summaryData.overall_progress || 0) || (totalTasksRaw > 0 ? Math.round((doneTasksRaw / totalTasksRaw) * 100) : 0);
+            const totalTasksFromOverview = cleanNum(data.total_subtasks || data.sub_total || data.total_tasks || summaryData.total_tasks || 0);
+            const listTotalTasks = objectivesList.reduce((acc, o) => acc + cleanNum(o.total_subtasks || o.sub_total || o.total_tasks), 0);
+            const finalTotalSubtasks = totalTasksFromOverview > 0 ? totalTasksFromOverview : listTotalTasks;
+
+            const doneTasksFromOverview = cleanNum(data.completed_tasks || data.completed_count || data.sub_comp || summaryData.completed_count || 0);
+            const listDoneTasks = objectivesList.reduce((acc, o) => acc + cleanNum(o.completed_subtasks || o.sub_comp || o.completed_count), 0);
+            const finalDoneSubtasks = finalTotalSubtasks > 0 && doneTasksFromOverview > 0 ? doneTasksFromOverview : listDoneTasks;
+
+            const finalOverallProgress = cleanNum(data.overall_progress || data.progress_pct || summaryData.overall_progress || 0) || (finalTotalSubtasks > 0 ? Math.round((finalDoneSubtasks / finalTotalSubtasks) * 100) : 0);
             
             // Force use of overall progress if team score is reported as 0 but progress exists
             const rawScore = cleanNum(summaryData.team_score_current || summaryData.score || summaryData.team_performance || summaryData.overall_progress || 0);
             const finalTeamScore = (rawScore > 0 ? rawScore : finalOverallProgress) || 0;
             
-            const totalSubtasksSubmitted = cleanNum(data.total_subtasks || data.sub_total || summaryData.total_tasks || totalTasksRaw);
-            const totalSubtasksCompleted = cleanNum(data.completed_tasks || data.completed_count || summaryData.completed_count || doneTasksRaw);
-
-            console.log('[OKR] Dashboard Metrics Parsed:', { totalTasksRaw: totalSubtasksSubmitted, doneTasksRaw: totalSubtasksCompleted, finalOverallProgress, finalTeamScore, finalTotalObjectives });
+            console.log('[OKR] Final Normalized Metrics:', { finalTotalSubtasks, finalDoneSubtasks, finalOverallProgress, finalTeamScore, finalTotalObjectives });
 
             setMetrics([
                 { label: 'Total Objectives', value: finalTotalObjectives, color: 'indigo', icon: Target },
                 { label: 'Team Performance Score', value: `${finalTeamScore}%`, color: 'violet', icon: TrendingUp },
-                { label: 'Total Subtasks Completed', value: `${totalSubtasksCompleted} / ${totalSubtasksSubmitted}`, color: 'green', icon: CheckCircle2 },
+                { label: 'Total Subtasks Completed', value: `${finalDoneSubtasks} / ${finalTotalSubtasks}`, color: 'green', icon: CheckCircle2 },
                 { label: 'Overall Progress', value: `${finalOverallProgress}%`, color: 'amber', icon: TrendingUp },
                 { label: 'At Risk Objectives', value: cleanNum(data.at_risk || data.risk_count || 0), color: 'rose', icon: AlertTriangle },
                 { label: 'Avg Completion Rate', value: `${cleanNum(data.avg_health_score || data.average_progress || 0)}%`, color: 'green', icon: CheckCircle },

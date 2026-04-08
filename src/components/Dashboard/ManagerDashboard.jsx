@@ -10,7 +10,8 @@ import ReworkCommentModal from '../Modals/ReworkCommentModal';
 import {
     BarChart2, CheckSquare, AlertTriangle, Clock, ArrowRight,
     Calendar, Users, TrendingUp, Medal, CalendarCheck, CheckCircle, Loader2,
-    ChevronRight, Plus, Settings, MessageSquare, ChevronDown, User, Edit2, Activity
+    ChevronRight, Plus, Settings, MessageSquare, ChevronDown, User, Edit2, Activity,
+    Target, AlertCircle, Briefcase
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -250,7 +251,8 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                 api.get('/dashboard/manager/employee-risk', { params }),
                 api.get('/dashboard/manager/team-performance', { params }),
                 api.get('/dashboard/manager/department-metrics', { params }),
-                api.get('/notifications', { timeout: 10000, params: { limit: 50 } })
+                api.get('/notifications', { timeout: 10000, params: { limit: 50 } }),
+                api.get('/dashboard/manager/analytics', { params })
             ]);
 
             const [
@@ -261,12 +263,20 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                 riskRes, 
                 teamPerfRes,
                 metricsRes,
-                notifyRes
+                notifyRes,
+                analyticsRes
             ] = results;
 
             if (managerDash.status === 'fulfilled') {
                 dashPayload = managerDash.value.data?.data || managerDash.value.data || {};
                 setDashboardData(dashPayload);
+            }
+
+            // Merge analytics data (score fields) directly into dashboardData
+            if (analyticsRes?.status === 'fulfilled') {
+                const analyticsPayload = analyticsRes.value.data?.data || analyticsRes.value.data || {};
+                dashPayload = { ...dashPayload, ...analyticsPayload };
+                setDashboardData(prev => ({ ...prev, ...analyticsPayload }));
             }
 
             if (todayTasksRes.status === 'fulfilled') {
@@ -436,7 +446,8 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                         return due && due < today && !TERMINAL_STATUSES.has(t.status);
                     }).length;
 
-                    setDashboardData({
+                    setDashboardData(prev => ({
+                        ...prev,
                         total_tasks: totalActive, // Standardized: only active tasks
                         approved_tasks: approvedCount,
                         pending_submission: pendingSubmission, // NEW + REWORK
@@ -447,12 +458,12 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                         submitted_tasks: statusCounts.SUBMITTED,
                         overdue_tasks: overdue,
                         team_performance_index: totalCount > 0 ? Math.round((approvedCount / totalCount) * 100) : 0,
-                    });
+                    }));
                     setTodayTeamTasks(normalized.slice(0, 100));
                     setReportTeam(Array.from(byEmp.values()));
 
                     // If CFO, also populate activities from these tasks
-                    if (isCFO) {
+                    if (isActuallyCFO) {
                         setActivities(normalized.slice(0, 10).map(t => ({
                             id: t.id,
                             actor_name: t.assigneeName || 'Member',
@@ -541,11 +552,17 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
         const approved = dashboardData.approved_tasks ?? dashboardData.approved ?? 0;
 
         return {
+            // Legacy task-based stats (kept for internal use)
             score: dashboardData.team_performance_index ?? dashboardData.performanceScore ?? 0,
             completionRate: total > 0 ? Math.round((approved / total) * 100) : 0,
             totalReworks: dashboardData.rework_tasks ?? dashboardData.reworks ?? 0,
             pendingSubmission: dashboardData.pending_submission ?? ( (dashboardData.new_tasks||0) + (dashboardData.rework_tasks||0) ),
-            totalActive: dashboardData.total_tasks || 0
+            totalActive: dashboardData.total_tasks || 0,
+            // Backend-driven performance KPIs
+            managerScore: dashboardData.manager_score_current ?? null,
+            teamScore: dashboardData.team_score_current ?? null,
+            managerPersonalScore: dashboardData.manager_personal_score_current ?? null,
+            managerScoreDelta: dashboardData.manager_score_delta_percent ?? null,
         };
     }, [dashboardData]);
 
@@ -558,7 +575,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
         );
     }
 
-    const stats = metrics || { score: 0, completionRate: 0, totalReworks: 0, pendingSubmission: 0, totalActive: 0 };
+    const stats = metrics || { score: 0, completionRate: 0, totalReworks: 0, pendingSubmission: 0, totalActive: 0, managerScore: null, teamScore: null, managerPersonalScore: null, managerScoreDelta: null };
 
     const rawStatusData = dashboardData ? [
         { name: 'New', value: dashboardData.new_tasks || 0, fill: '#3b82f6' },
@@ -568,21 +585,36 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
         { name: 'Rework', value: dashboardData.rework_tasks || 0, fill: '#ef4444' },
     ] : [];
 
-    const finalRankingData = reportTeam.map((m, idx) => ({
+    // Use employee_ranking from backend if available, fall back to reportTeam
+    const rankingSource = (() => {
+        const apiRanking = dashboardData?.employee_ranking;
+        if (Array.isArray(apiRanking) && apiRanking.length > 0) return apiRanking;
+        return reportTeam;
+    })();
+
+    const finalRankingData = rankingSource.map((m, idx) => ({
         ...m,
         id: m.emp_id || m.id,
-        name: m.name,
-        role: m.role || 'Team Member',
-        assigned: m.tasks_assigned || m.assigned || 0,
-        completed: m.tasks_completed || m.completed || 0,
-        rank: idx + 1
+        name: m.name || m.employee_name || m.emp_name || 'Unknown',
+        role: m.role || m.designation || 'Team Member',
+        assigned: m.tasks_assigned || m.assigned || m.total_tasks || 0,
+        completed: m.tasks_completed || m.completed || m.approved_tasks || 0,
+        rank: m.rank ?? idx + 1
     }));
 
-    const finalMemberData = reportTeam.map(m => ({
-        name: m.name?.split(' ')[0] || String(m.emp_id),
-        Assigned: m.tasks_assigned || 0,
-        Completed: m.tasks_completed || 0,
-    }));
+    // Use workload_distribution_employee_wise graph data if available
+    const workloadGraphSource = dashboardData?.graphs?.workload_distribution_employee_wise;
+    const finalMemberData = Array.isArray(workloadGraphSource) && workloadGraphSource.length > 0
+        ? workloadGraphSource.map(m => ({
+            name: (m.name || m.employee_name || m.emp_name || String(m.emp_id || '')).split(' ')[0],
+            Assigned: m.tasks_assigned || m.assigned || m.total_tasks || 0,
+            Completed: m.tasks_completed || m.completed || m.approved_tasks || 0,
+          }))
+        : rankingSource.map(m => ({
+            name: (m.name || m.employee_name || '').split(' ')[0] || String(m.emp_id),
+            Assigned: m.tasks_assigned || m.assigned || m.total_tasks || 0,
+            Completed: m.tasks_completed || m.completed || m.approved_tasks || 0,
+          }));
 
     return (
         <div className="space-y-4 pb-8">
@@ -599,29 +631,101 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                 </div>
             )}
 
-            {/* Top Metrics Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* KPI CARDS — 4 task cards + Manager Score cluster */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-6 mb-8 items-stretch">
+                
+                {/* 1. Team Tasks */}
                 <Stat 
-                    label={`${currentDeptName} Tasks`} 
+                    label="Team Tasks" 
                     value={stats.totalActive} 
-                    icon={CheckSquare} 
-                    color="blue" 
+                    icon={Briefcase} 
+                    color="violet" 
                     sub="Active team objectives"
                 />
+
+                {/* 2. In Progress */}
                 <Stat 
-                    label="Pending Actions" 
-                    value={stats.pendingSubmission} 
+                    label="In Progress" 
+                    value={dashboardData.in_progress_tasks || 0} 
                     icon={Activity} 
-                    color="violet" 
+                    color="blue" 
+                    sub="Currently executing"
+                />
+
+                {/* 3. Pending Approval */}
+                <Stat 
+                    label="Pending Approval" 
+                    value={stats.pendingSubmission} 
+                    icon={Clock} 
+                    color="amber" 
                     sub="Requires manager review"
                 />
+
+                {/* 4. Overdue Tasks */}
                 <Stat 
-                    label="Resolution Rate" 
-                    value={`${stats.completionRate}%`} 
-                    icon={TrendingUp} 
-                    color="green" 
-                    sub="Target: 85% completion"
+                    label="Overdue Tasks" 
+                    value={dashboardData.overdue_tasks || 0} 
+                    icon={AlertCircle} 
+                    color="rose" 
+                    sub="Past completion deadline"
                 />
+
+                {/* 5. Score Cluster: Manager Score (large) + Team Score & Manager Personal Score (compact, stacked) */}
+                <div className="flex gap-3 min-w-[320px]">
+                    {/* Manager Score — large emerald card */}
+                    <div className="flex-1 group animate-fade-in-up relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-200/50 py-5 px-6 transition-all duration-500 hover:scale-[1.03] hover:shadow-xl border border-white/20 flex flex-col justify-between">
+                        <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-emerald-400/30 blur-2xl" />
+                        <div className="relative z-10 flex items-center justify-between mb-2">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
+                                <Target size={18} className="text-white" strokeWidth={2.5} />
+                            </div>
+                            <div className="text-right">
+                                {(() => {
+                                    const delta = stats.managerScoreDelta;
+                                    if (delta !== null && delta !== undefined) {
+                                        const arrow = delta >= 0 ? '▲' : '▼';
+                                        return <span className="text-[10px] font-bold text-white/90 bg-white/20 px-2 py-0.5 rounded-full">{arrow} {Math.abs(delta)}%</span>;
+                                    }
+                                    return null;
+                                })()}
+                            </div>
+                        </div>
+                        <div className="relative z-10 mt-auto">
+                            <div className="text-3xl font-black text-white tabular-nums tracking-tighter leading-none drop-shadow">
+                                {stats.managerScore != null ? `${stats.managerScore}%` : '—'}
+                            </div>
+                            <div className="text-[11px] font-bold text-white/90 uppercase tracking-widest truncate mt-1.5">Manager Score</div>
+                            <div className="text-[9px] text-white/60 font-semibold truncate uppercase tracking-widest mt-0.5">70% Team · 30% Personal</div>
+                        </div>
+                    </div>
+
+                    {/* Team Score + Manager Personal Score stacked */}
+                    <div className="flex flex-col gap-3 w-[140px]">
+                        {/* Team Score */}
+                        <div className="flex-1 p-3.5 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-100/40 hover:scale-[1.02] transition-all relative overflow-hidden flex flex-col justify-between border border-white/10">
+                            <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/10 blur-xl" />
+                            <div className="flex items-center gap-2 relative z-10">
+                                <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center"><Users size={12} /></div>
+                                <span className="text-[8px] font-black uppercase tracking-widest opacity-80 leading-none">Team Score</span>
+                            </div>
+                            <h4 className="text-xl font-black relative z-10 mt-1">
+                                {stats.teamScore != null ? `${stats.teamScore}%` : '—'}
+                            </h4>
+                        </div>
+
+                        {/* Manager Personal Score */}
+                        <div className="flex-1 p-3.5 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-100/40 hover:scale-[1.02] transition-all relative overflow-hidden flex flex-col justify-between border border-white/10">
+                            <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/10 blur-xl" />
+                            <div className="flex items-center gap-2 relative z-10">
+                                <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center"><TrendingUp size={12} /></div>
+                                <span className="text-[8px] font-black uppercase tracking-widest opacity-80 leading-none">Pers. Score</span>
+                            </div>
+                            <h4 className="text-xl font-black relative z-10 mt-1">
+                                {stats.managerPersonalScore != null ? `${stats.managerPersonalScore}%` : '—'}
+                            </h4>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Row 2: Trends Chart */}

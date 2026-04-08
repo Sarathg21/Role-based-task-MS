@@ -134,24 +134,33 @@ const OKRSubTaskPage = () => {
     const [deptStats, setDeptStats]       = useState([]);
 
     /* ── fetch objectives list for dropdown ────────────────────────────────── */
+    /* ── fetch objectives list for dropdown ────────────────────────────────── */
     const fetchInitialData = useCallback(async () => {
         if (isAdmin) { setLoading(false); return; }
         setLoading(true);
         try {
-            // Use the same date range as the user's filter — must match OKR Dashboard
+            // Priority 1: User's exact range
             const params = { from_date: filters.from_date, to_date: filters.to_date };
+            // Priority 2: 90-day "Reality Check" (ensures we see data from DB)
+            const wideParams = { from_date: '2026-01-01', to_date: today };
 
-            const [overviewRes, listRes, summaryRes] = await Promise.all([
+            const [overviewRes, listRes, summaryRes, wideListRes] = await Promise.all([
                 api.get('/reports/cfo/okr/overview', { params }).catch(() => ({ data: {} })),
                 api.get('/reports/cfo/okr/objectives', { params }).catch(() => ({ data: [] })),
                 api.get('/dashboard/cfo', { params }).catch(() => ({ data: {} })),
+                // Fallback for the dropdown list – always get at least something if db has it
+                api.get('/reports/cfo/okr/objectives', { params: wideParams }).catch(() => ({ data: [] }))
             ]);
 
             const globalData  = overviewRes.data?.data || overviewRes.data || {};
             const summaryData = summaryRes.data?.data  || summaryRes.data  || {};
-            const list        = extractArr(listRes.data);
+            
+            // Merge lists: prioritize filtered results, fall back to wide results if filtered list is empty
+            const rawList = extractArr(listRes.data);
+            const wideList = extractArr(wideListRes.data);
+            const list = rawList.length > 0 ? rawList : wideList;
 
-            console.log('[OKR-Sub] objectives list raw count:', list.length, list[0]);
+            console.log('[OKR-Sub] objectives list raw count:', list.length, '| filtered was:', rawList.length);
 
             const dropdownList = list
                 .map(item => ({
@@ -165,24 +174,31 @@ const OKRSubTaskPage = () => {
 
             setObjectivesList(dropdownList);
 
-            /* global KPI */
+            /* global KPI calculation with fallbacks */
             const listTotal     = dropdownList.reduce((a, i) => a + i.total_subtasks, 0);
             const listDone      = dropdownList.reduce((a, i) => a + i.completed_subtasks, 0);
-            const totalSubs     = Math.max(cleanNum(globalData.total_subtasks ?? globalData.sub_total ?? globalData.total_tasks ?? summaryData.total_tasks), listTotal);
-            const doneSubs      = Math.max(cleanNum(globalData.completed_tasks ?? globalData.completed_count ?? summaryData.completed_count), listDone);
-            const overallPct    = totalSubs > 0 ? Math.round((doneSubs / totalSubs) * 100) : cleanNum(globalData.overall_progress ?? globalData.progress_pct ?? summaryData.overall_progress);
-            const teamScore     = cleanNum(summaryData.team_score_current ?? summaryData.score ?? summaryData.team_performance ?? summaryData.overall_progress) || overallPct;
+            const listSubmit    = dropdownList.reduce((a, i) => a + i.submitted_subtasks, 0);
+            
+            // If the global overview for the 2-day filter is 0, use the wide-list totals (according to DB)
+            const gTotal = cleanNum(globalData.total_subtasks ?? globalData.sub_total ?? globalData.total_tasks ?? summaryData.total_tasks);
+            const finalTotal = gTotal > 0 ? gTotal : listTotal;
+            
+            const gDone = cleanNum(globalData.completed_tasks ?? globalData.completed_count ?? summaryData.completed_count);
+            const finalDone = gDone > 0 || gTotal > 0 ? gDone : listDone;
+
+            const overallPct = finalTotal > 0 ? Math.round((finalDone / finalTotal) * 100) : cleanNum(globalData.overall_progress || summaryData.overall_progress);
+            const teamScore  = cleanNum(summaryData.team_score_current || summaryData.score || summaryData.team_performance || summaryData.overall_progress) || overallPct;
 
             setGlobalOverview({
                 ...globalData,
-                total_objectives:  Math.max(dropdownList.length, cleanNum(globalData.total_objectives ?? globalData.total_okrs ?? globalData.objective_count)),
+                total_objectives:   Math.max(dropdownList.length, cleanNum(globalData.total_objectives ?? globalData.total_okrs ?? globalData.objective_count)),
                 team_score_current: teamScore,
-                overall_progress:  overallPct,
-                total_subtasks:    totalSubs,
-                completed_tasks:   doneSubs,
-                submitted_tasks:   cleanNum(globalData.submitted_tasks ?? globalData.submitted_count ?? summaryData.pending_approval),
-                at_risk:           cleanNum(globalData.at_risk ?? globalData.risk_count),
-                avg_health_score:  cleanNum(globalData.avg_health_score ?? globalData.average_progress),
+                overall_progress:   overallPct,
+                total_subtasks:     finalTotal,
+                completed_tasks:    finalDone,
+                submitted_tasks:    Math.max(cleanNum(globalData.submitted_tasks || summaryData.pending_approval), listSubmit),
+                at_risk:            cleanNum(globalData.at_risk ?? globalData.risk_count),
+                avg_health_score:   cleanNum(globalData.avg_health_score ?? globalData.average_progress) || teamScore,
             });
 
             // auto-select first objective if nothing selected
@@ -195,7 +211,7 @@ const OKRSubTaskPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [isAdmin, filters.from_date, filters.to_date]);
+    }, [isAdmin, filters.from_date, filters.to_date, filters.currentOkrId, today]);
 
     /* ── fetch drilldown (subtasks + summary + depts) ──────────────────────── */
     const fetchDrilldown = useCallback(async (okrId) => {
