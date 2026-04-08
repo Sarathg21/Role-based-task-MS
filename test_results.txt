@@ -1,0 +1,57 @@
+﻿=== MANAGER API TEST ===
+[1] Logging in as MGR_AP...
+LOGIN OK - Token length: 233
+
+--- [2] /dashboard/manager ---
+URL: http://65.2.177.80:8000/dashboard/manager
+STATUS: 200 OK
+BODY: {"department_id":"AP","range":{"from_date":"2026-04-01","to_date":"2026-04-08"},"previous_range":{"from_date":"2026-03-01","to_date":"2026-03-31"},"team_score_current":null,"team_score_previous":55.55555555555556,"manager_personal_score_current":null,"manager_personal_score_previous":40.0,"manager_score_current":null,"manager_score_previous":50.89,"manager_score_delta_percent":null,"team_pending_count":20,"team_overdue_count":19,"employee_ranking":[],"graphs":{"workload_distribution_employee_wise":[{"emp_id":"MGR_AP","open_tasks":6},{"emp_id":"EMP_AP1","open_tasks":5},{"emp_id":"EMP_AP3","open_tasks":3},{"emp_id":"EMP_AP2","open_tasks":2},{"emp_id":"EMP_AP4","open_tasks":2},{"emp_id":"EMP_AP5","open_tasks":1},{"emp_id":"EMP_AP6","open_tasks":1}],"performance_index_employee_wise":[]}}
+
+--- [3] /dashboard/manager/analytics ---
+URL: http://65.2.177.80:8000/dashboard/manager/analytics
+STATUS: 200 OK
+BODY: {"department_id":"AP","range":{"from_date":"2026-04-01","to_date":"2026-04-08"},"previous_range":{"from_date":"2026-03-01","to_date":"2026-03-31"},"team_score_current":null,"team_score_previous":55.55555555555556,"manager_personal_score_current":null,"manager_personal_score_previous":40.0,"manager_score_current":null,"manager_score_previous":50.89,"manager_score_delta_percent":null,"team_pending_count":20,"team_overdue_count":19,"employee_ranking":[],"graphs":{"workload_distribution_employee_wise":[{"emp_id":"MGR_AP","open_tasks":6},{"emp_id":"EMP_AP1","open_tasks":5},{"emp_id":"EMP_AP3","open_tasks":3},{"emp_id":"EMP_AP2","open_tasks":2},{"emp_id":"EMP_AP4","open_tasks":2},{"emp_id":"EMP_AP5","open_tasks":1},{"emp_id":"EMP_AP6","open_tasks":1}],"performance_index_employee_wise":[]}}
+
+--- [4] /dashboard/manager/team-performance?from_date=2026-04-01&to_date=2026-04-08 ---
+URL: http://65.2.177.80:8000/dashboard/manager/team-performance?from_date=2026-04-01&to_date=2026-04-08
+STATUS: 200 OK
+BODY: [{"emp_id":"EMP_AP1","name":"AP Exec 1","is_manager":false,"tasks_assigned":0,"in_progress":0,"pending_review":0,"overdue":0,"completed":0,"completion_rate":0.0,"performance_score":0.0},{"emp_id":"EMP_AP2","name":"AP Exec 2","is_manager":false,"tasks_assigned":0,"in_progress":0,"pending_review":0,"overdue":0,"completed":0,"completion_rate":0.0,"performance_score":0.0},{"emp_id":"EMP_AP3","name":"AP Exec 3","is_manager":false,"tasks_assigned":0,"in_progress":0,"pending_review":0,"overdue":0,"completed":0,"completion_rate":0.0,"performance_score":0.0},{"emp_id":"EMP_AP4","name":"AP Exec 4","is_manager":false,"tasks_assigned":0,"in_progress":0,"pending_review":0,"overdue":0,"completed":0,"completion_rate":0.0,"performance_score":0.0},{"emp_id":"EMP_AP5","name":"AP Exec 5","is_manager":false,"tasks_assigned":0,"in_progress":0,"pending_review":0,"overdue":0,"completed":0,"completion_rate":0.0,"performance_score":0.0},{"emp_id":"EMP_AP6","name":"AP Exec 6","is_manager":false,"tasks_assigned"
+
+--- [4b] /dashboard/manager/team-performance (no filter) ---
+URL: http://65.2.177.80:8000/dashboard/manager/team-performance
+STATUS: 200 OK
+BODY: [{"emp_id":"EMP_AP1","name":"AP Exec 1","is_manager":false,"tasks_assigned":0,"in_progress":0,"pending_review":0,"overdue":0,"completed":0,"completion_rate":0.0,"performance_score":0.0},{"emp_id":"EMP_AP2","name":"AP Exec 2","is_manager":false,"tasks_assigned":0,"in_progress":0,"pending_review":0,"overdue":0,"completed":0,"completion_rate":0.0,"performance_score":0.0},{"emp_id":"EMP_AP3","name":"AP Exec 3","is_manager":false,"tasks_assigned":0,"in_progress":0,"pending_review":0,"overdue":0,"completed":0,"completion_rate":0.0,"performance_score":0.0},{"emp_id":"EMP_AP4","name":"AP Exec 4","is_manager":false,"tasks_assigned":0,"in_progress":0,"pending_review":0,"overdue":0,"completed":0,"completion_rate":0.0,"performance_score":0.0},{"emp_id":"EMP_AP5","name":"AP Exec 5","is_manager":false,"tasks_assigned":0,"in_progress":0,"pending_review":0,"overdue":0,"completed":0,"completion_rate":0.0,"performance_score":0.0},{"emp_id":"EMP_AP6","name":"AP Exec 6","is_manager":false,"tasks_assigned"
+
+--- [5] /dashboard/manager/employee-risk?from_date=2026-04-01&to_date=2026-04-08 ---
+URL: http://65.2.177.80:8000/dashboard/manager/employee-risk?from_date=2026-04-01&to_date=2026-04-08
+STATUS: 200 OK
+BODY: [{"emp_id":"EMP_AP1","name":"AP Exec 1","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"},{"emp_id":"EMP_AP2","name":"AP Exec 2","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"},{"emp_id":"EMP_AP3","name":"AP Exec 3","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"},{"emp_id":"EMP_AP4","name":"AP Exec 4","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"},{"emp_id":"EMP_AP5","name":"AP Exec 5","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"},{"emp_id":"EMP_AP6","name":"AP Exec 6","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"},{"emp_id":"EMP_AP7","name":"EXEC_AP7","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"}]
+
+--- [5b] /dashboard/manager/employee-risk (no filter) ---
+URL: http://65.2.177.80:8000/dashboard/manager/employee-risk
+STATUS: 200 OK
+BODY: [{"emp_id":"EMP_AP1","name":"AP Exec 1","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"},{"emp_id":"EMP_AP2","name":"AP Exec 2","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"},{"emp_id":"EMP_AP3","name":"AP Exec 3","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"},{"emp_id":"EMP_AP4","name":"AP Exec 4","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"},{"emp_id":"EMP_AP5","name":"AP Exec 5","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"},{"emp_id":"EMP_AP6","name":"AP Exec 6","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"},{"emp_id":"EMP_AP7","name":"EXEC_AP7","active_tasks":0,"total_tasks":0,"overdue_tasks":0,"performance_score":0.0,"risk_status":"NO_DATA"}]
+
+--- [6] /manager/reports?from_date=2026-04-01&to_date=2026-04-08 ---
+URL: http://65.2.177.80:8000/manager/reports?from_date=2026-04-01&to_date=2026-04-08
+STATUS: 404
+ERROR: {"detail":"Not Found"}
+
+=== SCORE FIELDS ===
+manager_score_current       : 
+team_score_current          : 
+manager_personal_score_current: 
+manager_score_delta_percent : 
+
+=== RECORD COUNTS ===
+team-performance (filtered) : 8 records
+team-performance (all)      : 8 records
+employee-risk (filtered)    : 7 records
+employee-risk (all)         : 7 records
+
+--- [7] /reports/manager/export-pdf ---
+STATUS: 200
+Content-Type: application/pdf
+Content-Length: 5309 bytes
+
+=== TEST COMPLETE ===

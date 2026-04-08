@@ -1,0 +1,9 @@
+﻿/dashboard/manager/today
+/dashboard/manager
+/dashboard/manager/analytics
+/dashboard/manager/trends
+/dashboard/manager/team-performance
+/dashboard/manager/employee-risk
+/dashboard/manager/department-metrics
+/reports/manager/export-pdf
+/reports/manager/export-excel

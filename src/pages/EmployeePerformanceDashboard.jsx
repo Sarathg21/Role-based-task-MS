@@ -98,6 +98,18 @@ const PerformanceDashboard = () => {
     const [teamPage, setTeamPage] = useState(1);
     const teamItemsPerPage = 10;
 
+    /* Synchronize with global filter */
+    useEffect(() => {
+        const handleFilterChange = () => {
+            const storedFrom = localStorage.getItem('dashboard_from_date');
+            const storedTo = localStorage.getItem('dashboard_to_date');
+            if (storedFrom) setFromDate(storedFrom);
+            if (storedTo) setToDate(storedTo);
+        };
+        window.addEventListener('dashboard-filter-change', handleFilterChange);
+        return () => window.removeEventListener('dashboard-filter-change', handleFilterChange);
+    }, []);
+
     const aggregateFallbackData = useCallback((tasks, baseRegistry = [], allDepts = []) => {
         if (!tasks.length && !baseRegistry.length) return;
 
@@ -599,7 +611,7 @@ const PerformanceDashboard = () => {
                 ))}
 
                 {/* 5th slot: Manager Score (large) + Team Score & Manager Personal Score (compact, stacked) */}
-                <div className="flex gap-3 min-w-[300px]">
+                <div className="flex gap-3 min-w-[380px]">
                     {/* Manager Score — large green card, same height as siblings */}
                     <div className="flex-1 p-6 rounded-[2rem] bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-xl shadow-emerald-100/40 hover:scale-[1.02] transition-all relative overflow-hidden flex flex-col">
                         <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full bg-white/10 blur-2xl" />
@@ -611,7 +623,7 @@ const PerformanceDashboard = () => {
                         <p className="text-[10px] mt-1.5 opacity-70 relative z-10">
                             {(() => {
                                 const delta = summary.manager_score_delta_percent;
-                                if (delta === null || delta === undefined) return '70% Team · 30% Personal';
+                                if (delta === null || delta === undefined) return '70% Team + 30% Personal';
                                 const arrow = delta >= 0 ? '▲' : '▼';
                                 return `${arrow} ${Math.abs(delta)}% vs last period`;
                             })()}
@@ -619,7 +631,7 @@ const PerformanceDashboard = () => {
                     </div>
 
                     {/* Team Score + Manager Personal Score — two slim stacked companion cards */}
-                    <div className="flex flex-col gap-3 w-[140px]">
+                    <div className="flex flex-col gap-3 w-[175px]">
                         {/* Team Score */}
                         <div className="flex-1 px-4 py-4 rounded-[1.5rem] bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-100/40 hover:scale-[1.02] transition-all relative overflow-hidden flex flex-col justify-between">
                             <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/10 blur-xl" />
@@ -637,7 +649,7 @@ const PerformanceDashboard = () => {
                             <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/10 blur-xl" />
                             <div className="flex items-center gap-2 mb-2 relative z-10">
                                 <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center"><TrendingUp size={14} /></div>
-                                <p className="text-[9px] font-bold uppercase tracking-widest opacity-80 leading-tight">Personal<br/>Score</p>
+                                <p className="text-[9px] font-bold uppercase tracking-widest opacity-80 leading-tight">Manager Personal<br/>Score</p>
                             </div>
                             <h4 className="text-xl font-bold relative z-10">
                                 {summary.manager_personal_score_current != null ? `${summary.manager_personal_score_current}%` : '—'}

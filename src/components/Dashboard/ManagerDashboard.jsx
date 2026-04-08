@@ -671,7 +671,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                 />
 
                 {/* 5. Score Cluster: Manager Score (large) + Team Score & Manager Personal Score (compact, stacked) */}
-                <div className="flex gap-3 min-w-[320px]">
+                <div className="flex gap-3 min-w-[400px]">
                     {/* Manager Score — large emerald card */}
                     <div className="flex-1 group animate-fade-in-up relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-200/50 py-5 px-6 transition-all duration-500 hover:scale-[1.03] hover:shadow-xl border border-white/20 flex flex-col justify-between">
                         <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-emerald-400/30 blur-2xl" />
@@ -695,12 +695,12 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                                 {stats.managerScore != null ? `${stats.managerScore}%` : '—'}
                             </div>
                             <div className="text-[11px] font-bold text-white/90 uppercase tracking-widest truncate mt-1.5">Manager Score</div>
-                            <div className="text-[9px] text-white/60 font-semibold truncate uppercase tracking-widest mt-0.5">70% Team · 30% Personal</div>
+                            <div className="text-[9px] text-white/60 font-semibold truncate uppercase tracking-widest mt-0.5">70% Team + 30% Personal</div>
                         </div>
                     </div>
 
                     {/* Team Score + Manager Personal Score stacked */}
-                    <div className="flex flex-col gap-3 w-[140px]">
+                    <div className="flex flex-col gap-3 w-[175px]">
                         {/* Team Score */}
                         <div className="flex-1 p-3.5 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-100/40 hover:scale-[1.02] transition-all relative overflow-hidden flex flex-col justify-between border border-white/10">
                             <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/10 blur-xl" />
@@ -718,7 +718,7 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
                             <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/10 blur-xl" />
                             <div className="flex items-center gap-2 relative z-10">
                                 <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center"><TrendingUp size={12} /></div>
-                                <span className="text-[8px] font-black uppercase tracking-widest opacity-80 leading-none">Pers. Score</span>
+                                <span className="text-[8px] font-black uppercase tracking-widest opacity-80 leading-tight">Manager Personal<br/>Score</span>
                             </div>
                             <h4 className="text-xl font-black relative z-10 mt-1">
                                 {stats.managerPersonalScore != null ? `${stats.managerPersonalScore}%` : '—'}
