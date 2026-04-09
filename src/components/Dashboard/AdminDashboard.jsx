@@ -72,9 +72,17 @@ const AdminDashboard = () => {
             const role = (user?.role || '').toUpperCase();
             
             let endpoint = format === 'pdf' ? '/reports/cfo/export-pdf' : '/reports/cfo/export-excel';
+            
+            // Safe date fallback from summary
+            const safeFrom = summary?.period_start || summary?.from_date || '';
+            const safeTo = summary?.period_end || summary?.to_date || '';
+            
             const params = {
-                from_date: fromDate || summary?.period_start || undefined,
-                to_date: toDate || summary?.period_end || undefined
+                from_date:  safeFrom || undefined,
+                to_date:    safeTo || undefined,
+                start_date: safeFrom || undefined,
+                end_date:   safeTo || undefined,
+                scope:      'org'
             };
 
             const response = await api.get(endpoint, {
@@ -82,15 +90,27 @@ const AdminDashboard = () => {
                 responseType: 'blob'
             });
 
-            if (response.data.size < 250) {
+            // Handle potential JSON (error or presigned URL) wrapped in blob
+            if (response.data.type === 'application/json' || response.data.size < 600) {
                 const text = await response.data.text();
                 try {
-                    const errorJson = JSON.parse(text);
-                    throw new Error(errorJson.detail || errorJson.message || 'Export failed');
-                } catch (e) { /* Proceed if not JSON */ }
+                    const json = JSON.parse(text);
+                    if (json.detail || json.message) {
+                        const msg = Array.isArray(json.detail) ? json.detail.map(d => d.msg).join(', ') : (json.detail || json.message);
+                        throw new Error(msg);
+                    }
+                    const downloadUrl = json.download_url || json.data?.download_url;
+                    if (downloadUrl) {
+                        window.open(downloadUrl, '_blank');
+                        toast.success('Download started', { id: toastId });
+                        return;
+                    }
+                } catch (parseErr) {
+                    if (!(parseErr instanceof SyntaxError)) throw parseErr;
+                }
             }
 
-            const contentType = response.headers['content-type'] || (format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            const contentType = response.headers['content-type'] || (format === 'excel' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf');
             const blob = new Blob([response.data], { type: contentType });
             const blobUrl = window.URL.createObjectURL(blob);
             const a = document.createElement('a');

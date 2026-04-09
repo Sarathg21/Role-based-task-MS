@@ -141,6 +141,26 @@ const EmployeePersonalReport = () => {
             let endpoint = format === 'pdf' ? `/reports/employee/export-pdf` : `/reports/employee/export-excel`;
             const params = { from_date: fromDate, to_date: toDate };
             const res = await api.get(endpoint, { params, responseType: 'blob' });
+
+            // Handle potential JSON (error or presigned URL) wrapped in blob
+            if (res.data.type === 'application/json' || res.data.size < 600) {
+                const text = await res.data.text();
+                try {
+                    const json = JSON.parse(text);
+                    if (json.detail || json.message) {
+                        const msg = Array.isArray(json.detail) ? json.detail.map(d => d.msg).join(', ') : (json.detail || json.message);
+                        throw new Error(msg);
+                    }
+                    const downloadUrl = json.download_url || json.data?.download_url;
+                    if (downloadUrl) {
+                        window.open(downloadUrl, '_blank');
+                        toast.success('Download started', { id: toastId });
+                        return;
+                    }
+                } catch (parseErr) {
+                    if (!(parseErr instanceof SyntaxError)) throw parseErr;
+                }
+            }
             const blob = new Blob([res.data], { type: res.headers['content-type'] });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');

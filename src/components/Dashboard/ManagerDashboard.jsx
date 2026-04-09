@@ -233,12 +233,29 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
     };
 
     const fetchDashboardData = async () => {
+        // ── Safe Parameter Normalization ────────────────────────────────────────
+        // Prevents 422 Unprocessable Entity by ensuring dates are valid ISO strings (YYYY-MM-DD)
+        const getValidFromDate = () => {
+            const stored = localStorage.getItem('dashboard_from_date');
+            if (stored && stored.length === 10) return stored;
+            return fromDate && fromDate.length === 10 ? fromDate : getFirstDayOfMonth();
+        };
+        const getValidToDate = () => {
+            const stored = localStorage.getItem('dashboard_to_date');
+            if (stored && stored.length === 10) return stored;
+            return toDate && toDate.length === 10 ? toDate : getToday();
+        };
+
+        const safeFrom = getValidFromDate();
+        const safeTo   = getValidToDate();
+
         setLoading(true);
-        const params = {};
-        if (fromDate) params.start_date = fromDate;
-        if (toDate) params.end_date = toDate;
-        if (fromDate) params.from_date = fromDate;
-        if (toDate) params.to_date = toDate;
+        const params = {
+            from_date:  safeFrom,
+            to_date:    safeTo,
+            start_date: safeFrom,
+            end_date:   safeTo
+        };
         
         // Apply department override if provided
         if (currentDeptId && currentDeptId !== 'all') {

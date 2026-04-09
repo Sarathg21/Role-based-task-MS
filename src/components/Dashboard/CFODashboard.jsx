@@ -11,7 +11,7 @@ import {
 import {
     TrendingUp, Users, CheckSquare, AlertTriangle, ArrowRight,
     BarChart2, Loader2, CheckCircle, Activity, Shield, Layout, Target, Clock, PlusCircle,
-    Plus, MessageSquare, User, ChevronDown, XCircle
+    Plus, MessageSquare, User, ChevronDown, XCircle, Calendar
 } from 'lucide-react';
 import EmployeeIssueModal from '../Modals/EmployeeIssueModal';
 import DeptReviewModal from '../Modals/DeptReviewModal';
@@ -455,41 +455,86 @@ const ExportReportsPanel = ({ fromDate, toDate }) => {
     const handleDownload = async (format) => {
         const toastId = toast.loading(`Preparing ${format.charAt(0).toUpperCase() + format.slice(1)} report...`);
         try {
-            const endpoint = format === 'pdf' ? '/reports/cfo/export-pdf' : '/reports/cfo/export-excel';
-
-            // Clean params to avoid "undefined" strings in URL
             const params = {};
             if (fromDate) params.from_date = fromDate;
-            if (toDate) params.to_date = toDate;
+            if (toDate)   params.to_date   = toDate;
 
-            const response = await api.get(endpoint, {
-                params,
-                responseType: 'blob',
-                headers: { 'Accept': 'application/octet-stream' }
-            });
+            const endpoint = format === 'pdf' ? '/reports/cfo/export-pdf' : '/reports/cfo/export-excel';
 
-            // If the blob is very small, it might be a JSON error disguised as a blob
-            if (response.data.size < 200) {
-                const text = await response.data.text();
-                try {
-                    const errorJson = JSON.parse(text);
-                    throw new Error(errorJson.detail || 'Report generation failed');
-                } catch (e) { /* Not JSON, proceed with download */ }
+            // Helper to read real error from blob response
+            const readErr = async (err) => {
+                const d = err?.response?.data;
+                if (d instanceof Blob && d.size > 0) {
+                    try {
+                        const text = await d.text();
+                        const j = JSON.parse(text);
+                        return Array.isArray(j.detail)
+                            ? j.detail.map(x => x.msg).join(', ')
+                            : (j.detail || j.message || text.slice(0, 200));
+                    } catch { /* not JSON */ }
+                }
+                return err?.message || 'Unknown error';
+            };
+
+            try {
+                const response = await api.get(endpoint, {
+                    params,
+                    responseType: 'blob',
+                    headers: { 'Accept': 'application/octet-stream' }
+                });
+
+                // Small blob = likely a JSON (error or presigned URL)
+                if (response.data.type === 'application/json' || response.data.size < 600) {
+                    const text = await response.data.text();
+                    try {
+                        const json = JSON.parse(text);
+                        // If it's an error, handle it
+                        if (json.detail || json.message) {
+                            const msg = Array.isArray(json.detail) ? json.detail.map(d => d.msg).join(', ') : (json.detail || json.message);
+                            throw new Error(msg);
+                        }
+                        // If it's a presigned URL, use it!
+                        const downloadUrl = json.download_url || json.data?.download_url;
+                        if (downloadUrl) {
+                            window.open(downloadUrl, '_blank');
+                            toast.success('Download started', { id: toastId });
+                            return;
+                        }
+                    } catch (parseErr) {
+                        // If not JSON, continue to regular blob handling
+                        if (parseErr instanceof SyntaxError) { /* ignore */ }
+                        else throw parseErr;
+                    }
+                }
+
+                const ext = format === 'excel' ? 'xlsx' : 'pdf';
+                const contentType = response.headers['content-type'] ||
+                    (format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                const blob = new Blob([response.data], { type: contentType });
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `CFO_Report_${fromDate}_${toDate}.${ext}`);
+                document.body.appendChild(link);
+                link.click();
+                link.parentNode.removeChild(link);
+                window.URL.revokeObjectURL(url);
+                toast.success(`${format.charAt(0).toUpperCase() + format.slice(1)} downloaded successfully`, { id: toastId });
+            } catch (epErr) {
+                const status = epErr?.response?.status;
+                const errMsg = await readErr(epErr);
+                console.warn(`[CFO Export] ${endpoint} failed (${status}):`, errMsg);
+
+                if (status === 500) {
+                    // Backend bug on CFO endpoint — guide the user
+                    toast.error(
+                        'Report generation failed on the server (500). Use the Performance Dashboard and filter by department to export a department-specific report.',
+                        { id: toastId, duration: 8000 }
+                    );
+                } else {
+                    toast.error(errMsg.slice(0, 150), { id: toastId });
+                }
             }
-
-            const contentType = response.headers['content-type'] || (format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            const blob = new Blob([response.data], { type: contentType });
-            const url = window.URL.createObjectURL(blob);
-
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `CFO_Report_${format.charAt(0).toUpperCase() + format.slice(1)}_${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
-            document.body.appendChild(link);
-            link.click();
-            link.parentNode.removeChild(link);
-            window.URL.revokeObjectURL(url);
-
-            toast.success(`${format.charAt(0).toUpperCase() + format.slice(1)} downloaded successfully`, { id: toastId });
         } catch (err) {
             console.error(`Export failed:`, err);
             toast.error(err.message || `Failed to download ${format} report`, { id: toastId });
@@ -655,8 +700,20 @@ const CFODashboard = () => {
     const { user } = useAuth();
     const fetchDashboardData = async (signal) => {
         // ── Safe Parameter Normalization ────────────────────────────────────────
-        const safeFrom = (fromDate && fromDate.length === 10) ? fromDate : getFirstDayOfMonth();
-        const safeTo   = (toDate   && toDate.length   === 10) ? toDate   : getToday();
+        // Prevents 422 Unprocessable Entity by ensuring dates are valid ISO strings (YYYY-MM-DD)
+        const getValidFromDate = () => {
+            const stored = localStorage.getItem('dashboard_from_date');
+            if (stored && stored.length === 10) return stored;
+            return fromDate && fromDate.length === 10 ? fromDate : getFirstDayOfMonth();
+        };
+        const getValidToDate = () => {
+            const stored = localStorage.getItem('dashboard_to_date');
+            if (stored && stored.length === 10) return stored;
+            return toDate && toDate.length === 10 ? toDate : getToday();
+        };
+
+        const safeFrom = getValidFromDate();
+        const safeTo   = getValidToDate();
 
         setLoading(true);
         const queryParams = {
@@ -670,12 +727,14 @@ const CFODashboard = () => {
             const role = (user?.role || '').toUpperCase();
             const isAdmin = role === 'ADMIN';
 
+            const managerBase = '/dashboard/manager';
+
             const [dataRes, todayRes, metricsRes, trendsRes, deptsRes] = await Promise.all([
-                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo', { params: queryParams, signal }).catch(() => ({ data: {} })),
-                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/today', { params: queryParams, signal }).catch(() => ({ data: {} })),
-                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/org-metrics', { params: queryParams, signal }).catch(() => ({ data: {} })),
-                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/trends', { params: queryParams, signal }).catch(() => ({ data: {} })),
-                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/departments', { params: queryParams, signal }).catch(() => ({ data: {} }))
+                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo', { params: queryParams, signal }).catch(() => api.get(managerBase, { params: queryParams, signal })),
+                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/today', { params: queryParams, signal }).catch(() => api.get(`${managerBase}/today`, { params: queryParams, signal })),
+                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/org-metrics', { params: queryParams, signal }).catch(() => api.get(`${managerBase}/org-metrics`, { params: queryParams, signal })),
+                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/trends', { params: queryParams, signal }).catch(() => api.get(`${managerBase}/trends`, { params: queryParams, signal })),
+                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/departments', { params: queryParams, signal }).catch(() => api.get(`${managerBase}/departments`, { params: queryParams, signal }))
             ]);
 
             const metricsPayload = metricsRes?.data?.data || metricsRes?.data || {};

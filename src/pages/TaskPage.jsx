@@ -683,13 +683,28 @@ const TaskPage = () => {
         responseType: 'blob'
       });
 
-      // Handle potential JSON error wrapped in blob
-      if (response.data.size < 250) {
+      // Handle potential JSON (error or presigned URL) wrapped in blob
+      if (response.data.type === 'application/json' || response.data.size < 600) {
         const text = await response.data.text();
         try {
-          const errorJson = JSON.parse(text);
-          throw new Error(errorJson.detail || errorJson.message || 'Export failed');
-        } catch (e) { /* Proceed if not JSON */ }
+          const json = JSON.parse(text);
+          // If it's an error, handle it
+          if (json.detail || json.message) {
+            const msg = Array.isArray(json.detail) ? json.detail.map(d => d.msg).join(', ') : (json.detail || json.message);
+            throw new Error(msg);
+          }
+          // If it's a presigned URL, use it!
+          const downloadUrl = json.download_url || json.data?.download_url;
+          if (downloadUrl) {
+            window.open(downloadUrl, '_blank');
+            toast.success('Download started', { id: toastId });
+            return;
+          }
+        } catch (parseErr) {
+          // If not JSON, continue to regular blob handling
+          if (parseErr instanceof SyntaxError) { /* ignore */ }
+          else throw parseErr;
+        }
       }
 
       const contentType = response.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';

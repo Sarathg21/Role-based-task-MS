@@ -18,6 +18,22 @@ api.interceptors.request.use((config) => {
         config.headers.Authorization = `Bearer ${token}`;
     }
 
+    // --- Global Parameter Sanitization ---
+    // Remove empty string parameters that cause 422/500 backend errors.
+    // Ensure from_date/to_date/start_date/end_date are never empty.
+    if (config.params) {
+        Object.keys(config.params).forEach(key => {
+            const val = config.params[key];
+            if (val === '' || val === null || val === undefined) {
+                // Remove empty or null params
+                delete config.params[key];
+            } else if (['from_date', 'to_date', 'start_date', 'end_date'].includes(key) && typeof val === 'string' && val.length < 10) {
+                // Remove partial/invalid dates
+                delete config.params[key];
+            }
+        });
+    }
+
     // Add employee context headers if available
     if (userStr) {
         try {
@@ -44,6 +60,8 @@ api.interceptors.response.use(
         const message = error.response?.data?.detail || error.message || 'An unexpected error occurred';
         const url = error.config?.url || '';
 
+        const isBlob = error.config?.responseType === 'blob';
+
         if (status === 401) {
             // Skip the redirect for auth endpoints (login, etc.) — let the caller handle it
             if (!url.includes('/auth/')) {
@@ -52,14 +70,17 @@ api.interceptors.response.use(
                 window.location.href = '/login';
             }
         } else if (status === 422) {
-            // Validation error — surface the details as a toast
-            const detail = error.response?.data?.detail;
-            const msg = Array.isArray(detail)
-                ? detail.map(d => d.msg).join(', ')
-                : (detail || 'Invalid input. Please check your data.');
-            toast.error(msg);
+            // Blob requests handle their own error display — skip global toast
+            if (!isBlob) {
+                const detail = error.response?.data?.detail;
+                const msg = Array.isArray(detail)
+                    ? detail.map(d => d.msg).join(', ')
+                    : (detail || 'Invalid input. Please check your data.');
+                toast.error(msg);
+            }
         } else if (status === 400 || status === 409) {
-            toast.error(message);
+            // Blob requests (downloads/exports) handle their own error display — skip global toast
+            if (!isBlob) toast.error(message);
         } else if (status === 403) {
             // Gracefully resolve 403s ONLY for GET requests for authenticated users.
             // State-changing actions (POST, PUT, DELETE) must fail explicitly so users 
@@ -67,7 +88,6 @@ api.interceptors.response.use(
             try {
                 const savedUser = JSON.parse(localStorage.getItem('pms_user') || '{}');
                 const isGet = error.config?.method?.toLowerCase() === 'get';
-                const isBlob = error.config?.responseType === 'blob';
                 
                 // We should NOT mock data for blob/binary requests (like downloads) 
                 // as it would return a corrupted file (the dummy JSON as a blob).

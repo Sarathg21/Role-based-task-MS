@@ -88,8 +88,9 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
             setNotifications(unreadOnly);
         } catch (err) {
             // Silence background poll errors unless they are critical auth issues
-            if (err.code !== 'ECONNABORTED' && !err.message?.includes('Network Error')) {
-                console.error('Failed to fetch notifications', err);
+            const status = err.response?.status;
+            if (err.code !== 'ECONNABORTED' && !err.message?.includes('Network Error') && status !== 500) {
+                console.warn('Failed to fetch notifications:', err.message);
             }
         } finally {
             isFetchingNotifs.current = false;

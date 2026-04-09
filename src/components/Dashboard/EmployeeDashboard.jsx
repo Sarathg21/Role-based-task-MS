@@ -397,12 +397,24 @@ const EmployeeDashboard = () => {
                 responseType: 'blob'
             });
 
-            if (response.data.size < 250) {
+            // check if the response is actually JSON (masqueraded as blob)
+            if (response.data.type === 'application/json' || response.data.size < 600) {
                 const text = await response.data.text();
                 try {
-                    const errorJson = JSON.parse(text);
-                    throw new Error(errorJson.detail || errorJson.message || 'Export failed');
-                } catch (e) { /* Proceed if not JSON */ }
+                    const json = JSON.parse(text);
+                    if (json.detail || json.message) {
+                        const msg = Array.isArray(json.detail) ? json.detail.map(d => d.msg).join(', ') : (json.detail || json.message);
+                        throw new Error(msg);
+                    }
+                    const downloadUrl = json.download_url || json.data?.download_url;
+                    if (downloadUrl) {
+                        window.open(downloadUrl, '_blank');
+                        toast.success('Download started', { id: toastId });
+                        return;
+                    }
+                } catch (parseErr) {
+                    if (!(parseErr instanceof SyntaxError)) throw parseErr;
+                }
             }
 
             const contentType = response.headers['content-type'] || (format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
