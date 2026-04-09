@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -95,6 +95,12 @@ const PerformanceDashboard = () => {
     });
     const [loading, setLoading] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+    // ── Stale-response guards: each ref holds the ID of the latest in-flight request.
+    // When a new request starts, the counter increments. Any response whose ID no
+    // longer matches is discarded, preventing race conditions on rapid date changes.
+    const teamPerfReqId = useRef(0);
+    const riskReqId     = useRef(0);
     
     // Modal state
     const [showRiskModal, setShowRiskModal] = useState(false);
@@ -116,16 +122,27 @@ const PerformanceDashboard = () => {
         const handleFilterChange = () => {
             const storedFrom = localStorage.getItem('dashboard_from_date');
             const storedTo   = localStorage.getItem('dashboard_to_date');
-            if (storedFrom) setFromDate(storedFrom);
+            if (storedFrom) {
+                setFromDate(storedFrom);
+                setTeamPerfFrom(storedFrom);
+                setRiskFrom(storedFrom);
+            }
             if (storedTo) {
-                // Only accept storedTo if it's >= storedFrom (or fromDate as fallback)
                 const effectiveFrom = storedFrom || fromDate;
-                setToDate(storedTo >= effectiveFrom ? storedTo : getToday());
+                const safeTo = storedTo >= effectiveFrom ? storedTo : getToday();
+                setToDate(safeTo);
+                setTeamPerfTo(safeTo);
+                setRiskTo(safeTo);
             }
         };
         window.addEventListener('dashboard-filter-change', handleFilterChange);
         return () => window.removeEventListener('dashboard-filter-change', handleFilterChange);
-    }, []);
+    }, [fromDate]);
+
+    // NOTE: Do NOT sync fromDate/toDate back into teamPerfFrom/riskFrom here.
+    // Those sub-section date pickers are independently controlled by the user.
+    // Global→local sync is handled only via the dashboard-filter-change event above.
+    // Adding a useEffect([fromDate,toDate]) here would clobber the user's local table date picks.
 
     const aggregateFallbackData = useCallback((tasks, baseRegistry = [], allDepts = []) => {
         if (!tasks.length && !baseRegistry.length) return;
@@ -255,11 +272,10 @@ const PerformanceDashboard = () => {
             performance_score: Math.round((e.completed / (e.tasks_assigned || 1)) * 100)
         })).sort((a, b) => b.tasks_assigned - a.tasks_assigned);
         
-        setTeamPerformance(perfData);
-        setEmployeeRisk(perfData.map(e => ({
-            name: e.name, department: e.department, active_tasks: e.tasks_assigned - e.completed, overdue_tasks: e.overdue, performance_score: e.completion_rate,
-            risk_status: e.overdue > 2 ? 'OFF_TRACK' : e.overdue > 1 ? 'AT_RISK' : e.overdue === 1 ? 'WATCH' : 'ON_TRACK'
-        })));
+        // NOTE: Do NOT overwrite teamPerformance / employeeRisk here.
+        // Those tables are owned by fetchTeamPerf() and fetchRiskData() which use their own
+        // independent date ranges (teamPerfFrom/riskFrom). Overwriting them here would ignore
+        // whatever local date the user has chosen in the table's own date picker.
 
         // CFO Dept Performance
         const dMap = {};
@@ -313,27 +329,27 @@ const PerformanceDashboard = () => {
             const endD   = new Date(safeTo);
             const dayRange = Math.max(1, Math.ceil(Math.abs(endD - startD) / (1000 * 60 * 60 * 24)) + 1);
 
-            const params = {
-                from_date:  safeFrom,
-                to_date:    safeTo,
-                start_date: safeFrom,
-                end_date:   safeTo,
-                scope: (selectedDept && selectedDept !== 'all') ? 'department' : 'org'
+            const standardizedParams = {
+                from_date: safeFrom,
+                to_date:   safeTo
             };
 
             if (selectedDept && selectedDept !== 'all') {
-                params.department_id = selectedDept;
+                standardizedParams.department_id = selectedDept;
             }
 
             const base = isCFO ? '/dashboard/cfo' : '/dashboard/manager';
+            const hasDept = !!(selectedDept && selectedDept !== 'all');
 
-            // 1. Fetch Summary, Metrics & Analytics (score fields)
-            const analyticsBase = isCFO ? '/dashboard/cfo' : '/dashboard/manager';
+            // 1. Fetch Summary & Metrics (Only if department selected or non-CFO)
+            // For CFO viewing Org, these often 404/400, so we rely on the high-fidelity Fallback list.
+            const shouldCallAPI = hasDept || !isCFO;
+
             const summaryResults = await Promise.allSettled([
-                api.get(base, { params }),
-                api.get(`${base}/department-metrics`, { params }),
-                api.get(`${base}/trends`, { params: { ...params, days: Math.min(dayRange, 365) } }),
-                api.get(`${analyticsBase}/analytics`, { params })
+                (shouldCallAPI || !isCFO) ? api.get(base, { params: standardizedParams }) : Promise.reject('Org View Fallback'),
+                (shouldCallAPI) ? api.get(`${base}/department-metrics`, { params: standardizedParams }) : Promise.reject('Org View Fallback'),
+                (shouldCallAPI) ? api.get(`${base}/trends`, { params: { ...standardizedParams, days: Math.min(dayRange, 365) } }) : Promise.reject('Org View Fallback'),
+                (shouldCallAPI) ? api.get('/dashboard/manager/analytics', { params: standardizedParams }) : Promise.reject('Org View Fallback')
             ]);
 
             if (summaryResults[0].status === 'fulfilled') {
@@ -376,25 +392,20 @@ const PerformanceDashboard = () => {
             }
 
             // 2. Robust Task Fetching (Source of Truth for fallback)
-            // Use safeFrom/safeTo — guaranteed valid YYYY-MM-DD, never empty strings.
-            // /tasks/team consistently returns 422 — dropped entirely.
             const dateParams = {
                 from_date:  safeFrom,
                 to_date:    safeTo,
-                start_date: safeFrom,
-                end_date:   safeTo,
                 limit:      200,
             };
 
             let tasks = [];
-            const taskCandidates = isCFO
+            const taskCandidates = (isCFO || user?.role?.toUpperCase() === 'ADMIN')
                 ? [
                     { url: '/tasks', p: { ...dateParams, scope: 'org' } },
-                    { url: '/tasks', p: { ...dateParams, scope: 'department', ...(params.department_id ? { department_id: params.department_id } : {}) } },
+                    { url: '/tasks', p: { ...dateParams, scope: 'department', ...(standardizedParams.department_id ? { department_id: standardizedParams.department_id } : {}) } },
                   ]
                 : [
-                    // Manager: scope=department only (scope=org → 403, /tasks/team → 422)
-                    { url: '/tasks', p: { ...dateParams, scope: 'department', ...(params.department_id ? { department_id: params.department_id } : {}) } },
+                    { url: '/tasks', p: { ...dateParams, scope: 'department', ...(standardizedParams.department_id ? { department_id: standardizedParams.department_id } : {}) } },
                   ];
 
             // Sequential: stop on first candidate that returns rows
@@ -403,7 +414,18 @@ const PerformanceDashboard = () => {
                     const res = await api.get(cand.url, { params: cand.p, timeout: 15000 });
                     const rows = res.data?.data || res.data || [];
                     if (Array.isArray(rows) && rows.length > 0) {
-                        tasks = rows;
+                        // ── Client-side Filter Safeguard ──
+                        tasks = rows.filter(t => {
+                            const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date || t.day;
+                            if (!dateStr) return true; // Keep if no date found (err on side of inclusion)
+                            
+                            try {
+                                const taskDate = new Date(dateStr).toISOString().split('T')[0];
+                                return taskDate >= safeFrom && taskDate <= safeTo;
+                            } catch (e) {
+                                return true;
+                            }
+                        });
                         break;
                     }
                 } catch (err) {
@@ -411,11 +433,22 @@ const PerformanceDashboard = () => {
                 }
             }
 
+            // 3. Employee & Team Performance (Use manager base with standardized snake_case params)
             // 3. Employee & Team Performance
+            // If no department is selected (e.g., CFO viewing Org), we rely on the client-side aggregation (aggregateFallbackData)
+            // to build the performance lists from the full task registry, as these endpoints require a department_id.
+            const leadershipParams = {
+                from_date: safeFrom,
+                to_date:   safeTo,
+                limit:     100,
+                // Only provide department_id if specifically selected
+                ...(hasDept ? { department_id: selectedDept } : {})
+            };
+            
             const perfResults = await Promise.allSettled([
-                api.get(`${base}/team-performance`, { params: { ...params, limit: 100 } }),
-                api.get(`${base}/employee-risk`, { params: { ...params, limit: 10 } }),
-                api.get('/employees', { params: { active: true, department_id: params.department_id } })
+                (hasDept || !isCFO) ? api.get('/dashboard/manager/team-performance', { params: leadershipParams }) : Promise.reject('No Dept'),
+                (hasDept || !isCFO) ? api.get('/dashboard/manager/employee-risk', { params: { ...leadershipParams, limit: 10 } }) : Promise.reject('No Dept'),
+                api.get('/employees', { params: { active: true, ...(hasDept ? { department_id: selectedDept } : {}) } })
             ]);
 
             let perfSum = [];
@@ -453,28 +486,17 @@ const PerformanceDashboard = () => {
                 completion_rate: emp.completion_rate || 0
             })).sort((a,b) => b.tasks_assigned - a.tasks_assigned);
 
-            setTeamPerformance(mergedPerf);
-
-            setEmployeeRisk(unionTeam.map(emp => {
-                const risk = riskSum.find(r => (r.emp_id || r.id) === (emp.emp_id || emp.id)) || {};
-                const p = mergedPerf.find(p => (p.emp_id || p.id) === (emp.emp_id || emp.id)) || {};
-                return {
-                    emp_id: emp.emp_id || emp.id, name: emp.name, 
-                    department: emp.department_name || emp.department || 'Accounts',
-                    active_tasks: risk.active_tasks || (p.tasks_assigned - (p.completed || 0)) || 0,
-                    overdue_tasks: risk.overdue_tasks || p.overdue || 0,
-                    performance_score: risk.performance_score || p.completion_rate || 0,
-                    risk_status: risk.risk_status || (p.overdue > 2 ? 'OFF_TRACK' : p.overdue > 1 ? 'AT_RISK' : p.overdue === 1 ? 'WATCH' : 'ON_TRACK')
-                };
-            }).sort((a,b) => b.overdue_tasks - a.overdue_tasks));
+            // NOTE: Do NOT set teamPerformance or employeeRisk here.
+            // Those tables are exclusively owned by fetchTeamPerf() and fetchRiskData(),
+            // each of which carries its own independent date range from the table's date picker.
+            // Writing here would (a) race against those functions and (b) ignore the local date.
 
             // 4. Final Fallback - trigger if we have tasks but API metrics are missing/zero
             // USE LOCAL VARIABLES for fresh checking (state is async)
             const sumData = summaryResults[0].status === 'fulfilled' ? (summaryResults[0].value.data?.data || summaryResults[0].value.data || {}) : {};
             const localHasSummary = Number(sumData.team_tasks || sumData.total_tasks || sumData.total || 0) > 0;
-            // Always calculate Department Performance from the latest task list to show all depts
-            const deptsToUse = summaryResults[1].status === 'fulfilled' ? (summaryResults[1].value.data?.data || summaryResults[1].value.data || []) : [];
-            aggregateFallbackData(tasks, allEmpBase, deptsToUse);
+            const localHasTrends = summaryResults[2].status === 'fulfilled' && (summaryResults[2].value.data?.data || summaryResults[2].value.data || []).length > 0;
+            const localHasTeam = (perfResults[0].status === 'fulfilled' && (perfResults[0].value.data?.data || perfResults[0].value.data || []).length > 0) || mergedPerf.length > 0;
 
             if (tasks.length > 0 && (!localHasSummary || !localHasTrends || !localHasTeam)) {
                 console.log("ManagerDashboard - Insufficient API metrics (local check), fully rebuilding from task list...", tasks.length);
@@ -523,22 +545,60 @@ const PerformanceDashboard = () => {
         const sf = (from && from.length === 10) ? from : getFirstDayOfMonth();
         const st = (to   && to.length   === 10) ? to   : getToday();
         if (st < sf) return;
+
+        // Stale-response guard: stamp this request; discard result if a newer one started.
+        const myId = ++teamPerfReqId.current;
+
+        const hasDept = !!(selectedDept && selectedDept !== 'all');
         setTeamPerfLoading(true);
         try {
-            const base = isCFO ? '/dashboard/cfo' : '/dashboard/manager';
-            const p = {
-                from_date: sf, to_date: st, start_date: sf, end_date: st,
-                scope: (selectedDept && selectedDept !== 'all') ? 'department' : 'org',
-                ...(selectedDept && selectedDept !== 'all' ? { department_id: selectedDept } : {}),
-                limit: 100,
+            const params = {
+                from_date: sf, to_date: st,
+                limit: 200,
+                ...(hasDept ? { department_id: selectedDept, scope: 'department' } : { scope: 'org' })
             };
-            const res = await api.get(`${base}/team-performance`, { params: p });
-            const data = res.data?.data || res.data || [];
-            if (Array.isArray(data) && data.length > 0) setTeamPerformance(data);
+            const res = await api.get('/tasks', { params });
+
+            // Drop this response if a newer request has already started
+            if (myId !== teamPerfReqId.current) return;
+
+            const rawTks = res.data?.data || res.data || [];
+            const tks = Array.isArray(rawTks) ? rawTks : [];
+
+            // Client-side date guard — ensure only tasks inside [sf, st] are counted
+            const inRange = tks.filter(t => {
+                const d = (t.assigned_at || t.assigned_date || t.created_at || t.due_date || '').split('T')[0];
+                return !d || (d >= sf && d <= st);
+            });
+
+            const empMap = {};
+            inRange.forEach(t => {
+                const name = t.assigned_to_name || t.employee_name || t.assigneeName || t.assigned_to || 'Unassigned';
+                if (!empMap[name]) empMap[name] = {
+                    name, tasks_assigned: 0, in_progress: 0, pending_review: 0, overdue: 0, completed: 0,
+                    department: t.department_name || t.department || 'Accounts',
+                    role: t.role || (name.toLowerCase().includes('manager') ? 'Manager' : 'Employee')
+                };
+                empMap[name].tasks_assigned++;
+                const s = (t.status || '').toUpperCase();
+                if (s === 'IN_PROGRESS') empMap[name].in_progress++;
+                if (['SUBMITTED', 'PENDING', 'PENDING_APPROVAL'].includes(s)) empMap[name].pending_review++;
+                if (s === 'APPROVED' || s === 'COMPLETED') empMap[name].completed++;
+                if (t.due_date && new Date(t.due_date) < new Date() && !['APPROVED', 'CANCELLED'].includes(s)) empMap[name].overdue++;
+            });
+            const perfData = Object.values(empMap).map(e => ({
+                ...e,
+                completion_rate: Math.round((e.completed / (e.tasks_assigned || 1)) * 100),
+                performance_score: Math.round((e.completed / (e.tasks_assigned || 1)) * 100)
+            })).sort((a, b) => b.tasks_assigned - a.tasks_assigned);
+
+            setTeamPerformance(perfData);
         } catch (err) {
-            console.warn('[PerformanceDashboard] team-performance fetch failed:', err?.message);
+            if (myId === teamPerfReqId.current) {
+                console.warn('[PerformanceDashboard] team-performance fetch failed:', err?.message);
+            }
         } finally {
-            setTeamPerfLoading(false);
+            if (myId === teamPerfReqId.current) setTeamPerfLoading(false);
         }
     }, [isCFO, selectedDept]);
 
@@ -547,45 +607,95 @@ const PerformanceDashboard = () => {
         const sf = (from && from.length === 10) ? from : getFirstDayOfMonth();
         const st = (to   && to.length   === 10) ? to   : getToday();
         if (st < sf) return;
+
+        // Stale-response guard
+        const myId = ++riskReqId.current;
+
+        const hasDept = !!(selectedDept && selectedDept !== 'all');
         setRiskLoading(true);
         try {
-            const base = isCFO ? '/dashboard/cfo' : '/dashboard/manager';
-            const p = {
-                from_date: sf, to_date: st, start_date: sf, end_date: st,
-                scope: (selectedDept && selectedDept !== 'all') ? 'department' : 'org',
-                ...(selectedDept && selectedDept !== 'all' ? { department_id: selectedDept } : {}),
-                limit: 50,
+            const params = {
+                from_date: sf, to_date: st,
+                limit: 200,
+                ...(hasDept ? { department_id: selectedDept, scope: 'department' } : { scope: 'org' })
             };
-            const res = await api.get(`${base}/employee-risk`, { params: p });
-            const data = res.data?.data || res.data || [];
-            if (Array.isArray(data)) setEmployeeRisk(data);
+            const res = await api.get('/tasks', { params });
+
+            // Drop stale response
+            if (myId !== riskReqId.current) return;
+
+            const rawTks = res.data?.data || res.data || [];
+            const tks = Array.isArray(rawTks) ? rawTks : [];
+
+            // Client-side date guard
+            const inRange = tks.filter(t => {
+                const d = (t.assigned_at || t.assigned_date || t.created_at || t.due_date || '').split('T')[0];
+                return !d || (d >= sf && d <= st);
+            });
+
+            const empMap = {};
+            inRange.forEach(t => {
+                const name = t.assigned_to_name || t.employee_name || t.assigneeName || t.assigned_to || 'Unassigned';
+                if (!empMap[name]) empMap[name] = {
+                    name, tasks_assigned: 0, overdue: 0, completed: 0,
+                    department: t.department_name || t.department || 'Accounts'
+                };
+                empMap[name].tasks_assigned++;
+                const s = (t.status || '').toUpperCase();
+                if (s === 'APPROVED' || s === 'COMPLETED') empMap[name].completed++;
+                if (t.due_date && new Date(t.due_date) < new Date() && !['APPROVED', 'CANCELLED'].includes(s)) empMap[name].overdue++;
+            });
+            const riskData = Object.values(empMap).map(e => ({
+                name: e.name, department: e.department,
+                active_tasks: e.tasks_assigned - e.completed,
+                overdue_tasks: e.overdue,
+                performance_score: Math.round((e.completed / (e.tasks_assigned || 1)) * 100),
+                risk_status: e.overdue > 2 ? 'OFF_TRACK' : e.overdue > 1 ? 'AT_RISK' : e.overdue === 1 ? 'WATCH' : 'ON_TRACK'
+            })).sort((a, b) => b.overdue_tasks - a.overdue_tasks);
+
+            setEmployeeRisk(riskData);
         } catch (err) {
-            console.warn('[PerformanceDashboard] employee-risk fetch failed:', err?.message);
+            if (myId === riskReqId.current) {
+                console.warn('[PerformanceDashboard] employee-risk fetch failed:', err?.message);
+            }
         } finally {
-            setRiskLoading(false);
+            if (myId === riskReqId.current) setRiskLoading(false);
         }
     }, [isCFO, selectedDept]);
 
     useEffect(() => { fetchTeamPerf(teamPerfFrom, teamPerfTo); }, [teamPerfFrom, teamPerfTo, fetchTeamPerf]);
     useEffect(() => { fetchRiskData(riskFrom, riskTo); },       [riskFrom, riskTo, fetchRiskData]);
 
+    const orgStatusPie = useMemo(() => [
+        { name: 'Done', value: deptMetrics.completed_tasks || 0 },
+        { name: 'Pending', value: deptMetrics.submitted_tasks || 0 },
+        { name: 'Overdue', value: deptMetrics.overdue_tasks || 0 }
+    ].filter(d => d.value > 0), [deptMetrics]);
+
     const handleDateChange = (type, value) => {
         if (type === 'from') {
             setFromDate(value);
+            setTeamPerfFrom(value);
+            setRiskFrom(value);
             localStorage.setItem('dashboard_from_date', value);
             // If the new fromDate is after the current toDate, reset toDate to today
             if (value > toDate) {
                 const today = getToday();
                 setToDate(today);
+                setTeamPerfTo(today);
+                setRiskTo(today);
                 localStorage.setItem('dashboard_to_date', today);
             }
         } else {
             // Only allow toDate >= fromDate
             if (value >= fromDate) {
                 setToDate(value);
+                setTeamPerfTo(value);
+                setRiskTo(value);
                 localStorage.setItem('dashboard_to_date', value);
             }
         }
+        window.dispatchEvent(new Event('dashboard-filter-change'));
     };
 
     const currentDeptName = useMemo(() => {
@@ -833,16 +943,18 @@ const PerformanceDashboard = () => {
                         <p className="text-[11px] text-slate-400 font-medium mt-1">Department task health · Approved vs Pending vs Overdue</p>
                     </div>
                     {/* PieChart — use fixed pixel dimensions instead of aspect to avoid -1 warning */}
-                    <div className="relative w-48 h-48 min-h-[192px] min-w-[192px]">
-                        <ResponsiveContainer width={192} height={192}>
+                    <div className="relative w-48 h-48 mx-auto">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <PieChart>
-                                <Pie 
-                                    data={[
-                                        { name: 'Done', value: deptMetrics.completed_tasks },
-                                        { name: 'Pending', value: deptMetrics.submitted_tasks },
-                                        { name: 'Overdue', value: deptMetrics.overdue_tasks }
-                                    ].filter(d => d.value > 0)}
-                                    innerRadius={55} outerRadius={75} paddingAngle={5} dataKey="value"
+                                <Pie
+                                    data={orgStatusPie}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius="65%"
+                                    outerRadius="85%"
+                                    paddingAngle={8}
+                                    dataKey="value"
+                                    stroke="none"
                                 >
                                     <Cell fill="#10B981" /><Cell fill="#F59E0B" /><Cell fill="#F43F5E" />
                                 </Pie>

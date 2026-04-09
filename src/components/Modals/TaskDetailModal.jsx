@@ -151,63 +151,41 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
             return;
         }
 
-        const toastId = toast.loading('Establishing secure connection for download...');
+        const toastId = toast.loading('Fetching secure download link...');
         try {
-            // 1. Try primary download endpoint
-            let res;
-            try {
-                res = await api.get(`/tasks/${fullTask.id}/attachments/${attachmentId}`, {
-                    responseType: 'blob'
-                });
-            } catch (firstErr) {
-                // 2. Fallback to /download sub-segment if first one fails
-                console.warn("Primary download failed, trying /download sub-path", firstErr);
-                res = await api.get(`/tasks/${fullTask.id}/attachments/${attachmentId}/download`, {
-                    responseType: 'blob'
-                });
+            // Updated Flow:
+            // 1. call GET /tasks/{task_id}/attachments/{attachment_id} (returns JSON)
+            // 2. read download_url from the JSON response
+            // 3. open/download that URL
+            
+            const res = await api.get(`/tasks/${fullTask.id}/attachments/${attachmentId}`);
+            const data = res.data?.data || res.data;
+            const downloadUrl = data?.download_url;
+
+            if (!downloadUrl) {
+                throw new Error('No download URL found in the server response.');
             }
 
-            // check if we got a tiny response which might be an error JSON disguised as a blob
-            if (res.data instanceof Blob && res.data.size < 500) {
-                const text = await res.data.text();
-                try {
-                    const json = JSON.parse(text);
-                    if (json.detail || json.message) {
-                        throw new Error(json.detail || json.message);
-                    }
-                } catch (e) { /* Not JSON or not an error object */ }
-            }
+            // Extract filename for potential usage (though S3 URL usually handles it)
+            const fileName = (typeof attachment === 'object') 
+                ? (attachment.filename || attachment.name || 'document')
+                : 'document';
 
-            // Extract filename
-            const contentDisposition = res.headers['content-disposition'];
-            let fileName = 'downloaded_file';
+            // Trigger download via new tab (most reliable for presigned S3 URLs)
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            // link.download = fileName; // Cross-origin download attribute often ignored by browsers for S3
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
             
-            if (typeof attachment === 'object') {
-                fileName = attachment.filename || attachment.name || attachment.file_name || attachment.original_name || attachment.title || attachment.original_filename || 'download';
-            }
-            
-            if (contentDisposition) {
-                const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-                if (filenameMatch && filenameMatch[1]) {
-                    fileName = filenameMatch[1];
-                }
-            }
-
-            // If res.data is already a Blob, we don't strictly need new Blob([res.data]), but it's safe
-            const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-            const blobUrl = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = blobUrl;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(blobUrl);
-            
-            toast.success('Download complete', { id: toastId });
+            toast.success('Download started', { id: toastId });
         } catch (err) {
             console.error("Download failed", err);
-            toast.error(err.response?.data?.message || 'Download failed. Ensure you have permissions for this file.', { id: toastId });
+            const errMsg = err.response?.data?.detail || err.response?.data?.message || err.message || 'Download failed';
+            toast.error(errMsg, { id: toastId });
         }
     };
     

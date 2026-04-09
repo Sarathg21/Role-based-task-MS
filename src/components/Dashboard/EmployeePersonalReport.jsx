@@ -13,8 +13,15 @@ import {
 
 const EmployeePersonalReport = () => {
     const { user } = useAuth();
-    const [fromDate, setFromDate] = useState('2026-03-01');
-    const [toDate, setToDate] = useState('2026-03-22');
+    const getFirstDayOfMonth = () => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    };
+
+    const getToday = () => new Date().toISOString().split('T')[0];
+
+    const [fromDate, setFromDate] = useState(localStorage.getItem('dashboard_from_date') || getFirstDayOfMonth());
+    const [toDate, setToDate] = useState(localStorage.getItem('dashboard_to_date') || getToday());
     const [loading, setLoading] = useState(true);
 
     const [tasks, setTasks] = useState([]);
@@ -22,24 +29,39 @@ const EmployeePersonalReport = () => {
     const [topPerformers, setTopPerformers] = useState([]);
 
     useEffect(() => {
-        // Set default dates dynamically if needed, but for now align with the mock's dates or current
-        const now = new Date();
-        const start = new Date(now.getFullYear(), now.getMonth(), 1);
-        setFromDate(start.toISOString().split('T')[0]);
-        setToDate(now.toISOString().split('T')[0]);
+        const handleFilterChange = () => {
+            setFromDate(localStorage.getItem('dashboard_from_date') || getFirstDayOfMonth());
+            setToDate(localStorage.getItem('dashboard_to_date') || getToday());
+        };
+        window.addEventListener('dashboard-filter-change', handleFilterChange);
+        return () => window.removeEventListener('dashboard-filter-change', handleFilterChange);
     }, []);
 
     const fetchDashData = async () => {
+        // ── Safe Parameter Normalization ────────────────────────────────────────
+        // Prevents 422 Unprocessable Entity by ensuring dates are valid ISO strings
+        const safeFrom = (fromDate && fromDate.length === 10) ? fromDate : getFirstDayOfMonth();
+        const safeTo   = (toDate   && toDate.length   === 10) ? toDate   : getToday();
+
         setLoading(true);
         try {
             const myDept = user?.department_name || user?.department || '';
-            const dateParams = { from_date: fromDate, to_date: toDate, start_date: fromDate, end_date: toDate };
+            
+            // Backend parameter alignment: send both snake_case and camelCase
+            const dateParams = { 
+                from_date: safeFrom, 
+                to_date: safeTo, 
+                start_date: safeFrom, 
+                end_date: safeTo,
+                fromDate: safeFrom,
+                toDate: safeTo
+            };
 
             // 1. Fetch own dashboard summary, own tasks, AND department top performer — all in parallel
             const [dashRes, myTasksRes, topPerformerRes] = await Promise.allSettled([
                 api.get('/dashboard/employee', { params: { ...dateParams, scope: 'mine' } }),
-                api.get('/tasks', { params: { ...dateParams, limit: 100 } }),
-                api.get('/reports/employee/department-top-performer', { params: { from_date: fromDate, to_date: toDate } }),
+                api.get('/tasks', { params: { ...dateParams, limit: 200 } }),
+                api.get('/reports/employee/department-top-performer', { params: { ...dateParams } }),
             ]);
 
             // 2. Process own dashboard summary
@@ -132,12 +154,21 @@ const EmployeePersonalReport = () => {
         }
     };
 
-    // Derived Metrics
+    // Derived Metrics with client-side date filtering
     const metrics = useMemo(() => {
         let active = 0, completed = 0, inProgress = 0, overdue = 0, reworks = 0, newTasks = 0, submitted = 0;
-        const total = tasks.length;
         
-        tasks.forEach(t => {
+        // 1. Client-side date filter (Guarantees UI reflects the filter even if API returns too many tasks)
+        const periodTasks = tasks.filter(t => {
+            const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date;
+            if (!dateStr) return true;
+            const taskDate = dateStr.split('T')[0];
+            return taskDate >= fromDate && taskDate <= toDate;
+        });
+
+        const total = periodTasks.length;
+        
+        periodTasks.forEach(t => {
             const status = String(t.status || '').toUpperCase();
             if (status === 'APPROVED' || status === 'COMPLETED') completed++;
             else if (status === 'IN_PROGRESS' || status === 'STARTED') inProgress++;
@@ -156,21 +187,22 @@ const EmployeePersonalReport = () => {
             }
         });
 
-        // Use backend summary as primary, fallback to calculated
+        const performanceIndex = total > 0 ? Math.round((completed / total) * 100) : 0;
+
         return {
-            total: summary.total_tasks || total,
-            active: summary.active_tasks || active,
-            completed: summary.approved_tasks || completed,
-            inProgress: summary.in_progress_tasks || inProgress,
-            overdue: summary.overdue_tasks || overdue,
-            pending: summary.pending_submission || (newTasks + reworks),
-            reworks: summary.rework_tasks || reworks,
-            submitted: summary.submitted_tasks || submitted,
-            newTasks: summary.new_tasks || newTasks,
-            efficiency: summary.performance_index || (total ? Math.round((completed/total)*100) : 0),
+            total,
+            active,
+            completed,
+            inProgress,
+            overdue,
+            pending: (newTasks + reworks),
+            reworks,
+            submitted,
+            newTasks,
+            efficiency: performanceIndex,
             deptAvg: summary.dept_avg_score || 0
         };
-    }, [tasks, summary]);
+    }, [tasks, summary, fromDate, toDate]);
 
     // Trend Data Mock (if backend doesn't provide granular trend for employee)
     const trendData = [
@@ -214,7 +246,17 @@ const EmployeePersonalReport = () => {
                     <div className="flex items-center gap-3 px-3">
                         <span className="text-[12px] font-bold text-slate-400">From</span>
                         <div className="flex items-center gap-2">
-                            <input type="date" className="border-none text-[13px] font-semibold text-slate-700 bg-transparent p-0 focus:ring-0 cursor-pointer" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+                            <input 
+                                type="date" 
+                                className="border-none text-[13px] font-semibold text-slate-700 bg-transparent p-0 focus:ring-0 cursor-pointer" 
+                                value={fromDate} 
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setFromDate(val);
+                                    localStorage.setItem('dashboard_from_date', val);
+                                    window.dispatchEvent(new Event('dashboard-filter-change'));
+                                }} 
+                            />
                             <Calendar size={14} className="text-slate-400" />
                         </div>
                     </div>
@@ -222,7 +264,17 @@ const EmployeePersonalReport = () => {
                     <div className="flex items-center gap-3 px-3">
                         <span className="text-[12px] font-bold text-slate-400">To</span>
                         <div className="flex items-center gap-2">
-                            <input type="date" className="border-none text-[13px] font-semibold text-slate-700 bg-transparent p-0 focus:ring-0 cursor-pointer" value={toDate} onChange={e => setToDate(e.target.value)} />
+                            <input 
+                                type="date" 
+                                className="border-none text-[13px] font-semibold text-slate-700 bg-transparent p-0 focus:ring-0 cursor-pointer" 
+                                value={toDate} 
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setToDate(val);
+                                    localStorage.setItem('dashboard_to_date', val);
+                                    window.dispatchEvent(new Event('dashboard-filter-change'));
+                                }} 
+                            />
                             <Calendar size={14} className="text-slate-400" />
                         </div>
                     </div>

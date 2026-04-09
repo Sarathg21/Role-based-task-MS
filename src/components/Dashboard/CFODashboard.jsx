@@ -606,12 +606,11 @@ const CFODashboard = () => {
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     };
 
-    const getToday = () => {
-        return new Date().toISOString().slice(0, 10);
-    };
+    const getToday = () => new Date().toISOString().split('T')[0];
 
-    const [fromDate, setFromDate] = useState(getFirstDayOfMonth());
-    const [toDate, setToDate] = useState(getToday());
+    // Priority: 1. localStorage (Global sync), 2. Defaults
+    const [fromDate, setFromDate] = useState(localStorage.getItem('dashboard_from_date') || getFirstDayOfMonth());
+    const [toDate, setToDate] = useState(localStorage.getItem('dashboard_to_date') || getToday());
 
     useEffect(() => {
         const handleFilterChange = () => {
@@ -635,13 +634,37 @@ const CFODashboard = () => {
         '#f97316',
     ];
 
+    const handleDateChange = (type, value) => {
+        if (type === 'from') {
+            setFromDate(value);
+            localStorage.setItem('dashboard_from_date', value);
+            if (value > toDate) {
+                const today = getToday();
+                setToDate(today);
+                localStorage.setItem('dashboard_to_date', today);
+            }
+        } else {
+            if (value >= fromDate) {
+                setToDate(value);
+                localStorage.setItem('dashboard_to_date', value);
+            }
+        }
+        window.dispatchEvent(new Event('dashboard-filter-change'));
+    };
 
     const { user } = useAuth();
     const fetchDashboardData = async (signal) => {
+        // ── Safe Parameter Normalization ────────────────────────────────────────
+        const safeFrom = (fromDate && fromDate.length === 10) ? fromDate : getFirstDayOfMonth();
+        const safeTo   = (toDate   && toDate.length   === 10) ? toDate   : getToday();
+
         setLoading(true);
-        const queryParams = {};
-        if (fromDate) { queryParams.start_date = fromDate; queryParams.from_date = fromDate; }
-        if (toDate) { queryParams.end_date = toDate; queryParams.to_date = toDate; }
+        const queryParams = {
+            from_date:  safeFrom,
+            to_date:    safeTo,
+            start_date: safeFrom,
+            end_date:   safeTo
+        };
 
         try {
             const role = (user?.role || '').toUpperCase();
@@ -651,7 +674,7 @@ const CFODashboard = () => {
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo', { params: queryParams, signal }).catch(() => ({ data: {} })),
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/today', { params: queryParams, signal }).catch(() => ({ data: {} })),
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/org-metrics', { params: queryParams, signal }).catch(() => ({ data: {} })),
-                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/trends', { signal }).catch(() => ({ data: {} })),
+                isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/trends', { params: queryParams, signal }).catch(() => ({ data: {} })),
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/departments', { params: queryParams, signal }).catch(() => ({ data: {} }))
             ]);
 
@@ -823,10 +846,10 @@ const CFODashboard = () => {
             // Uses a short 12s timeout so slow requests fail fast rather than blocking for 60s
             const fetchOrgTasks = async (signal) => {
                 const scopes = [
-                    { scope: 'org', limit: 200 },
-                    { limit: 200 },
-                    { scope: 'department', limit: 200 },
-                    { scope: 'mine', limit: 200 }
+                    { ...queryParams, scope: 'org', limit: 200 },
+                    { ...queryParams, limit: 200 },
+                    { ...queryParams, scope: 'department', limit: 200 },
+                    { ...queryParams, scope: 'mine', limit: 200 }
                 ];
 
                 try {
@@ -860,9 +883,17 @@ const CFODashboard = () => {
             };
 
             const allTasksRes = await fetchOrgTasks(signal);
-            const allTasks = allTasksRes?.data
+            const allTasksRaw = allTasksRes?.data
                 ? (Array.isArray(allTasksRes.data) ? allTasksRes.data : (allTasksRes.data?.data || []))
                 : [];
+
+            // ── Client-side Filter Safeguard ──
+            const allTasks = allTasksRaw.filter(t => {
+                const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date;
+                if (!dateStr) return true;
+                const taskDate = dateStr.split('T')[0];
+                return taskDate >= safeFrom && taskDate <= safeTo;
+            });
 
             // Pass 1: Build lookup map for ID -> Title
             const taskMap = {};
@@ -1129,6 +1160,33 @@ const CFODashboard = () => {
     return (
         <div className="space-y-4 pb-8">
             <div className="space-y-4">
+                        {/* ── HEADER FILTERS: Premium Date Picker ── */}
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-2">
+                             <div>
+                                 <h2 className="text-[28px] font-bold text-slate-800 tracking-tight leading-none mb-2">CFO Executive Console</h2>
+                                 <p className="text-[12px] text-slate-500 font-medium">Real-time organizational performance & task intelligence</p>
+                             </div>
+                             
+                             <div className="flex flex-wrap items-center gap-4 bg-white/60 backdrop-blur-2xl p-3 rounded-[2rem] border border-white shadow-xl shadow-indigo-100/10">
+                                 <div className="flex items-center gap-4 px-2 py-1">
+                                     <div className="flex flex-col">
+                                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1 text-center">Period starts</span>
+                                         <div className="flex items-center gap-2 bg-slate-100/50 px-3 py-1.5 rounded-xl border border-slate-200/50">
+                                             <Calendar size={14} className="text-slate-400" />
+                                             <input type="date" className="bg-transparent border-none text-[11px] font-bold focus:ring-0 p-0" value={fromDate} onChange={(e) => handleDateChange('from', e.target.value)} />
+                                         </div>
+                                     </div>
+                                     <ArrowRight size={14} className="mt-4 text-slate-300" />
+                                     <div className="flex flex-col">
+                                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1 text-center">Period ends</span>
+                                         <div className="flex items-center gap-2 bg-slate-100/50 px-3 py-1.5 rounded-xl border border-slate-200/50">
+                                             <Calendar size={14} className="text-slate-400" />
+                                             <input type="date" className="bg-transparent border-none text-[11px] font-bold focus:ring-0 p-0" value={toDate} onChange={(e) => handleDateChange('to', e.target.value)} />
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+                        </div>
 
                         {/* ── KPI ROW: Premium Gradient Cards ── */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">

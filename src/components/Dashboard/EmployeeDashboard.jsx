@@ -189,8 +189,15 @@ const EmployeeDashboard = () => {
     const navigate = useNavigate();
 
     /* Date range state */
-    const [fromDate, setFromDate] = useState('');
-    const [toDate, setToDate] = useState('');
+    const getFirstDayOfMonth = () => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    };
+
+    const getToday = () => new Date().toISOString().split('T')[0];
+
+    const [fromDate, setFromDate] = useState(localStorage.getItem('dashboard_from_date') || getFirstDayOfMonth());
+    const [toDate, setToDate] = useState(localStorage.getItem('dashboard_to_date') || getToday());
     const [searchTerm, setSearchTerm] = useState('');
 
     const [dashboardData, setDashboardData] = useState(null);
@@ -203,18 +210,29 @@ const EmployeeDashboard = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
+    useEffect(() => {
+        const handleFilterChange = () => {
+            setFromDate(localStorage.getItem('dashboard_from_date') || getFirstDayOfMonth());
+            setToDate(localStorage.getItem('dashboard_to_date') || getToday());
+        };
+        window.addEventListener('dashboard-filter-change', handleFilterChange);
+        return () => window.removeEventListener('dashboard-filter-change', handleFilterChange);
+    }, []);
+
     const fetchDashboardData = async () => {
+        // ── Safe Parameter Normalization ────────────────────────────────────────
+        // Prevents 422 Unprocessable Entity by ensuring dates are valid ISO strings
+        const safeFrom = (fromDate && fromDate.length === 10) ? fromDate : getFirstDayOfMonth();
+        const safeTo   = (toDate   && toDate.length   === 10) ? toDate   : getToday();
+
         setLoading(true);
         try {
-            const params = {};
-            if (fromDate) {
-                params.fromDate = fromDate;
-                params.start_date = fromDate;
-            }
-            if (toDate) {
-                params.toDate = toDate;
-                params.end_date = toDate;
-            }
+            const params = {
+                from_date:  safeFrom,
+                to_date:    safeTo,
+                start_date: safeFrom,
+                end_date:   safeTo
+            };
 
             const [dataRes, todayRes] = await Promise.all([
                 api.get('/dashboard/employee', { params }),
@@ -630,7 +648,12 @@ const EmployeeDashboard = () => {
                             type="date" 
                             className="bg-transparent border-none text-[12px] font-bold text-slate-700 p-0 focus:ring-0 cursor-pointer"
                             value={fromDate}
-                            onChange={(e) => setFromDate(e.target.value)}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setFromDate(val);
+                                localStorage.setItem('dashboard_from_date', val);
+                                window.dispatchEvent(new Event('dashboard-filter-change'));
+                            }}
                         />
                     </div>
                     <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-inner">
@@ -639,11 +662,24 @@ const EmployeeDashboard = () => {
                             type="date" 
                             className="bg-transparent border-none text-[12px] font-bold text-slate-700 p-0 focus:ring-0 cursor-pointer"
                             value={toDate}
-                            onChange={(e) => setToDate(e.target.value)}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setToDate(val);
+                                localStorage.setItem('dashboard_to_date', val);
+                                window.dispatchEvent(new Event('dashboard-filter-change'));
+                            }}
                         />
                     </div>
                     <button 
-                        onClick={() => { setFromDate(''); setToDate(''); }}
+                        onClick={() => { 
+                            const from = getFirstDayOfMonth();
+                            const to = getToday();
+                            setFromDate(from); 
+                            setToDate(to);
+                            localStorage.setItem('dashboard_from_date', from);
+                            localStorage.setItem('dashboard_to_date', to);
+                            window.dispatchEvent(new Event('dashboard-filter-change'));
+                        }}
                         className="px-4 py-2 text-[10px] font-black text-violet-600 uppercase tracking-widest hover:bg-violet-50 rounded-xl transition-all"
                     >
                         Reset

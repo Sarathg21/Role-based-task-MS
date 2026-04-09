@@ -45,57 +45,31 @@ const TaskReviewModal = ({ isOpen, onClose, onApprove, onRework, task }) => {
             return;
         }
 
-        const toastId = toast.loading('Downloading...');
+        const toastId = toast.loading('Fetching download link...');
         try {
-            // 1. Try primary download endpoint
-            let res;
-            try {
-                res = await api.get(`/tasks/${taskId}/attachments/${attachmentId}`, {
-                    responseType: 'blob'
-                });
-            } catch (firstErr) {
-                // 2. Fallback to /download sub-segment if first one fails
-                console.warn("Primary download failed, trying /download sub-path", firstErr);
-                res = await api.get(`/tasks/${taskId}/attachments/${attachmentId}/download`, {
-                    responseType: 'blob'
-                });
+            // Updated Flow to match S3 presigned URL behavior
+            const res = await api.get(`/tasks/${taskId}/attachments/${attachmentId}`);
+            const data = res.data?.data || res.data;
+            const downloadUrl = data?.download_url;
+
+            if (!downloadUrl) {
+                throw new Error('No download URL found in response');
             }
 
-            // check if we got a tiny response which might be an error JSON disguised as a blob
-            if (res.data instanceof Blob && res.data.size < 500) {
-                const text = await res.data.text();
-                try {
-                    const json = JSON.parse(text);
-                    if (json.detail || json.message) {
-                        throw new Error(json.detail || json.message);
-                    }
-                } catch (e) { /* Not JSON or not an error object */ }
-            }
-
-            const contentDisposition = res.headers['content-disposition'];
-            let fileName = 'evidence';
-            if (typeof attachment === 'object') {
-                fileName = attachment.filename || attachment.name || attachment.file_name || attachment.original_name || 'evidence';
-            }
-
-            if (contentDisposition) {
-                const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-                if (filenameMatch && filenameMatch[1]) fileName = filenameMatch[1];
-            }
-
-            const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: res.headers['content-type'] || 'application/octet-stream' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-            toast.success('Downloaded', { id: toastId });
+            // Trigger download via new tab/window
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            toast.success('Download started', { id: toastId });
         } catch (err) {
             console.error("Download failed", err);
-            toast.error(err.message || 'Download failed. Ensure you have permissions.', { id: toastId });
+            const errMsg = err.response?.data?.detail || err.response?.data?.message || err.message || 'Download failed';
+            toast.error(errMsg, { id: toastId });
         }
     };
     
