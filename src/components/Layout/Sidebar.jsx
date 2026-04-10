@@ -131,7 +131,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, isMobileOpen, closeMobileSidebar 
                 {userRole === 'CFO' && (
                     <>
                         <SectionLabel label="General" />
-                        <NavItem to="/dashboard"    icon={LayoutDashboard} label="Dashboard v2" />
+                        <NavItem to="/dashboard"    icon={LayoutDashboard} label="Dashboard" />
                         <NavItem to="/performance-dashboard" icon={TrendingUp} label="Performance" />
                         <NavItem to="/tasks/team"   icon={Users}           label="Team Tasks" />
                         <NavItem to="/org-tree"     icon={Network}         label="Organization Tree" />

@@ -25,7 +25,7 @@ const CustomSelect = ({
     }, []);
 
     const selectedOption = options.find(opt => String(opt.value) === String(value)) || 
-                           options.find(opt => String(opt.label) === String(value));
+                           options.find(opt => opt.label === value);
     const displayLabel = selectedOption ? selectedOption.label : placeholder;
 
     const buttonClasses = variant === 'borderless'
@@ -61,13 +61,13 @@ const CustomSelect = ({
                                     onChange(option.value);
                                     setIsOpen(false);
                                 }}
-                                className={`w-full flex items-center justify-between px-4 py-2 text-sm transition-colors ${value === option.value
+                                className={`w-full flex items-center justify-between px-4 py-2 text-sm transition-colors ${String(value) === String(option.value)
                                     ? 'bg-violet-50 text-violet-700 font-semibold'
                                     : 'text-slate-600 hover:bg-slate-50'
                                     }`}
                             >
                                 <span>{option.label}</span>
-                                {value === option.value && <Check size={14} className="text-violet-600" />}
+                                {String(value) === String(option.value) && <Check size={14} className="text-violet-600" />}
                             </button>
                         ))}
                     </div>

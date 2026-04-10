@@ -113,24 +113,18 @@ const OKRDashboard = () => {
     const defaultFrom = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
 
     const validDate = (raw, fallback) => {
-        if (!raw) return fallback;
-        const d = new Date(raw);
-        if (isNaN(d.getTime())) return fallback;
-        const yr = d.getFullYear();
-        if (yr < 2020 || yr > 2100) { 
-            localStorage.removeItem('dashboard_from_date');
-            localStorage.removeItem('dashboard_to_date');
-            return fallback; 
-        }
-        return raw;
+        if (raw === null || raw === undefined) return fallback;
+        return raw; // Allow empty strings for incomplete manual typing
     };
 
     const getStoredFilters = () => ({
         from_date: validDate(localStorage.getItem('dashboard_from_date'), defaultFrom),
-        to_date:   validDate(localStorage.getItem('dashboard_to_date'),   defaultTo)
+        to_date:   validDate(localStorage.getItem('dashboard_to_date'),   defaultTo),
+        department: localStorage.getItem('dashboard_department') || 'All'
     });
 
     const [filters, setFilters] = useState(getStoredFilters());
+    const [availableDepts, setAvailableDepts] = useState([]);
 
     const { user } = useAuth();
 
@@ -139,7 +133,7 @@ const OKRDashboard = () => {
         const handleFilterChange = () => {
             const next = getStoredFilters();
             setFilters(prev => {
-                if (prev.from_date === next.from_date && prev.to_date === next.to_date) return prev;
+                if (prev.from_date === next.from_date && prev.to_date === next.to_date && prev.department === next.department) return prev;
                 return next;
             });
         };
@@ -150,8 +144,9 @@ const OKRDashboard = () => {
     useEffect(() => {
         localStorage.setItem('dashboard_from_date', filters.from_date);
         localStorage.setItem('dashboard_to_date', filters.to_date);
+        if (filters.department) localStorage.setItem('dashboard_department', filters.department);
         window.dispatchEvent(new Event('dashboard-filter-change'));
-    }, [filters.from_date, filters.to_date]);
+    }, [filters.from_date, filters.to_date, filters.department]);
     
     const fetchDashboardData = async () => {
         setLoading(true);
@@ -168,20 +163,33 @@ const OKRDashboard = () => {
             const isAdmin = role === 'ADMIN';
 
             // Priority 1: User's exact range
-            const currentParams = { from_date: filters.from_date, to_date: filters.to_date };
+            const currentParams = { 
+                from_date: filters.from_date || defaultFrom, 
+                to_date: filters.to_date || defaultTo 
+            };
+            if (filters.department && filters.department !== 'All') {
+                currentParams.department = filters.department;
+            }
             // Priority 2: Wide fallback (Jan 1st onwards)
             const wideParams = { from_date: `${new Date().getFullYear()}-01-01`, to_date: new Date().toISOString().slice(0, 10) };
 
-            const [res, trendsRes, todayRes, summaryRes, objListRes, wideObjListRes] = await Promise.all([
+            const [res, trendsRes, todayRes, summaryRes, objListRes, wideObjListRes, deptsRes] = await Promise.all([
                 api.get('/reports/cfo/okr/overview', { params: currentParams }).catch(() => ({ data: {} })),
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/trends').catch(() => ({ data: {} })),
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo/today').catch(() => ({ data: {} })),
                 isAdmin ? Promise.resolve({ data: {} }) : api.get('/dashboard/cfo', { params: currentParams }).catch(() => ({ data: {} })),
                 api.get('/reports/cfo/okr/objectives', { params: currentParams }).catch(() => ({ data: [] })),
-                api.get('/reports/cfo/okr/objectives', { params: wideParams }).catch(() => ({ data: [] }))
+                api.get('/reports/cfo/okr/objectives', { params: wideParams }).catch(() => ({ data: [] })),
+                api.get('/admin/departments').catch(() => api.get('/departments')).catch(() => ({ data: [] }))
             ]);
             let data = res.data?.data || res.data || {};
             const summaryData = summaryRes.data?.data || summaryRes.data || {};
+            
+            // Seed dept dropdown from API list; we'll also merge from objective deptNames after setTableData
+            const rawDepts = deptsRes.data?.data || deptsRes.data || [];
+            const apiDeptNames = Array.isArray(rawDepts)
+                ? rawDepts.map(d => d.name || d.department_name).filter(Boolean)
+                : [];
 
             // Merge lists: trust filtered results if they exist, otherwise fallback to wide
             const rawCurrentList = extractArr(objListRes.data);
@@ -400,7 +408,10 @@ const OKRDashboard = () => {
                         const ids = new Set();
                         ['parent_task_id','id','task_id','objective_id'].forEach(key => {
                             const v = entry[key];
-                            if (v !== undefined && v !== null && v !== '') ids.add(String(v));
+                            if (v !== undefined && v !== null && v !== '') {
+                                const numStr = String(v).replace(/\D/g, '');
+                                if (numStr) ids.add(numStr);
+                            }
                         });
                         return ids;
                     };
@@ -417,7 +428,6 @@ const OKRDashboard = () => {
                             return false;
                         });
                         if (!match) {
-                            console.warn('[OKR] No objectives-list match for serverObj:', obj.parent_task_id ?? obj.id, '| IDs checked:', [...objIds]);
                             return;
                         }
                         const listTotal = Number(match.total_subtasks ?? match.sub_total ?? match.total_tasks ?? 0);
@@ -439,9 +449,18 @@ const OKRDashboard = () => {
                         if (listRisk) {
                             obj.risk_rating = getRiskLabel(listRisk);
                         }
-                        // Sync dept count from authoritative source
+                        // Sync dept count and dept names from authoritative source
                         if (match.departments_involved) {
                             obj.department_count = match.departments_involved;
+                        }
+                        // Carry dept name/array from the objectives list for filter purposes
+                        if (match.department_name || match.department) {
+                            obj.department_name = match.department_name || match.department;
+                        }
+                        if (match.deptsArray?.length > 0) {
+                            obj.deptsArray = match.deptsArray;
+                        } else if (obj.department_name && (!obj.deptsArray || obj.deptsArray.includes('Corporate'))) {
+                            obj.deptsArray = [obj.department_name];
                         }
                     });
 
@@ -457,7 +476,8 @@ const OKRDashboard = () => {
                             return false;
                         });
                         if (alreadyPresent) return; // already handled in PASS 1
-                        const lId = String(listObj.parent_task_id ?? listObj.id ?? listObj.task_id ?? '');
+                        const lIdRaw = String(listObj.parent_task_id ?? listObj.id ?? listObj.task_id ?? '');
+                        const lId = lIdRaw.replace(/\D/g, '');
                         if (!lId) return;
                         const listTotal = Number(listObj.total_subtasks ?? listObj.sub_total ?? 0);
                         const listDone  = Number(listObj.completed_subtasks ?? listObj.sub_comp ?? 0);
@@ -474,7 +494,8 @@ const OKRDashboard = () => {
                             health_score:      progress,
                             risk_rating:       riskLabel,
                             department_count:  listObj.departments_involved || listObj.department_count || 1,
-                            deptsArray:        ['Corporate'],
+                            department_name:   listObj.department_name || listObj.department || '',
+                            deptsArray:        listObj.deptsArray || (listObj.department_name ? [listObj.department_name] : (listObj.department ? [listObj.department] : [])),
                         });
                     });
                 }
@@ -488,7 +509,10 @@ const OKRDashboard = () => {
                         const ids = new Set();
                         ['parent_task_id','id','task_id','objective_id'].forEach(k => {
                             const v = entry[k];
-                            if (v != null && v !== '') ids.add(String(v));
+                            if (v != null && v !== '') {
+                                const numStr = String(v).replace(/\D/g, '');
+                                if (numStr) ids.add(numStr);
+                            }
                         });
                         return ids;
                     };
@@ -515,6 +539,14 @@ const OKRDashboard = () => {
                         }
                         if (authRisk)  obj.risk_rating      = getRiskLabel(authRisk);
                         if (authDepts) obj.department_count = authDepts;
+                        // Stamp dept names through for filtering
+                        const authDeptName = auth.department_name || auth.department || '';
+                        if (auth.deptsArray?.length > 0) {
+                            obj.deptsArray = auth.deptsArray;
+                        } else if (authDeptName && (!obj.deptsArray || obj.deptsArray.includes('Corporate'))) {
+                            obj.deptsArray = [authDeptName];
+                        }
+                        if (authDeptName && !obj.department_name) obj.department_name = authDeptName;
                     });
 
                     // For objectives ONLY in the authoritative list (not in serverObjs at all)
@@ -527,7 +559,8 @@ const OKRDashboard = () => {
                             return false;
                         });
                         if (present) return;
-                        const lId      = String(auth.parent_task_id ?? auth.id ?? auth.task_id ?? '');
+                        const lIdRaw   = String(auth.parent_task_id ?? auth.id ?? auth.task_id ?? '');
+                        const lId      = lIdRaw.replace(/\D/g, '');
                         const authTotal= Number(auth.total_subtasks ?? 0);
                         const authDone = Number(auth.completed_subtasks ?? 0);
                         const pct      = authTotal > 0 ? Math.round((authDone / authTotal) * 100) : Number(auth.progress_pct ?? 0);
@@ -542,7 +575,8 @@ const OKRDashboard = () => {
                             health_score:      pct,
                             risk_rating:       getRiskLabel(auth.risk_rating || 'Low'),
                             department_count:  Number(auth.departments_involved || auth.department_count || 1),
-                            deptsArray:        ['Corporate'],
+                            department_name:   auth.department_name || auth.department || '',
+                            deptsArray:        auth.deptsArray || (auth.department_name ? [auth.department_name] : (auth.department ? [auth.department] : [])),
                         });
                     });
                 }
@@ -652,12 +686,14 @@ const OKRDashboard = () => {
             // Build a quick lookup from the authoritative objectives list for final safety net
             const authLookup = new Map();
             objectivesList.forEach(o => {
-                const id = String(o.parent_task_id ?? o.id ?? o.task_id ?? '');
+                const idRaw = String(o.parent_task_id ?? o.id ?? o.task_id ?? '');
+                const id = idRaw.replace(/\D/g, '');
                 if (id) authLookup.set(id, o);
             });
 
             setTableData((data.objective_completion || []).map(o => {
-                const objId = String(o.parent_task_id ?? o.id ?? '');
+                const objIdRaw = String(o.parent_task_id ?? o.id ?? '');
+                const objId = objIdRaw.replace(/\D/g, '');
                 // Always try authoritative lookup first as safety net
                 const auth = authLookup.get(objId);
                 const riskLabel = getRiskLabel(
@@ -678,8 +714,17 @@ const OKRDashboard = () => {
                     : Number(o.health_score ?? o.score ?? 0);
                 const depts = Math.max(1, Number(
                     auth?.departments_involved || o.department_count ||
-                    o.departments_involved || o.dept_count || o.depts || 1
+                    o.departments_involved || o.dept_count || 1
                 ));
+                // Carry over the real department names array for filtering
+                const deptsArray = auth?.deptsArray || o.deptsArray || [];
+                const deptName = auth?.department_name || o.department_name || o.department || '';
+                // Build a clean names array: prefer deptsArray, else use single dept name, else fall back to depts count label
+                const deptNames = deptsArray.length > 0
+                    ? deptsArray
+                    : deptName
+                        ? [deptName]
+                        : [];
                 return {
                     id: o.parent_task_id || o.id,
                     objective: o.objective_title || o.objective,
@@ -687,6 +732,7 @@ const OKRDashboard = () => {
                     subComp,
                     subTotal,
                     depts,
+                    deptNames,          // string[] — actual department name(s) this objective belongs to
                     days: o.total_days || o.days_total || 45,
                     left: o.days_left || o.days_remaining || 0,
                     score,
@@ -699,6 +745,17 @@ const OKRDashboard = () => {
                                 'text-rose-600'
                 };
             }));
+
+            // Derive unique dept names from the built table rows and merge with API list
+            const rowDeptNames = (data.objective_completion || []).flatMap(o => {
+                const d = o.deptsArray || [];
+                const single = o.department_name || o.department || '';
+                return d.length > 0 ? d : (single ? [single] : []);
+            }).filter(Boolean);
+            const mergedDeptNames = Array.from(new Set([...apiDeptNames, ...rowDeptNames])).filter(n => n && n !== 'Corporate');
+            if (mergedDeptNames.length > 0) setAvailableDepts(mergedDeptNames);
+            else if (apiDeptNames.length > 0) setAvailableDepts(apiDeptNames);
+
 
             let computedTrend = [];
             const trData = trendsRes.data?.data || trendsRes.data || [];
@@ -790,6 +847,74 @@ const OKRDashboard = () => {
         fetchDashboardData();
     }, [filters]);
 
+    const displayedTableData = React.useMemo(() => {
+        if (!filters.department || filters.department === 'All') return tableData;
+        const selected = filters.department.trim().toLowerCase();
+        return tableData.filter(row => {
+            // Primary: match against deptNames array (actual name strings)
+            if (Array.isArray(row.deptNames) && row.deptNames.length > 0) {
+                return row.deptNames.some(n => n.trim().toLowerCase() === selected);
+            }
+            // Fallback: partial match on objective title for dept-tagged objectives
+            return false;
+        });
+    }, [tableData, filters.department]);
+
+    const displayedMetrics = React.useMemo(() => {
+        if (!filters.department || filters.department === 'All') return metrics;
+        let totalSubs = 0, doneSubs = 0, totalScore = 0, atRisk = 0;
+        displayedTableData.forEach(row => {
+            totalSubs += (row.subTotal || 0);
+            doneSubs += (row.subComp || 0);
+            totalScore += (row.score || 0);
+            if (row.rating === 'High') atRisk++;
+        });
+        const finalTotalObjectives = displayedTableData.length;
+        const finalOverallProgress = totalSubs > 0 ? Math.round((doneSubs / totalSubs) * 100) : 0;
+        const avgCompletion = finalTotalObjectives > 0 ? Math.round(totalScore / finalTotalObjectives) : 0;
+        
+        return [
+            { label: 'Total Objectives', value: finalTotalObjectives, color: 'indigo', icon: Target },
+            { label: 'Team Performance Score', value: `${finalOverallProgress}%`, color: 'violet', icon: TrendingUp },
+            { label: 'Total Subtasks Completed', value: `${doneSubs} / ${totalSubs}`, color: 'green', icon: CheckCircle2 },
+            { label: 'Overall Progress', value: `${finalOverallProgress}%`, color: 'amber', icon: TrendingUp },
+            { label: 'At Risk Objectives', value: atRisk, color: 'rose', icon: AlertTriangle },
+            { label: 'Avg Completion Rate', value: `${avgCompletion}%`, color: 'green', icon: CheckCircle }
+        ];
+    }, [displayedTableData, metrics, filters.department]);
+
+    const displayedObjCompletionData = React.useMemo(() => {
+        if (!filters.department || filters.department === 'All') return objCompletionData;
+        return displayedTableData.map(row => ({
+            name: row.objective,
+            value: row.progress,
+            color: row.progress >= 80 ? '#10b981' : row.progress >= 50 ? '#3b82f6' : '#ef4444'
+        }));
+    }, [displayedTableData, objCompletionData, filters.department]);
+
+    const displayedRiskOverview = React.useMemo(() => {
+        if (!filters.department || filters.department === 'All') return riskOverview;
+        return displayedTableData.map(row => ({
+            label: row.objective,
+            status: row.rating,
+            score: row.score,
+            color: row.rating === 'High' ? 'bg-rose-500 text-white shadow-lg' :
+                   row.rating === 'Medium' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                   'bg-emerald-500 text-white shadow-md'
+        }));
+    }, [displayedTableData, riskOverview, filters.department]);
+
+    const displayedDeptContributionData = React.useMemo(() => {
+        if (!filters.department || filters.department === 'All') return deptContributionData;
+        let totalSubs = 0;
+        displayedTableData.forEach(row => totalSubs += (row.subTotal || 0));
+        return [{
+            name: filters.department,
+            value: totalSubs || displayedTableData.length,
+            fill: '#3b82f6'
+        }];
+    }, [displayedTableData, deptContributionData, filters.department]);
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[600px] bg-[#f8fafc] gap-4">
@@ -817,7 +942,7 @@ const OKRDashboard = () => {
 
             {/* ── TOP KPI CARDS ── */}
             <div className="grid grid-cols-2 lg:grid-cols-7 gap-4">
-                {metrics.map((m, i) => (
+                {displayedMetrics.map((m, i) => (
                     <Stat 
                         key={i}
                         label={m.label}
@@ -840,7 +965,7 @@ const OKRDashboard = () => {
                     </div>
                     <div className="p-6 flex-1 min-h-0">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={objCompletionData} layout="vertical" margin={{ left: -10, right: 60 }}>
+                            <BarChart data={displayedObjCompletionData} layout="vertical" margin={{ left: -10, right: 60 }}>
                                 <XAxis type="number" hide domain={[0, 100]} />
                                 <YAxis 
                                     dataKey="name" 
@@ -852,7 +977,7 @@ const OKRDashboard = () => {
                                 />
                                 <Tooltip cursor={{ fill: '#f1f5f9', radius: 4 }} />
                                 <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={14}>
-                                    {objCompletionData.map((entry, index) => (
+                                    {displayedObjCompletionData.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
                                     <LabelList dataKey="value" position="right" formatter={(v) => `${v}%`} style={{ fontSize: '11px', fontWeight: '900', fill: '#1e3a8a' }} />
@@ -870,11 +995,11 @@ const OKRDashboard = () => {
                             Departmental Load
                         </h3>
                     </div>
-                    <div className="p-6 flex-1 relative">
+                    <div className="p-6 flex-1 relative min-h-0 min-w-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
-                                    data={deptContributionData}
+                                    data={displayedDeptContributionData}
                                     cx="50%"
                                     cy="45%"
                                     innerRadius={60}
@@ -884,7 +1009,7 @@ const OKRDashboard = () => {
                                     stroke="#fff"
                                     strokeWidth={3}
                                 >
-                                    {deptContributionData.map((entry, index) => (
+                                    {displayedDeptContributionData.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.fill} />
                                     ))}
                                 </Pie>
@@ -908,7 +1033,7 @@ const OKRDashboard = () => {
                         </h3>
                     </div>
                     <div className="p-6 space-y-3 overflow-y-auto pr-2 flex-1 custom-scrollbar">
-                        {riskOverview.map((r, i) => (
+                        {displayedRiskOverview.map((r, i) => (
                             <div key={i} className="flex justify-between items-center p-3 border border-slate-100 rounded-xl bg-slate-50/50 hover:bg-white transition-all group border-l-4 border-l-transparent hover:border-l-blue-500">
                                 <span className="text-[11px] font-medium text-slate-700 truncate flex-1 capitalize tracking-tight" title={r.label}>{r.label}</span>
                                 <div className="flex items-center gap-4">
@@ -934,17 +1059,28 @@ const OKRDashboard = () => {
                         <div className="flex items-center gap-2">
                              <input 
                                 type="date" 
-                                className="bg-white/10 border border-white/20 rounded px-3 py-1 text-xs text-white outline-none" 
+                                className="bg-white/10 border border-white/20 rounded px-3 py-1 text-xs text-white outline-none cursor-pointer" 
                                 value={filters.from_date}
                                 onChange={(e) => setFilters({ ...filters, from_date: e.target.value })}
                             />
                             <span className="text-white/20">/</span>
                             <input 
                                 type="date" 
-                                className="bg-white/10 border border-white/20 rounded px-3 py-1 text-xs text-white outline-none" 
+                                className="bg-white/10 border border-white/20 rounded px-3 py-1 text-xs text-white outline-none cursor-pointer" 
                                 value={filters.to_date}
                                 onChange={(e) => setFilters({ ...filters, to_date: e.target.value })}
                             />
+                            <span className="text-white/20 ml-2">|</span>
+                            <select
+                                className="bg-white/10 border border-white/20 rounded px-3 py-1 text-xs text-white outline-none cursor-pointer bg-slate-800"
+                                value={filters.department || 'All'}
+                                onChange={e => setFilters({ ...filters, department: e.target.value })}
+                            >
+                                <option value="All" className="text-slate-800 bg-white">All Departments</option>
+                                {availableDepts.map(d => (
+                                    <option key={d} value={d} className="text-slate-800 bg-white">{d}</option>
+                                ))}
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -959,12 +1095,12 @@ const OKRDashboard = () => {
                                 <th className="py-4 px-2 text-center">Done</th>
                                 <th className="py-4 px-2 text-center">Total</th>
                                 <th className="py-4 px-4 min-w-[150px]">Progress</th>
-                                <th className="py-4 px-2 text-center">Completion</th>
+                                <th className="py-4 px-2 text-center">Completion %</th>
                                 <th className="py-4 px-6 text-right">Risk</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {tableData.map((row, i) => (
+                            {displayedTableData.map((row, i) => (
                                 <tr 
                                     key={i} 
                                     className="group hover:bg-blue-50/30 transition-colors cursor-pointer"
@@ -986,7 +1122,7 @@ const OKRDashboard = () => {
                                             <span className="w-10 text-[11px] font-medium text-blue-900">{row.progress}%</span>
                                         </div>
                                     </td>
-                                    <td className={`py-4 px-2 text-center font-bold tabular-nums ${row.scoreColor}`}>{row.score}</td>
+                                    <td className={`py-4 px-2 text-center font-bold tabular-nums ${row.scoreColor}`}>{row.score}%</td>
                                     <td className="py-4 px-6 text-right">
                                         <span className={`px-3 py-1 rounded-md text-[10px] font-medium capitalize tracking-widest ${row.ratingColor}`}>
                                             {row.rating}
@@ -1026,7 +1162,7 @@ const OKRDashboard = () => {
                         <TrendingUp size={16} className="text-blue-600" />
                         Enterprise Completion Trend
                     </h3>
-                    <div style={{ height: '250px' }}>
+                    <div style={{ height: '250px' }} className="min-h-0 min-w-0">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={trendData} margin={{ top: 36, right: 30, left: 20, bottom: 10 }}>
                                 <defs>

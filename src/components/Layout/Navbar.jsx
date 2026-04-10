@@ -49,8 +49,8 @@ const Navbar = ({ onMobileMenuToggle, isMobileSidebarOpen }) => {
         return new Date().toISOString().slice(0, 10);
     };
 
-    const [fromDate, setFromDate] = useState(getFirstDayOfMonth());
-    const [toDate, setToDate] = useState(getToday());
+    const [fromDate, setFromDate] = useState(() => localStorage.getItem('dashboard_from_date') || getFirstDayOfMonth());
+    const [toDate, setToDate] = useState(() => localStorage.getItem('dashboard_to_date') || getToday());
 
     useEffect(() => {
         // We still use localStorage for inter-component communication as a fallback,

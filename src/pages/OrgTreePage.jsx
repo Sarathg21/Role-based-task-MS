@@ -138,9 +138,9 @@ const OrgNode = ({ node, departments, onAddNode, isRoot = false }) => {
                 {/* Profile Avatar */}
                 <div className="relative shrink-0">
                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-indigo-200 overflow-hidden">
-                       {/* Placeholder for real image if available, else initials */}
+                       {/* Actual employee image if available, otherwise pravatar fallback */}
                        <img 
-                          src={`https://i.pravatar.cc/150?u=${emp_id}`} 
+                          src={u.profile_pic || u.profile_picture || u.avatar_url || `https://i.pravatar.cc/150?u=${emp_id}`} 
                           alt={name} 
                           className="w-full h-full object-cover opacity-90" 
                           onError={(e) => { e.currentTarget.style.display = 'none'; }}

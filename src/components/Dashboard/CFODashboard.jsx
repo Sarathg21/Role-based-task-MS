@@ -1381,12 +1381,12 @@ const CFODashboard = () => {
                                         });
 
                                         const employees = Object.values(byEmployee).map(emp => {
-                                            const healthScore = Math.max(0, 100 - (emp.overdue * 15) - (emp.rework * 10));
-                                            return { ...emp, healthScore };
+                                            const completionRate = emp.total > 0 ? Math.round((emp.completed / emp.total) * 100) : 0;
+                                            return { ...emp, healthScore: completionRate };
                                         });
 
                                         const items = employees
-                                            .sort((a, b) => a.healthScore - b.healthScore)
+                                            .sort((a, b) => b.overdue - a.overdue)
                                             .slice(0, 6);
 
                                         if (items.length === 0) return (
@@ -1405,6 +1405,8 @@ const CFODashboard = () => {
                                                 ? { label: 'At Risk', bg: 'bg-amber-500 text-white' }
                                                 : { label: 'Off Track', bg: 'bg-rose-500 text-white' };
                                             
+                                            const roleLabel = emp.name.toLowerCase().includes('manager') ? 'Manager' : 'Employee';
+                                            
                                             return (
                                                 <div key={i} className="flex items-center gap-1 py-1.5 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 rounded-lg transition-all px-1">
                                                     <div className="flex items-center gap-2 w-[45%] min-w-0 pr-1">
@@ -1413,11 +1415,11 @@ const CFODashboard = () => {
                                                         </div>
                                                         <div className="min-w-0 grid">
                                                             <p className="text-[14px] font-bold text-slate-800 truncate leading-tight">{emp.name}</p>
-                                                            <p className="text-[10px] text-slate-400 font-bold capitalize tracking-tighter">Employee</p>
+                                                            <p className="text-[10px] text-slate-400 font-bold capitalize tracking-tighter">{roleLabel}</p>
                                                         </div>
                                                     </div>
                                                     <div className="w-[15%] text-center text-[11px] font-medium text-slate-700">{emp.total - emp.completed}</div>
-                                                    <div className="w-[15%] text-center text-[11px] font-medium text-slate-800">{emp.healthScore}</div>
+                                                    <div className="w-[15%] text-center text-[11px] font-medium text-slate-800">{emp.healthScore}%</div>
                                                     <div className="w-[25%] text-right pr-1">
                                                         <span className={`text-[10px] font-semibold px-1.5 py-1 rounded-md capitalize tracking-tighter whitespace-nowrap inline-block text-center w-full ${riskConfig.bg}`}>
                                                             {riskConfig.label}

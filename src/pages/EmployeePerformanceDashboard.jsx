@@ -118,6 +118,8 @@ const PerformanceDashboard = () => {
         const handleFilterChange = () => {
             const storedFrom = localStorage.getItem('dashboard_from_date');
             const storedTo   = localStorage.getItem('dashboard_to_date');
+            const storedDept = localStorage.getItem('dashboard_department');
+
             if (storedFrom) {
                 setFromDate(storedFrom);
                 setTeamPerfFrom(storedFrom);
@@ -129,6 +131,9 @@ const PerformanceDashboard = () => {
                 setToDate(safeTo);
                 setTeamPerfTo(safeTo);
                 setRiskTo(safeTo);
+            }
+            if (storedDept !== null && storedDept !== 'undefined') {
+                setSelectedDept(storedDept);
             }
         };
         window.addEventListener('dashboard-filter-change', handleFilterChange);
@@ -156,10 +161,31 @@ const PerformanceDashboard = () => {
             overdue_tasks: overdueCount,
             team_score_current: Math.round((done / (total || 1)) * 100)
         };
-        console.log("FALLBACK SUCCESS - Calculated Summary:", metrics);
+
+        // 1.1 Calculate Manager Personal Score for the selected department
+        let personalScore = 0;
+        let managerOverall = 0;
+        
+        const currentDeptId = (selectedDept && selectedDept !== 'all' && selectedDept !== 'undefined') ? selectedDept : '';
+        const deptObj = departments.find(d => String(d.department_id || d.id || d.dept_id) === String(currentDeptId));
+        // Use department manager if found, else fallback to current user if they are a manager
+        const targetManagerId = deptObj?.manager_emp_id || (user?.role?.toUpperCase() === 'MANAGER' ? user.emp_id : null);
+
+        if (targetManagerId) {
+            const mTasks = tasks.filter(t => String(t.assigned_to || t.emp_id || t.id) === String(targetManagerId));
+            const mDone = mTasks.filter(t => ['APPROVED', 'COMPLETED'].includes((t.status || '').toUpperCase())).length;
+            personalScore = mTasks.length > 0 ? Math.round((mDone / mTasks.length) * 100) : 0;
+            // Weighted: 70% Team + 30% Personal
+            managerOverall = Math.round((metrics.team_score_current * 0.7) + (personalScore * 0.3));
+        }
+
+        console.log("FALLBACK SUCCESS - Calculated Summary:", metrics, "Manager Personal:", personalScore);
+        
         setSummary(prev => ({
             ...prev,
-            ...metrics
+            ...metrics,
+            manager_score_current: targetManagerId ? managerOverall : (prev.manager_score_current || metrics.team_score_current),
+            manager_personal_score_current: targetManagerId ? personalScore : prev.manager_personal_score_current
         }));
 
         setDeptMetrics({
@@ -332,22 +358,23 @@ const PerformanceDashboard = () => {
                 to_date:   safeTo
             };
 
-            if (selectedDept && selectedDept !== 'all') {
-                standardizedParams.department_id = selectedDept;
+            // Sanitize selectedDept — avoid sending 'all' or 'undefined' as numeric IDs
+            const currentDept = (selectedDept && selectedDept !== 'all' && selectedDept !== 'undefined') ? selectedDept : '';
+            if (currentDept) {
+                standardizedParams.department_id = currentDept;
             }
 
             const base = isCFO ? '/dashboard/cfo' : '/dashboard/manager';
-            const managerBase = '/dashboard/manager'; // Fallback for specific metrics that might not exist under /cfo/
-            const hasDept = !!(selectedDept && selectedDept !== 'all');
+            const managerBase = '/dashboard/manager'; 
+            const hasDept = !!currentDept;
 
-            // 1. Fetch Summary & Metrics (Only if department selected or non-CFO)
-            const shouldCallAPI = hasDept || !isCFO;
-
+            // 1. Fetch Summary & Metrics
+            // Only call department-specific extensions if hasDept is true
             const summaryResults = await Promise.allSettled([
-                (shouldCallAPI || !isCFO) ? api.get(base, { params: standardizedParams }) : Promise.reject('Org View Fallback'),
-                (shouldCallAPI) ? api.get(`${base}/department-metrics`, { params: standardizedParams }).catch(() => api.get(`${managerBase}/department-metrics`, { params: standardizedParams })) : Promise.reject('Org View Fallback'),
-                (shouldCallAPI) ? api.get(`${base}/trends`, { params: { ...standardizedParams, days: Math.min(dayRange, 365) } }).catch(() => api.get(`${managerBase}/trends`, { params: { ...standardizedParams, days: Math.min(dayRange, 365) } })) : Promise.reject('Org View Fallback'),
-                (shouldCallAPI) ? api.get('/dashboard/manager/analytics', { params: standardizedParams }) : Promise.reject('Org View Fallback')
+                api.get(base, { params: standardizedParams }),
+                hasDept ? api.get(`${base}/department-metrics`, { params: standardizedParams }).catch(() => api.get(`${managerBase}/department-metrics`, { params: standardizedParams })) : Promise.reject('Org View'),
+                api.get(`${base}/trends`, { params: { ...standardizedParams, days: Math.min(dayRange, 365) } }).catch(() => api.get(`${managerBase}/trends`, { params: { ...standardizedParams, days: Math.min(dayRange, 365) } })),
+                hasDept ? api.get('/dashboard/manager/analytics', { params: standardizedParams }) : Promise.reject('Org View')
             ]);
 
             if (summaryResults[0].status === 'fulfilled') {
@@ -512,6 +539,33 @@ const PerformanceDashboard = () => {
                 aggregateFallbackData(tasks, allEmpBase, deptsToUse);
             }
 
+            // 5. Calculate Manager Scores if missing from API response
+            setSummary(prev => {
+                let personalScore = prev.manager_personal_score_current;
+                let mScore = prev.manager_score_current;
+
+                if (personalScore == null && tasks.length > 0) {
+                    const myTasks = tasks.filter(t => String(t.assigned_to) === String(user?.emp_id || user?.id) || t.assigned_to_name === user?.name);
+                    const myTotal = myTasks.length;
+                    const myCompleted = myTasks.filter(t => ['APPROVED', 'COMPLETED'].includes((t.status || '').toUpperCase())).length;
+                    personalScore = myTotal > 0 ? Math.round((myCompleted / myTotal) * 100) : 0;
+                }
+
+                if (mScore == null) {
+                    const baseTeam = prev.team_score_current || 0;
+                    if (personalScore != null) {
+                        mScore = Math.round((baseTeam * 0.7) + (personalScore * 0.3));
+                    } else {
+                        mScore = baseTeam;
+                    }
+                }
+
+                if (personalScore !== prev.manager_personal_score_current || mScore !== prev.manager_score_current) {
+                    return { ...prev, manager_personal_score_current: personalScore, manager_score_current: mScore };
+                }
+                return prev;
+            });
+
             setLoading(false);
             setIsInitialLoad(false);
         } catch (err) {
@@ -641,7 +695,7 @@ const PerformanceDashboard = () => {
         const st = (to   && to.length   === 10) ? to   : getToday();
         if (st < sf) return;
 
-        const hasDept = !!(selectedDept && selectedDept !== 'all');
+        const hasDept = !!(selectedDept && selectedDept !== 'all' && selectedDept !== 'undefined');
         setTeamPerfLoading(true);
         try {
             // ALWAYS use task-based aggregation to ensure dates are HONORED (some backend summary eps lack date-filter support)
@@ -651,7 +705,17 @@ const PerformanceDashboard = () => {
                 ...(hasDept ? { department_id: selectedDept, scope: 'department' } : { scope: 'org' })
             };
             const res = await api.get('/tasks', { params });
-            const tks = res.data?.data || res.data || [];
+            const rawTks = res.data?.data || res.data || [];
+            
+            // Client-side Filter Safeguard
+            const tks = rawTks.filter(t => {
+                const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date || t.day;
+                if (!dateStr) return true;
+                try {
+                    const taskDate = new Date(dateStr).toISOString().split('T')[0];
+                    return taskDate >= sf && taskDate <= st;
+                } catch { return true; }
+            });
             
             const empMap = {};
             tks.forEach(t => {
@@ -687,7 +751,7 @@ const PerformanceDashboard = () => {
         const st = (to   && to.length   === 10) ? to   : getToday();
         if (st < sf) return;
 
-        const hasDept = !!(selectedDept && selectedDept !== 'all');
+        const hasDept = !!(selectedDept && selectedDept !== 'all' && selectedDept !== 'undefined');
         setRiskLoading(true);
         try {
             // ALWAYS use task-based aggregation to ensure dates are HONORED (some backend summary eps lack date-filter support)
@@ -697,7 +761,17 @@ const PerformanceDashboard = () => {
                 ...(hasDept ? { department_id: selectedDept, scope: 'department' } : { scope: 'org' })
             };
             const res = await api.get('/tasks', { params });
-            const tks = res.data?.data || res.data || [];
+            const rawTks = res.data?.data || res.data || [];
+            
+            // Client-side Filter Safeguard
+            const tks = rawTks.filter(t => {
+                const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date || t.day;
+                if (!dateStr) return true;
+                try {
+                    const taskDate = new Date(dateStr).toISOString().split('T')[0];
+                    return taskDate >= sf && taskDate <= st;
+                } catch { return true; }
+            });
             
             const empMap = {};
             tks.forEach(t => {
@@ -741,7 +815,6 @@ const PerformanceDashboard = () => {
             setTeamPerfFrom(value);
             setRiskFrom(value);
             localStorage.setItem('dashboard_from_date', value);
-            // If the new fromDate is after the current toDate, reset toDate to today
             if (value > toDate) {
                 const today = getToday();
                 setToDate(today);
@@ -750,7 +823,6 @@ const PerformanceDashboard = () => {
                 localStorage.setItem('dashboard_to_date', today);
             }
         } else {
-            // Only allow toDate >= fromDate
             if (value >= fromDate) {
                 setToDate(value);
                 setTeamPerfTo(value);
@@ -758,6 +830,12 @@ const PerformanceDashboard = () => {
                 localStorage.setItem('dashboard_to_date', value);
             }
         }
+        window.dispatchEvent(new Event('dashboard-filter-change'));
+    };
+
+    const handleDeptChange = (val) => {
+        setSelectedDept(val);
+        localStorage.setItem('dashboard_department', val);
         window.dispatchEvent(new Event('dashboard-filter-change'));
     };
 
@@ -833,9 +911,25 @@ const PerformanceDashboard = () => {
                     <h1 className="text-[34px] font-medium text-[#1E1B4B] tracking-tight leading-none mb-4">Manager Dashboard</h1>
                     <p className="text-[13px] text-slate-500 font-medium mb-6 -mt-2">Cross‑Department Team Performance Monitoring</p>
                     {isCFO && (
-                        <div className="flex items-center gap-2.5 text-slate-500 font-medium text-[13px] bg-white/40 backdrop-blur-md px-4 py-2 rounded-2xl w-fit border border-white/60 shadow-sm">
-                            <Building2 size={15} className="text-indigo-500/70" />
-                            <span className="capitalize">Viewing: <span className="text-indigo-600">{currentDeptName}</span></span>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-white/40 backdrop-blur-md px-4 py-3 rounded-[1.5rem] border border-white/60 shadow-sm w-fit">
+                            <div className="flex items-center gap-2 text-slate-500 font-medium text-[13px]">
+                                <Building2 size={15} className="text-indigo-500/70" />
+                                <span>Viewing:</span>
+                            </div>
+                            <div className="min-w-[180px]">
+                                <CustomSelect
+                                    value={selectedDept || 'all'}
+                                    onChange={handleDeptChange}
+                                    options={[
+                                        { value: 'all', label: 'All Departments' },
+                                        ...departments.map(d => ({
+                                            value: String(d.department_id || d.id || d.dept_id || d.name || ''),
+                                            label: d.name || d.department_name
+                                        }))
+                                    ]}
+                                    placeholder="Select Department"
+                                />
+                            </div>
                         </div>
                     )}
                 </div>
@@ -925,7 +1019,7 @@ const PerformanceDashboard = () => {
                                 <p className="text-[9px] font-bold uppercase tracking-widest opacity-80 leading-tight">Manager Personal<br/>Score</p>
                             </div>
                             <h4 className="text-xl font-bold relative z-10">
-                                {summary.manager_personal_score_current != null ? `${summary.manager_personal_score_current}%` : '—'}
+                                {summary.manager_personal_score_current !== null && summary.manager_personal_score_current !== undefined ? `${summary.manager_personal_score_current}%` : '—'}
                             </h4>
                         </div>
                     </div>
@@ -963,9 +1057,8 @@ const PerformanceDashboard = () => {
                         </div>
                     </div>
 
-                    {/* BarChart — flex-1 needs an explicit height floor so ResponsiveContainer can measure */}
-                    <div className="flex-1 min-h-[300px] h-[300px] min-w-0 -ml-6 relative">
-                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <div className="flex-1 min-h-[320px] h-[320px] min-w-0 -ml-6 relative">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
                             <BarChart data={activityTrends} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                 <XAxis 

@@ -165,11 +165,12 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
 
     // Determine current user state
     const isActuallyCFO = user?.role?.toUpperCase() === 'CFO';
-    const [cfoSelectedDeptId, setCfoSelectedDeptId] = useState(overriddenDept?.id || null);
+    const canSwitchDept = ['MANAGER', 'CFO', 'ADMIN'].includes(user?.role?.toUpperCase());
+    const [selectedDeptId, setSelectedDeptId] = useState(overriddenDept?.id || null);
     const [departments, setDepartments] = useState([]);
 
     // Determine current department for context
-    const currentDeptId = overriddenDept?.id || cfoSelectedDeptId || user?.department_id || user?.dept_id;
+    const currentDeptId = overriddenDept?.id || selectedDeptId || user?.department_id || user?.dept_id;
     const currentDeptName = overriddenDept?.name || departments.find(d => (d.department_id || d.id) === currentDeptId)?.name || user?.department_name || user?.department || 'Department';
 
     const getFirstDayOfMonth = () => {
@@ -600,16 +601,18 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
     }, [riskFrom, riskTo, currentDeptId]);
 
     useEffect(() => {
-        if (isActuallyCFO && !overriddenDept) {
+        if (canSwitchDept && !overriddenDept) {
             api.get('/departments').then(res => {
                 const depts = res.data?.data || res.data || [];
                 setDepartments(depts);
-                if (depts.length > 0 && !cfoSelectedDeptId) {
-                    setCfoSelectedDeptId(depts[0].department_id || depts[0].id);
+                if (depts.length > 0 && !selectedDeptId) {
+                    // Try to pre-select manager's own department if possible, otherwise first
+                    const userDept = depts.find(d => String(d.department_id || d.id) === String(user?.department_id || user?.dept_id));
+                    setSelectedDeptId(userDept ? (userDept.department_id || userDept.id) : (depts[0].department_id || depts[0].id));
                 }
             }).catch(e => console.warn("Failed to fetch departments:", e));
         }
-    }, [isActuallyCFO, overriddenDept]);
+    }, [canSwitchDept, overriddenDept, user?.department_id, user?.dept_id]);
 
 
     const filteredTasks = useMemo(() => {
@@ -700,14 +703,14 @@ const ManagerDashboard = ({ overriddenDept = null }) => {
 
     return (
         <div className="space-y-4 pb-8">
-            {/* CFO Department Switcher */}
-            {isActuallyCFO && !overriddenDept && departments.length > 0 && (
+            {/* Department Switcher */}
+            {canSwitchDept && !overriddenDept && departments.length > 0 && (
                 <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm animate-fade-in mb-2">
                     <span className="text-[10px] font-semibold text-slate-400 capitalize tracking-widest pl-2">Select Department:</span>
                     <CustomSelect
                         options={departments.map(d => ({ label: d.name, value: d.department_id || d.id }))}
                         value={currentDeptId}
-                        onChange={(val) => setCfoSelectedDeptId(val)}
+                        onChange={(val) => setSelectedDeptId(val)}
                         className="w-64"
                     />
                 </div>
