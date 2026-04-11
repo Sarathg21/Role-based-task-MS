@@ -595,7 +595,10 @@ const EmployeeDashboard = () => {
 
     // Derive tasks list from source (either specialized todayTasks or full allTasks)
     const filteredTasksSource = useMemo(() => {
-        const source = activeTab === "TODAY" ? todayTasks : allTasks;
+        const source = activeTab === "TODAY" ? allTasks.filter(t => {
+            const dateStr = t.assigned_date || t.assigned_at || t.created_at || t.updated_at || t.assignedAt || t.createdAt || t.due_date || t.dueDate;
+            return toDateKey(dateStr) === getToday();
+        }) : allTasks;
         return source.filter(t => {
             const isCancelled = t.status === 'CANCELLED';
             const isApproved = t.status === 'APPROVED';
