@@ -618,6 +618,7 @@ const TaskPage = () => {
           ...t,
           id: t.task_id || t.id,
           employee_id: t.assigned_to_emp_id || t.employee_id,
+          reassigned_to_emp_id: t.reassigned_to_emp_id || t.reassigned_to || t.current_assignee_id || t.current_assignee_emp_id || null,
           assigned_by: t.assigned_by_emp_id || t.assigned_by,
           assigneeName: t.assigned_to_name || t.assignee_name || t.employee_name,
           assignerName: t.assigned_by_name || t.assigner_name || t.manager_name,
@@ -627,6 +628,7 @@ const TaskPage = () => {
           assignee_role: t.assignee_role || t.role,
           parent_task_id: parentId,
           parent_task_title: inlineParentTitle,
+          updated_at: t.updated_at || t.modified_at || t.last_modified || null,
           // Normalize all possible "date assigned" field names from the API
           assigned_date:
             t.assigned_date ||
@@ -639,11 +641,25 @@ const TaskPage = () => {
             null,
         };
       });
-      const sorted = normalised.sort((a, b) => {
-        const dateA = new Date(a.assigned_date || a.created_at || 0);
-        const dateB = new Date(b.assigned_date || b.created_at || 0);
+      let sorted = normalised.sort((a, b) => {
+        const dateA = new Date(a.updated_at || a.assigned_date || a.created_at || 0);
+        const dateB = new Date(b.updated_at || b.assigned_date || b.created_at || 0);
         return dateB - dateA;
       });
+
+      // Client-side safeguard for "Personal" view mode:
+      // Even if scope=mine is used, some backends return tasks where the user is the assigner.
+      // We only want execution-level tasks in "Personal" mode.
+      if (viewMode === 'personal') {
+        const myId = String(user?.emp_id || user?.id || '').toLowerCase();
+        sorted = sorted.filter(t => {
+          const assigneeId = String(t.employee_id || t.assigned_to_emp_id || t.reassigned_to_emp_id || '').toLowerCase();
+          // If task was reassigned to someone else, exclude it
+          if (t.reassigned_to_emp_id && assigneeId !== myId) return false;
+          return assigneeId === myId;
+        });
+      }
+
       setTasks(sorted);
     } catch (err) {
       console.error("Failed to fetch tasks", err);
@@ -747,6 +763,12 @@ const TaskPage = () => {
       // Exclude manager's own tasks from Team View
       const isSelf = String(task.employee_id) === String(user?.id);
       if (viewMode === 'team' && (user?.role?.toUpperCase() === 'MANAGER') && isSelf) return false;
+      if (viewMode === 'personal') {
+        const myId = String(user?.emp_id || user?.id || '');
+        const assigneeId = String(task.employee_id || task.assigned_to_emp_id || task.reassigned_to_emp_id || '');
+        if (task.reassigned_to_emp_id && assigneeId !== myId) return false;
+        if (assigneeId !== myId) return false;
+      }
       // If an exact taskId is provided via URL AND no other filters are set, prioritize it
       const hasOtherFilters = filter.search || (filter.status !== "All") || (filter.severity !== "All") || filter.fromDate || filter.toDate;
 

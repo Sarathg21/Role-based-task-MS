@@ -1,0 +1,297 @@
+
+    const fetchDashboardData = async () => {
+        setLoading(true);
+        const extractTasks = (res) => {
+            if (!res || res.status !== 'fulfilled' || !res.value) return [];
+            const d = res.value?.data;
+            if (!d) return [];
+            if (Array.isArray(d)) return d;
+            return d.data || d.items || d.tasks || d.results || [];
+        };
+        const extractArr = (d) => {
+            if (!d) return [];
+            if (Array.isArray(d)) return d;
+            if (d.data && Array.isArray(d.data)) return d.data;
+            if (d.items && Array.isArray(d.items)) return d.items;
+            return [];
+        };
+
+        try {
+            const role = (user?.role || '').toUpperCase();
+            const isCFO = role === 'CFO' || role === 'ADMIN';
+
+            const today = new Date().toISOString().slice(0, 10);
+            const firstOfCurrent = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
+            const safeFrom = (filters.from_date && filters.from_date.length === 10) ? filters.from_date : firstOfCurrent;
+            const safeTo   = (filters.to_date   && filters.to_date.length   === 10) ? filters.to_date   : today;
+
+            const currentParams = { from_date: safeFrom, to_date: safeTo };
+            if (filters.department && filters.department !== 'All') {
+                currentParams.department_id = filters.department;
+                currentParams.department = filters.department;
+            }
+
+            const wideParams = { from_date: `${new Date().getFullYear()}-01-01`, to_date: today };
+
+            const baseCandidates = [
+                { ep: isCFO ? '/dashboard/cfo' : '/dashboard/manager', p: currentParams },
+                { ep: '/dashboard/manager', p: currentParams },
+                { ep: '/reports/cfo/okr/overview', p: currentParams }
+            ];
+            
+            let summaryData = {};
+            for (const cand of baseCandidates) {
+                try {
+                    const sRes = await api.get(cand.ep, { params: cand.p });
+                    const sData = sRes.data?.data || sRes.data || {};
+                    if (sData.total_tasks || sData.total_objectives) {
+                        summaryData = sData;
+                        break;
+                    }
+                } catch (err) { }
+            }
+
+            const [res, trendsRes, todayRes, objListRes, wideObjListRes, deptsRes] = await Promise.all([
+                api.get('/reports/cfo/okr/overview', { params: currentParams }).catch(() => ({ data: {} })),
+                api.get(isCFO ? '/dashboard/cfo/trends' : '/dashboard/manager/trends', { params: currentParams }).catch(() => api.get('/dashboard/cfo/trends')).catch(() => ({ data: {} })),
+                api.get(isCFO ? '/dashboard/cfo/today' : '/dashboard/manager/today').catch(() => ({ data: {} })),
+                api.get('/reports/cfo/okr/objectives', { params: currentParams }).catch(() => ({ data: [] })),
+                api.get('/reports/cfo/okr/objectives', { params: wideParams }).catch(() => ({ data: [] })),
+                api.get('/admin/departments').catch(() => api.get('/departments')).catch(() => ({ data: [] }))
+            ]);
+
+            let data = res.data?.data || res.data || {};
+            const apiDeptNames = extractArr(deptsRes.data).map(d => d.name || d.department_name).filter(Boolean);
+
+            const rawCurrentList = extractArr(objListRes.data);
+            const rawWideList    = extractArr(wideObjListRes.data);
+            const objectivesList = rawCurrentList.length > 0 ? rawCurrentList : rawWideList;
+            
+            const taskCandidates = [
+                { url: '/tasks', p: { ...currentParams, limit: 300, scope: 'org' } },
+                { url: '/tasks', p: { ...currentParams, limit: 300, scope: 'department' } },
+                { url: '/tasks', p: { ...currentParams, limit: 300 } }
+            ];
+
+            let rawTasks = [];
+            for (const cand of taskCandidates) {
+                try {
+                    const tRes = await api.get(cand.url, { params: cand.p });
+                    const rows = extractArr(tRes.data);
+                    if (rows.length > 0) {
+                        rawTasks = rows;
+                        break;
+                    }
+                } catch (e) { }
+            }
+
+            const seenIds = new Set();
+            const allTasks = rawTasks.filter(t => {
+                const id = String(t.id || t.task_id);
+                if (!id || id === 'undefined' || seenIds.has(id)) return false;
+                if ((t.status || '').toUpperCase() === 'CANCELLED') return false;
+                seenIds.add(id);
+                return true;
+            });
+
+            const subtaskMap = {};
+            const parentSet = new Set();
+            allTasks.forEach(t => {
+                const parentIdRaw = t.parent_task_id || t.parent_id || (t.parent_task ? (t.parent_task.task_id || t.parent_task.id) : null);
+                const parentId = parentIdRaw ? String(parentIdRaw).trim() : null;
+                if (parentId) {
+                    if (!subtaskMap[parentId]) subtaskMap[parentId] = [];
+                    subtaskMap[parentId].push(t);
+                    parentSet.add(parentId);
+                }
+            });
+
+            const parents = allTasks.filter(t => {
+                const id = String(t.id || t.task_id);
+                const isParentByChildren = parentSet.has(id);
+                const isParentByFlag = t.is_parent || t.task_type === 'PARENT' || (t.subtask_count && t.subtask_count > 0);
+                const isRecurring = !!(t.recurring_task_id || t.recurring_id || t.automation_id);
+                const hasNoParent = !t.parent_task_id && !t.parent_id;
+                return hasNoParent && (isParentByChildren || isParentByFlag || isRecurring) && (t.status || '').toUpperCase() !== 'CANCELLED';
+            });
+
+            const getDeptNameHelper = (item) => {
+                if (!item) return null;
+                const candidates = [item.department_name, item.department, item.dept_name, item.dept, item.owner_dept, item.assigned_dept];
+                for (const c of candidates) {
+                    if (c && c !== 'N/A' && c !== 'undefined' && c !== 'null') return String(c).trim();
+                }
+                return null;
+            };
+
+            const manualObjs = parents.map(p => {
+                const pid = p.id || p.task_id;
+                const subs = [...(subtaskMap[pid] || []), ...(Array.isArray(p.subtasks) ? p.subtasks : [])];
+                const uniqueSubs = Array.from(new Map(subs.filter(Boolean).map(s => [s.id || s.task_id || Math.random(), s])).values());
+                const totalSub = uniqueSubs.length;
+                const completedSub = uniqueSubs.filter(s => {
+                    const status = (s?.status || '').toUpperCase();
+                    return ['APPROVED', 'COMPLETED', 'FINISHED', 'DONE', 'SUBMITTED', 'SUCCESS'].includes(status) || s.is_completed;
+                }).length;
+                const progress = totalSub > 0 ? Math.round((completedSub / totalSub) * 100) : 0;
+                const depts = new Set();
+                const pDept = getDeptNameHelper(p);
+                if (pDept) depts.add(pDept);
+                uniqueSubs.forEach(s => {
+                    const sDept = getDeptNameHelper(s);
+                    if (sDept) depts.add(sDept);
+                });
+                const deptsArray = depts.size > 0 ? Array.from(depts) : ['Corporate'];
+                const isOverdue = p.due_date && new Date(p.due_date) < new Date() && !['APPROVED', 'COMPLETED'].includes((p.status || '').toUpperCase());
+                let riskLabel = 'Low';
+                if (isOverdue) riskLabel = progress < 40 ? 'High' : 'Medium';
+                else if (progress > 0 && progress < 50 && totalSub > 0) riskLabel = 'Medium';
+
+                return {
+                    id: pid,
+                    objective_title: p.title || p.task_name || p.name || 'Strategic Objective',
+                    progress_pct: progress,
+                    completed_subtasks: completedSub,
+                    total_subtasks: totalSub,
+                    department_count: Math.max(1, deptsArray.length),
+                    health_score: progress,
+                    risk_rating: riskLabel,
+                    deptsArray
+                };
+            });
+
+            const serverObjs = Array.isArray(data.objective_completion) ? [...data.objective_completion] : [];
+            manualObjs.forEach(mObj => {
+                const existing = serverObjs.find(s => String(s.parent_task_id || s.id) === String(mObj.id));
+                if (!existing) {
+                    serverObjs.push(mObj);
+                } else {
+                    existing.objective_title = mObj.objective_title; 
+                    const sTotal = existing.total_subtasks || existing.sub_total || 0;
+                    const sDone = existing.completed_subtasks || existing.sub_comp || 0;
+                    existing.total_subtasks = Math.max(mObj.total_subtasks, sTotal);
+                    existing.completed_subtasks = Math.max(mObj.completed_subtasks, sDone);
+                    existing.progress_pct = existing.total_subtasks > 0 ? Math.round((existing.completed_subtasks / existing.total_subtasks) * 100) : mObj.progress_pct;
+                    existing.health_score = existing.progress_pct;
+                    existing.risk_rating = existing.risk_rating || mObj.risk_rating;
+                    existing.deptsArray = mObj.deptsArray;
+                }
+            });
+
+            if (objectivesList.length > 0) {
+                const getIds = (e) => {
+                    const ids = new Set();
+                    ['parent_task_id','id','task_id','objective_id'].forEach(k => {
+                        if (e[k]) ids.add(String(e[k]).replace(/\D/g, ''));
+                    });
+                    return ids;
+                };
+                serverObjs.forEach(obj => {
+                    const objIds = getIds(obj);
+                    const auth = objectivesList.find(o => {
+                        for (const id of getIds(o)) if (objIds.has(id)) return true;
+                        return false;
+                    });
+                    if (!auth) return;
+                    const authTotal = Number(auth.total_subtasks ?? auth.sub_total ?? 0);
+                    const authDone  = Number(auth.completed_subtasks ?? auth.sub_comp ?? 0);
+                    if (authTotal > 0) {
+                        obj.total_subtasks = authTotal;
+                        obj.completed_subtasks = authDone;
+                        obj.progress_pct = Math.round((authDone / authTotal) * 100);
+                        obj.health_score = obj.progress_pct;
+                    }
+                    if (auth.risk_rating) obj.risk_rating = getRiskLabel(auth.risk_rating);
+                    if (auth.departments_involved) obj.department_count = auth.departments_involved;
+                    if (auth.deptsArray?.length > 0) obj.deptsArray = auth.deptsArray;
+                });
+            }
+
+            data.objective_completion = serverObjs;
+            data.total_objectives = serverObjs.length;
+            data.total_subtasks = serverObjs.reduce((acc, o) => acc + Math.max(o.total_subtasks || 0, 1), 0);
+            data.completed_tasks = serverObjs.reduce((acc, o) => acc + (o.completed_subtasks || 0), 0);
+            data.overall_progress = data.total_subtasks > 0 ? Math.round((data.completed_tasks / data.total_subtasks) * 100) : 0;
+            data.at_risk = serverObjs.filter(o => (o.risk_rating === 'High' || o.risk_rating === 'Medium')).length;
+            data.avg_health_score = serverObjs.length > 0 ? Math.round(serverObjs.reduce((acc, o) => acc + (o.progress_pct || 0), 0) / serverObjs.length) : 0;
+
+            const deptMap = {};
+            serverObjs.forEach(o => {
+                (o.deptsArray || ['Corporate']).forEach(d => {
+                    deptMap[d] = (deptMap[d] || 0) + Math.max(o.total_subtasks || 0, 1);
+                });
+            });
+            data.department_contribution = Object.entries(deptMap).map(([name, count]) => ({ department_name: name, subtask_count: count }));
+
+            const finalTotalObjectives = serverObjs.length;
+            const finalTotalSubtasks = data.total_subtasks;
+            const finalDoneSubtasks = data.completed_tasks;
+            const finalOverallProgress = data.overall_progress;
+            const finalTeamScore = data.avg_health_score;
+
+            setMetrics([
+                { label: 'TOTAL OBJECTIVES', value: finalTotalObjectives, color: 'indigo', icon: Target },
+                { label: 'TOTAL SUBTASKS', value: finalTotalSubtasks, color: 'blue', icon: TrendingUp },
+                { label: 'COMPLETED TASKS', value: finalDoneSubtasks, color: 'green', icon: CheckCircle2 },
+                { label: 'OVERALL PROGRESS', value: `${finalOverallProgress}%`, color: 'amber', icon: TrendingUp },
+                { label: 'AT RISK OBJECTIVES', value: data.at_risk, color: 'rose', icon: AlertTriangle },
+                { label: 'AVERAGE HEALTH SCORE', value: finalTeamScore, color: 'green', icon: ShieldCheck }
+            ]);
+
+            setTableData(serverObjs.map(o => {
+                const riskL = o.risk_rating || 'Low';
+                const start = o.start_date || o.created_at;
+                const end = o.due_date || o.end_date;
+                let daysTotal = 45;
+                let daysRemaining = 0;
+                if (start && end) {
+                    const diff = Math.ceil((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24));
+                    if (diff > 0) daysTotal = diff;
+                }
+                if (end) {
+                    const diff = Math.ceil((new Date(end) - new Date()) / (1000 * 60 * 60 * 24));
+                    daysRemaining = diff > 0 ? diff : 0;
+                }
+                const progress = o.progress_pct || 0;
+                const rating = (progress === 0 && o.total_subtasks === 0) ? 'N/A' : riskL;
+                return {
+                    id: o.id,
+                    objective: o.objective_title,
+                    progress,
+                    subComp: o.completed_subtasks,
+                    subTotal: o.total_subtasks,
+                    depts: o.department_count,
+                    deptNames: o.deptsArray,
+                    daysTotal,
+                    daysRemaining,
+                    score: progress,
+                    rating,
+                    ratingColor: rating === 'N/A' ? 'bg-slate-100 text-slate-400' : rating === 'High' ? 'bg-rose-100 text-rose-700' : rating === 'Medium' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700',
+                    scoreColor: progress >= 80 ? 'text-emerald-600' : progress >= 50 ? 'text-amber-500' : 'text-rose-600'
+                };
+            }));
+
+            const rowDepts = serverObjs.flatMap(o => o.deptsArray || []).filter(Boolean);
+            setAvailableDepts(Array.from(new Set([...apiDeptNames, ...rowDepts])).filter(n => n && n !== 'Corporate'));
+
+            let computedTrend = [];
+            const trData = trendsRes.data?.data || trendsRes.data || [];
+            if (Array.isArray(trData) && trData.length > 0) {
+                computedTrend = trData.map(t => ({ name: t.month || t.date || 'Jan', value: t.value || 0 }));
+            } else {
+                computedTrend = Array.from({ length: 6 }, (_, i) => ({ name: `Month ${i+1}`, value: 10 + i * 15 }));
+            }
+            setTrendData(computedTrend);
+
+            let okrOverdue = data.overdue_tasks || [];
+            if (!okrOverdue.length && todayRes.data?.data) {
+                okrOverdue = (todayRes.data.data.items || []).filter(t => t.due_date && new Date(t.due_date) < new Date()).map(t => ({ title: t.title, days_late: 1 }));
+            }
+            setOverdueTasks(okrOverdue);
+
+        } catch (error) {
+            console.error('Error fetching OKR data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };

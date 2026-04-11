@@ -385,8 +385,8 @@ const TeamTasksPage = () => {
                 return true;
             });
             const sorted = filteredItems.sort((a, b) => {
-                const dateA = new Date(a.assigned_date || a.created_at || a.assigned_at || 0);
-                const dateB = new Date(b.assigned_date || b.created_at || b.assigned_at || 0);
+                const dateA = new Date(a.updated_at || a.assigned_date || a.created_at || a.assigned_at || 0);
+                const dateB = new Date(b.updated_at || b.assigned_date || b.created_at || b.assigned_at || 0);
                 return dateB - dateA;
             });
             setTasks(sorted);

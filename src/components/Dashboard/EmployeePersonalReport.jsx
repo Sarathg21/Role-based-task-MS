@@ -13,6 +13,34 @@ import {
 
 const EmployeePersonalReport = () => {
     const { user } = useAuth();
+    const toDateKey = (value) => {
+        if (!value) return '';
+        const raw = String(value).trim();
+        if (!raw) return '';
+        const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+        const dmyDash = raw.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+        if (dmyDash) return `${dmyDash[3]}-${dmyDash[2]}-${dmyDash[1]}`;
+        const dmy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+        const ymdSlash = raw.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+        if (ymdSlash) return `${ymdSlash[1]}-${ymdSlash[2]}-${ymdSlash[3]}`;
+        const parsed = new Date(raw);
+        return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+    };
+
+    const extractArr = (resData) => {
+        if (!resData) return [];
+        if (Array.isArray(resData)) return resData;
+        const direct = resData.data || resData.results || resData.items || resData.tasks || [];
+        if (Array.isArray(direct)) return direct;
+        if (direct && typeof direct === 'object') {
+            if (Array.isArray(direct.data)) return direct.data;
+            if (Array.isArray(direct.items)) return direct.items;
+            if (Array.isArray(direct.results)) return direct.results;
+        }
+        return [];
+    };
     const getFirstDayOfMonth = () => {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
@@ -72,9 +100,13 @@ const EmployeePersonalReport = () => {
 
             // 3. Process own tasks
             const rawTasks = myTasksRes.status === 'fulfilled'
-                ? (myTasksRes.value?.data?.data || myTasksRes.value?.data || [])
+                ? extractArr(myTasksRes.value?.data)
                 : [];
-            const myTasks = Array.isArray(rawTasks) ? rawTasks : [];
+            const myId = String(user?.emp_id || user?.id || '');
+            const myTasks = (Array.isArray(rawTasks) ? rawTasks : []).filter(t => {
+                const assignee = String(t.assigned_to_emp_id || t.employee_id || t.assignee_id || t.emp_id || '');
+                return assignee ? assignee === myId : true;
+            });
             setTasks(myTasks);
 
             // 4. ── PRIMARY SOURCE: /reports/employee/department-top-performer ──
@@ -180,9 +212,9 @@ const EmployeePersonalReport = () => {
         
         // 1. Client-side date filter (Guarantees UI reflects the filter even if API returns too many tasks)
         const periodTasks = tasks.filter(t => {
-            const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date;
-            if (!dateStr) return true;
-            const taskDate = dateStr.split('T')[0];
+            const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date || t.updated_at;
+            const taskDate = toDateKey(dateStr);
+            if (!taskDate) return true;
             return taskDate >= fromDate && taskDate <= toDate;
         });
 
@@ -224,15 +256,53 @@ const EmployeePersonalReport = () => {
         };
     }, [tasks, summary, fromDate, toDate]);
 
-    // Trend Data Mock (if backend doesn't provide granular trend for employee)
-    const trendData = [
-        { name: 'Oct', approved: 0, score: 0 },
-        { name: 'Nov', approved: 0, score: 0 },
-        { name: 'Dec', approved: 0, score: 0 },
-        { name: 'Jan', approved: 0, score: 0 },
-        { name: 'Feb', approved: Math.max(0, metrics.completed - 2), score: Math.max(0, metrics.efficiency - 15) },
-        { name: 'Mar', approved: metrics.completed, score: metrics.efficiency },
-    ];
+    // Dynamic Trend Data: based on filter range (month buckets)
+    const trendData = useMemo(() => {
+        const from = fromDate && fromDate.length === 10 ? new Date(fromDate) : new Date();
+        const to = toDate && toDate.length === 10 ? new Date(toDate) : new Date();
+        const start = new Date(from.getFullYear(), from.getMonth(), 1);
+        const end = new Date(to.getFullYear(), to.getMonth(), 1);
+
+        const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const labelFor = (d) => d.toLocaleDateString('en-US', { month: 'short' });
+
+        const buckets = {};
+        let cursor = new Date(start);
+        while (cursor <= end) {
+            const key = monthKey(cursor);
+            buckets[key] = { name: labelFor(cursor), approved: 0, total: 0 };
+            cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+        }
+
+        const doneStatuses = new Set(['APPROVED', 'COMPLETED', 'FINISHED', 'DONE', 'SUBMITTED', 'SUCCESS']);
+        tasks.forEach(t => {
+            const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date || t.updated_at;
+            const taskDate = toDateKey(dateStr);
+            if (!taskDate) return;
+            if (taskDate < fromDate || taskDate > toDate) return;
+            const key = taskDate.slice(0, 7);
+            if (!buckets[key]) return;
+            buckets[key].total += 1;
+            const status = String(t.status || '').toUpperCase();
+            if (doneStatuses.has(status) || t.is_completed) {
+                buckets[key].approved += 1;
+            }
+        });
+
+        const rows = Object.values(buckets).map(b => ({
+            name: b.name,
+            approved: b.approved,
+            score: b.total > 0 ? Math.round((b.approved / b.total) * 100) : 0
+        }));
+        const anyData = rows.some(r => r.approved > 0 || r.score > 0);
+        if (!anyData) {
+            const total = Number(summary.total_tasks || summary.total || 0);
+            const approved = Number(summary.approved_tasks || summary.completed_tasks || 0);
+            const score = total > 0 ? Math.round((approved / total) * 100) : 0;
+            return rows.map(r => ({ ...r, approved, score }));
+        }
+        return rows;
+    }, [tasks, fromDate, toDate]);
 
     const getInitials = (name) => {
         if (!name) return 'U';

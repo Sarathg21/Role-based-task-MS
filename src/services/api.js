@@ -42,7 +42,15 @@ api.interceptors.request.use((config) => {
                 config.headers['X-EMP-ID'] = user.emp_id || user.id;
             }
             if (user.role) {
-                config.headers['X-USER-ROLE'] = user.role.toUpperCase();
+                const r = user.role.toUpperCase();
+                // Standardize role for backend headers: condense composite roles to primary keys
+                let standardRole = r;
+                if (r.includes('CFO')) standardRole = 'CFO';
+                else if (r.includes('ADMIN')) standardRole = 'ADMIN';
+                else if (r.includes('MANAGER')) standardRole = 'MANAGER';
+                else if (r.includes('EMPLOYEE')) standardRole = 'EMPLOYEE';
+                
+                config.headers['X-USER-ROLE'] = standardRole;
             }
         } catch (e) {
             console.warn('[API] Failed to parse user for headers');

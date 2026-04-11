@@ -197,7 +197,13 @@ const EmployeeDashboard = () => {
     const getToday = () => new Date().toISOString().split('T')[0];
 
     const [fromDate, setFromDate] = useState(localStorage.getItem('dashboard_from_date') || getFirstDayOfMonth());
-    const [toDate, setToDate] = useState(localStorage.getItem('dashboard_to_date') || getToday());
+    const [toDate, setToDate] = useState(() => {
+        const saved = localStorage.getItem('dashboard_to_date');
+        const today = new Date().toISOString().split('T')[0];
+        // If saved date is in the past, reset to today so new tasks aren't hidden
+        if (saved && saved < today) return today;
+        return saved || today;
+    });
     const [searchTerm, setSearchTerm] = useState('');
 
     const [dashboardData, setDashboardData] = useState(null);
@@ -299,22 +305,6 @@ const EmployeeDashboard = () => {
                 return { pid, ptitle };
             };
 
-            setTodayTasks(todayT.map(t => {
-                const { pid, ptitle } = getParentInfo(t);
-                return {
-                    ...t,
-                    id: t.task_id || t.id,
-                    employee_id: t.assigned_to_emp_id,
-                    assigned_by: t.assigned_by_emp_id,
-                    assigneeName: t.assigned_to_name,
-                    assignerName: t.assigned_by_name,
-                    severity: (t.priority || t.severity || 'LOW').toUpperCase(),
-                    department: t.department_name || t.department_id,
-                    parent_task_id: pid,
-                    parent_task_title: ptitle,
-                };
-            }));
-
             const normalized = allRaw.map((t) => {
                 const { pid, ptitle } = getParentInfo(t);
                 return {
@@ -328,7 +318,33 @@ const EmployeeDashboard = () => {
                     assignerName: t.assigned_by_name || 'Manager',
                     parent_task_id: pid,
                     parent_task_title: ptitle,
+                    updated_at: t.updated_at || t.modified_at || t.last_modified || t.created_at || t.assigned_at || 0
                 };
+            }).sort((a, b) => {
+                const dateA = new Date(a.updated_at || 0);
+                const dateB = new Date(b.updated_at || 0);
+                return dateB - dateA;
+            });
+            
+            const sortedToday = todayT.map(t => {
+                const { pid, ptitle } = getParentInfo(t);
+                return {
+                    ...t,
+                    id: t.task_id || t.id,
+                    employee_id: t.assigned_to_emp_id,
+                    assigned_by: t.assigned_by_emp_id,
+                    assigneeName: t.assigned_to_name,
+                    assignerName: t.assigned_by_name,
+                    severity: (t.priority || t.severity || 'LOW').toUpperCase(),
+                    department: t.department_name || t.department_id,
+                    parent_task_id: pid,
+                    parent_task_title: ptitle,
+                    updated_at: t.updated_at || t.modified_at || t.last_modified || t.created_at || t.assigned_at || 0
+                };
+            }).sort((a, b) => {
+                const dateA = new Date(a.updated_at || 0);
+                const dateB = new Date(b.updated_at || 0);
+                return dateB - dateA;
             });
 
             const counts = { NEW: 0, IN_PROGRESS: 0, SUBMITTED: 0, APPROVED: 0, REWORK: 0, CANCELLED: 0 };
@@ -369,6 +385,7 @@ const EmployeeDashboard = () => {
                 performance_index: finalScore,
                 dept_avg_score: dashboardPayload?.dept_avg_score || 0,
             });
+            setTodayTasks(sortedToday);
             setAllTasks(normalized);
             // Do not overwrite todayTasks with normalized here, 
             // instead merge them or ensure normalized is derived correctly above.
@@ -589,14 +606,19 @@ const EmployeeDashboard = () => {
             // In "ALL" tab, we show Approved tasks. In other tabs, we hide them.
             const shouldShowBasedOnStatus = activeTab === "ALL" || !isApproved;
 
-            const matchesSearch = !searchTerm ||
-                t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                String(t.id).toLowerCase().includes(searchTerm.toLowerCase());
+              const titleText = String(t.title || t.task_name || t.name || '');
+              const matchesSearch = !searchTerm ||
+                  titleText.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  String(t.id || t.task_id || '').toLowerCase().includes(searchTerm.toLowerCase());
 
-            // Client-side date filter for the table as well
-            const taskDate = toDateKey(t.due_date || t.assigned_date || t.created_at);
-            const matchesFrom = !fromDate || taskDate >= fromDate;
-            const matchesTo = !toDate || taskDate <= toDate;
+              // For active tasks (NEW, PROG, REWORK), we should be more lenient with the toDate 
+              // so employees don't miss tasks assigned with future due dates or filtered by a stale 'today'.
+              const status = String(t.status || '').toUpperCase();
+              const isActiveCategory = ['NEW', 'IN_PROGRESS', 'STARTED', 'REWORK'].includes(status);
+              const taskDate = toDateKey(t.due_date || t.end_date || t.start_date || t.created_at);
+              
+              const matchesTo = !toDate || taskDate <= toDate || isActiveCategory;
+              const matchesFrom = !fromDate || taskDate >= fromDate;
 
             return shouldShowBasedOnStatus && matchesSearch && matchesFrom && matchesTo;
         });
@@ -963,8 +985,6 @@ const EmployeeDashboard = () => {
 };
 
 export default EmployeeDashboard;
-
-
 
 
 

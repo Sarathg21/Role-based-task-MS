@@ -278,8 +278,26 @@ const PerformanceDashboard = () => {
             };
         });
 
+        const targetDeptId = (selectedDept && selectedDept !== 'all' && selectedDept !== 'undefined') ? selectedDept : '';
+        const targetDeptObj = departments.find(d => String(d.department_id || d.id) === String(targetDeptId));
+        const targetDeptName = (targetDeptObj?.name || targetDeptObj?.department_name || '').toLowerCase();
+
         tasks.forEach(t => {
             const name = t.assigned_to_name || t.employee_name || t.assigneeName || t.assigned_to || 'Unassigned';
+            
+            // ── Client-side Department Safeguard for Fallback ──
+            if (targetDeptId) {
+                const tDeptId = String(t.department_id || '');
+                const tDeptName = (t.department_name || t.department || '').toLowerCase();
+                const matched = (tDeptId && tDeptId === targetDeptId) || 
+                                (targetDeptName && tDeptName && (tDeptName.includes(targetDeptName) || targetDeptName.includes(tDeptName)));
+                
+                if (!matched) {
+                    // If it doesn't match the selected department, skip this task in the employee counts
+                    return;
+                }
+            }
+
             if (!empMap[name]) empMap[name] = { name, tasks_assigned: 0, in_progress: 0, pending_review: 0, overdue: 0, completed: 0, department: t.department };
             empMap[name].tasks_assigned++;
             const s = (t.status || '').toUpperCase();
@@ -358,10 +376,13 @@ const PerformanceDashboard = () => {
                 to_date:   safeTo
             };
 
-            // Sanitize selectedDept — avoid sending 'all' or 'undefined' as numeric IDs
-            const currentDept = (selectedDept && selectedDept !== 'all' && selectedDept !== 'undefined') ? selectedDept : '';
+            // Sanitize selectedDept — avoid sending 'all', 'undefined', or empty values to the API
+            const currentDept = (selectedDept && selectedDept !== 'all' && selectedDept !== 'undefined' && String(selectedDept).trim() !== '') ? selectedDept : '';
             if (currentDept) {
                 standardizedParams.department_id = currentDept;
+                // Add department name if we can find it
+                const dObj = departments.find(d => String(d.department_id || d.id) === String(currentDept));
+                if (dObj) standardizedParams.department = dObj.name || dObj.department_name;
             }
 
             const base = isCFO ? '/dashboard/cfo' : '/dashboard/manager';
@@ -371,10 +392,20 @@ const PerformanceDashboard = () => {
             // 1. Fetch Summary & Metrics
             // Only call department-specific extensions if hasDept is true
             const summaryResults = await Promise.allSettled([
-                api.get(base, { params: standardizedParams }),
-                hasDept ? api.get(`${base}/department-metrics`, { params: standardizedParams }).catch(() => api.get(`${managerBase}/department-metrics`, { params: standardizedParams })) : Promise.reject('Org View'),
-                api.get(`${base}/trends`, { params: { ...standardizedParams, days: Math.min(dayRange, 365) } }).catch(() => api.get(`${managerBase}/trends`, { params: { ...standardizedParams, days: Math.min(dayRange, 365) } })),
-                hasDept ? api.get('/dashboard/manager/analytics', { params: standardizedParams }) : Promise.reject('Org View')
+                api.get(base, { params: standardizedParams }).catch(() => ({ data: {} })),
+                hasDept 
+                    ? api.get(`${base}/department-metrics`, { params: standardizedParams })
+                        .catch(() => isCFO ? api.get(`${managerBase}/department-metrics`, { params: standardizedParams }) : Promise.reject('No Fallback'))
+                        .catch(() => ({ data: {} }))
+                    : Promise.reject('Org View'),
+                api.get(`${base}/trends`, { params: { ...standardizedParams, days: Math.min(dayRange, 365) } })
+                    .catch(() => (hasDept || !isCFO) 
+                        ? api.get(`${managerBase}/trends`, { params: { ...standardizedParams, days: Math.min(dayRange, 365) } }) 
+                        : Promise.reject('No Org Fallback'))
+                    .catch(() => ({ data: [] })),
+                hasDept 
+                    ? api.get('/dashboard/manager/analytics', { params: standardizedParams }).catch(() => ({ data: {} }))
+                    : Promise.reject('Org View')
             ]);
 
             if (summaryResults[0].status === 'fulfilled') {
@@ -424,14 +455,20 @@ const PerformanceDashboard = () => {
             };
 
             let tasks = [];
-            const taskCandidates = (isCFO || user?.role?.toUpperCase() === 'ADMIN')
-                ? [
-                    { url: '/tasks', p: { ...dateParams, scope: 'org' } },
-                    { url: '/tasks', p: { ...dateParams, scope: 'department', ...(standardizedParams.department_id ? { department_id: standardizedParams.department_id } : {}) } },
-                  ]
-                : [
-                    { url: '/tasks', p: { ...dateParams, scope: 'department', ...(standardizedParams.department_id ? { department_id: standardizedParams.department_id } : {}) } },
-                  ];
+            const taskCandidates = [];
+            
+            if (currentDept) {
+                // If a department is selected, prioritize department scope
+                taskCandidates.push({ url: '/tasks', p: { ...dateParams, scope: 'department', department_id: currentDept } });
+                if (isCFO || user?.role?.toUpperCase() === 'ADMIN') {
+                    taskCandidates.push({ url: '/tasks', p: { ...dateParams, scope: 'org' } });
+                }
+            } else if (isCFO || user?.role?.toUpperCase() === 'ADMIN') {
+                taskCandidates.push({ url: '/tasks', p: { ...dateParams, scope: 'org' } });
+                taskCandidates.push({ url: '/tasks', p: { ...dateParams, scope: 'department' } });
+            } else {
+                taskCandidates.push({ url: '/tasks', p: { ...dateParams, scope: 'department' } });
+            }
 
             // Sequential: stop on first candidate that returns rows
             for (const cand of taskCandidates) {
@@ -440,18 +477,30 @@ const PerformanceDashboard = () => {
                     const rows = res.data?.data || res.data || [];
                     if (Array.isArray(rows) && rows.length > 0) {
                         // ── Client-side Filter Safeguard ──
+                        const deptObj = departments.find(d => String(d.department_id || d.id) === String(currentDept));
+                        const deptName = (deptObj?.name || deptObj?.department_name || '').toLowerCase();
+
                         tasks = rows.filter(t => {
+                            // 1. Date Filter
                             const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date || t.day;
-                            if (!dateStr) return true; // Keep if no date found (err on side of inclusion)
-                            
-                            try {
-                                const taskDate = new Date(dateStr).toISOString().split('T')[0];
-                                return taskDate >= safeFrom && taskDate <= safeTo;
-                            } catch (e) {
-                                return true;
+                            if (dateStr) {
+                                try {
+                                    const taskDate = new Date(dateStr).toISOString().split('T')[0];
+                                    if (taskDate < safeFrom || taskDate > safeTo) return false;
+                                } catch (e) {}
                             }
+
+                            // 2. Department Filter (only if we got 'org' scope but wanted 'department')
+                            if (currentDept && cand.p.scope === 'org') {
+                                const tDeptId = String(t.department_id || '');
+                                const tDeptName = (t.department_name || t.department || '').toLowerCase();
+                                if (tDeptId && tDeptId !== currentDept) return false;
+                                if (!tDeptId && deptName && tDeptName && !tDeptName.includes(deptName) && !deptName.includes(tDeptName)) return false;
+                            }
+                            
+                            return true;
                         });
-                        break;
+                        if (tasks.length > 0) break;
                     }
                 } catch (err) {
                     console.warn(`[PerformanceDashboard] Task candidate failed (${cand.url}):`, err?.message);
@@ -501,7 +550,23 @@ const PerformanceDashboard = () => {
                     });
                 }
             });
-            const unionTeam = Array.from(idMap.values()).filter(e => (e.emp_id || e.id));
+            const deptObj = departments.find(d => String(d.department_id || d.id) === String(currentDept));
+            const deptName = (deptObj?.name || deptObj?.department_name || '').toLowerCase();
+
+            const unionTeam = Array.from(idMap.values()).filter(e => {
+                if (!e.emp_id && !e.id) return false;
+                if (!currentDept) return true;
+                
+                const eDeptId = String(e.department_id || '');
+                const eDeptName = (e.department_name || e.department || '').toLowerCase();
+                
+                if (eDeptId && eDeptId === currentDept) return true;
+                if (deptName && eDeptName && (eDeptName.includes(deptName) || deptName.includes(eDeptName))) return true;
+                
+                // If a specific department is selected, do NOT keep people with missing department info
+                // This prevents department leakage in the performance grid.
+                return false;
+            });
 
             const mergedPerf = unionTeam.map(emp => ({
                 emp_id: emp.emp_id || emp.id, name: emp.name, role: emp.role || 'Contributor',
@@ -534,7 +599,6 @@ const PerformanceDashboard = () => {
             const localHasTeam = (perfResults[0].status === 'fulfilled' && (perfResults[0].value.data?.data || perfResults[0].value.data || []).length > 0) || mergedPerf.length > 0;
 
             if (tasks.length > 0 && (!localHasSummary || !localHasTrends || !localHasTeam)) {
-                console.log("ManagerDashboard - Insufficient API metrics (local check), fully rebuilding from task list...", tasks.length);
                 const deptsToUse = summaryResults[1].status === 'fulfilled' ? (summaryResults[1].value.data?.data || summaryResults[1].value.data || []) : [];
                 aggregateFallbackData(tasks, allEmpBase, deptsToUse);
             }
@@ -599,19 +663,33 @@ const PerformanceDashboard = () => {
 
             const rolePath = isCFO ? 'cfo' : (user?.role?.toLowerCase() || 'manager');
 
-            // Build candidate list.
-            // The backend requires department_id for CFO on the manager endpoint.
-            // Manager fallback only included when a specific dept is already selected.
-            const candidates = [
-                {
-                    ep: format === 'pdf' ? `/reports/${rolePath}/export-pdf` : `/reports/${rolePath}/export-excel`,
-                    params: { from_date: safeFrom, to_date: safeTo, ...(depId ? { department_id: depId } : {}) }
-                },
-                ...(depId ? [{
+            const candidates = [];
+            if (!depId) {
+                // General Org-wide report for CFO
+                candidates.push({
+                    ep: format === 'pdf' ? '/reports/cfo/export-pdf' : '/reports/cfo/export-excel',
+                    params: { from_date: safeFrom, to_date: safeTo }
+                });
+            } else {
+                // Department-specific report
+                // Priority 1: CFO-scoped department report (if exists)
+                candidates.push({
+                    ep: format === 'pdf' ? '/reports/cfo/export-pdf' : '/reports/cfo/export-excel',
+                    params: { from_date: safeFrom, to_date: safeTo, department_id: depId }
+                });
+                // Priority 2: Manager-scoped department report (high likelihood of success for a specific dept)
+                candidates.push({
                     ep: format === 'pdf' ? '/reports/manager/export-pdf' : '/reports/manager/export-excel',
                     params: { from_date: safeFrom, to_date: safeTo, department_id: depId }
-                }] : []),
-            ];
+                });
+            }
+
+            // Final fallback to generic org report
+            candidates.push({
+                ep: format === 'pdf' ? `/reports/${rolePath}/export-pdf` : `/reports/${rolePath}/export-excel`,
+                params: { from_date: safeFrom, to_date: safeTo }
+            });
+
             const seen = new Set();
             const unique = candidates.filter(c => seen.has(c.ep) ? false : (seen.add(c.ep), true));
 
@@ -620,6 +698,8 @@ const PerformanceDashboard = () => {
             for (const { ep, params } of unique) {
                 try {
                     const res = await api.get(ep, { params, responseType: 'blob' });
+
+                    const ext = format === 'excel' ? 'xlsx' : 'pdf';
 
                     // check if the response is actually JSON (masquerading as a blob)
                     // This happens if the backend generates a presigned URL instead of streaming
@@ -635,7 +715,12 @@ const PerformanceDashboard = () => {
                             // If it's a presigned URL, use it!
                             const downloadUrl = json.download_url || json.data?.download_url;
                             if (downloadUrl) {
-                                window.open(downloadUrl, '_blank');
+                                const a = document.createElement('a');
+                                a.href = downloadUrl;
+                                a.download = `performance_report_${safeFrom}_${safeTo}.${ext}`;
+                                document.body.appendChild(a);
+                                a.click();
+                                a.remove();
                                 toast.success('Download started', { id: tid });
                                 return;
                             }
@@ -646,14 +731,13 @@ const PerformanceDashboard = () => {
                         }
                     }
 
-                    const ext = format === 'excel' ? 'xlsx' : 'pdf';
                     const contentType = res.headers['content-type'] ||
                         (format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
                     const blob = new Blob([res.data], { type: contentType });
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `report_${safeFrom}_${safeTo}.${ext}`;
+                    a.download = `performance_report_${safeFrom}_${safeTo}.${ext}`;
                     document.body.appendChild(a);
                     a.click();
                     a.remove();
@@ -707,14 +791,26 @@ const PerformanceDashboard = () => {
             const res = await api.get('/tasks', { params });
             const rawTks = res.data?.data || res.data || [];
             
+            const deptObj = departments.find(d => String(d.department_id || d.id) === String(selectedDept));
+            const deptName = (deptObj?.name || deptObj?.department_name || '').toLowerCase();
+
             // Client-side Filter Safeguard
             const tks = rawTks.filter(t => {
                 const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date || t.day;
-                if (!dateStr) return true;
-                try {
-                    const taskDate = new Date(dateStr).toISOString().split('T')[0];
-                    return taskDate >= sf && taskDate <= st;
-                } catch { return true; }
+                if (dateStr) {
+                    try {
+                        const taskDate = new Date(dateStr).toISOString().split('T')[0];
+                        if (taskDate < sf || taskDate > st) return false;
+                    } catch { }
+                }
+
+                if (hasDept) {
+                    const tDeptId = String(t.department_id || '');
+                    const tDeptName = (t.department_name || t.department || '').toLowerCase();
+                    if (tDeptId && tDeptId !== String(selectedDept)) return false;
+                    if (!tDeptId && deptName && tDeptName && !tDeptName.includes(deptName) && !deptName.includes(tDeptName)) return false;
+                }
+                return true;
             });
             
             const empMap = {};
@@ -1100,7 +1196,7 @@ const PerformanceDashboard = () => {
                     </div>
                     {/* PieChart — use fixed pixel dimensions instead of aspect to avoid -1 warning */}
                     <div className="relative w-48 h-48 mx-auto">
-                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                        <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
                             <PieChart>
                                 <Pie
                                     data={orgStatusPie}
