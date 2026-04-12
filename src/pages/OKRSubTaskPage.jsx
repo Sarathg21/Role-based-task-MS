@@ -167,7 +167,16 @@ const OKRSubTaskPage = () => {
                 const isRecurring = !!(t.recurring_task_id || t.recurring_id || t.automation_id);
                 // If it has no parent_task_id, it is a root task (objective candidate)
                 const hasNoParent = !t.parent_task_id && !t.parent_id;
-                return hasNoParent && (isParentByFlag || isRecurring);
+
+                // ── Date Filter (Inclusive) ──
+                const cDate = t.assigned_at || t.assigned_date || t.created_at || t.date;
+                const dDate = t.due_date || t.end_date;
+                const cKey = cDate ? String(cDate).slice(0, 10) : null;
+                const dKey = dDate ? String(dDate).slice(0, 10) : null;
+                const isWithin = (k) => k && k >= filters.from_date && k <= filters.to_date;
+                const dateMatch = isWithin(cKey) || isWithin(dKey);
+
+                return hasNoParent && (isParentByFlag || isRecurring) && dateMatch;
             });
 
             console.log('[OKR-Sub] objectives report count:', list.length, '| manual parents from tasks:', manualParents.length);

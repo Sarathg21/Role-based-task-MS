@@ -331,7 +331,8 @@ const TeamTasksPage = () => {
         severity: '',
         from_date: '',
         to_date: '',
-        assigned_to_emp_id: ''
+        assigned_to_emp_id: '',
+        task_id: ''
     });
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0 });
     const [metrics, setMetrics] = useState({ activeTasks: 0, inProgress: 0, pendingSubmission: 0, overdue: 0 });
@@ -496,6 +497,7 @@ const TeamTasksPage = () => {
         }
 
         if (taskIdParam) {
+            setFilters(prev => ({ ...prev, task_id: taskIdParam }));
             setHighlightedTaskId(taskIdParam);
             const tryOpen = (attempts = 0) => {
                 setTasks(currentTasks => {

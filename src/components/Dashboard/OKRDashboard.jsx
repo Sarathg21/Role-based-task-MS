@@ -399,20 +399,24 @@ const OKRDashboard = () => {
                 if (!id || id === 'undefined' || seenIds.has(id)) return false;
                 if ((t.status || '').toUpperCase() === 'CANCELLED') return false;
 
+                // ── Date Filter (Inclusive - matches Manager Performance logic) ──
+                const creationDate = t.assigned_at || t.assigned_date || t.created_at || t.date;
+                const dueDate = t.due_date || t.end_date;
+                const cKey = creationDate ? String(creationDate).slice(0, 10) : null;
+                const dKey = dueDate ? String(dueDate).slice(0, 10) : null;
+                
+                // A task is relevant if it was assigned within the window OR is due within the window
+                const isWithinRange = (k) => k && k >= safeFrom && k <= safeTo;
+                if (!isWithinRange(cKey) && !isWithinRange(dKey)) return false;
+
                 // Client-side Department Scoping (Relaxed)
                 const filterDept = filters.department && filters.department !== 'All' ? filters.department : null;
                 if (filterDept) {
                     const tDept = getDeptNameHelper(t);
                     const matchesName = tDept ? (tDept.toLowerCase().includes(filterDept.toLowerCase()) || filterDept.toLowerCase().includes(tDept.toLowerCase())) : false;
-                    const matchesId = String(t.department_id || t.dept_id || '').toLowerCase() === filterDept.toLowerCase();
+                    const matchesId = String(t.department_id || t.dept_id || t.owner_dept_id || '').toLowerCase() === filterDept.toLowerCase();
                     
-                    // If the API already filtered by dept (currentParams), and we got results,
-                    // don't drop them just because of minor naming mismatches.
-                    if (isCFO && !matchesName && !matchesId) {
-                        // Trust the API result more than the client-side name check
-                    } else if (!matchesName && !matchesId) {
-                        return false;
-                    }
+                    if (!matchesName && !matchesId) return false;
                 }
 
                 seenIds.add(id);
@@ -1193,11 +1197,19 @@ const OKRDashboard = () => {
                                             {row.risk || 'Low'}
                                         </span>
                                     </td>
+                                    <td className="py-6 px-6 text-right">
+                                        <div 
+                                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-50 text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm group-hover:shadow-indigo-200"
+                                            title="View in Team Tasks"
+                                        >
+                                            <ArrowRight size={16} />
+                                        </div>
+                                    </td>
                                 </tr>
                                 );
                             }) : (
                                 <tr>
-                                    <td colSpan="8" className="py-20 text-center">
+                                    <td colSpan="9" className="py-20 text-center">
                                         <div className="flex flex-col items-center justify-center gap-4">
                                             <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center">
                                                 <Target size={32} className="text-slate-200" />
