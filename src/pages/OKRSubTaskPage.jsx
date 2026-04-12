@@ -144,12 +144,13 @@ const OKRSubTaskPage = () => {
             // Priority 2: 90-day "Reality Check" (ensures we see data from DB)
             const wideParams = { from_date: '2026-01-01', to_date: today };
 
-            const [overviewRes, listRes, summaryRes, wideListRes] = await Promise.all([
+            const [overviewRes, listRes, summaryRes, wideListRes, tasksRes] = await Promise.all([
                 api.get('/reports/cfo/okr/overview', { params }).catch(() => ({ data: {} })),
                 api.get('/reports/cfo/okr/objectives', { params }).catch(() => ({ data: [] })),
                 api.get('/dashboard/cfo', { params }).catch(() => ({ data: {} })),
                 // Fallback for the dropdown list – always get at least something if db has it
-                api.get('/reports/cfo/okr/objectives', { params: wideParams }).catch(() => ({ data: [] }))
+                api.get('/reports/cfo/okr/objectives', { params: wideParams }).catch(() => ({ data: [] })),
+                api.get('/tasks', { params: { limit: 150, scope: (userRole === 'CFO' || userRole === 'ADMIN') ? 'org' : 'department' } }).catch(() => ({ data: [] }))
             ]);
 
             const globalData  = overviewRes.data?.data || overviewRes.data || {};
@@ -160,7 +161,16 @@ const OKRSubTaskPage = () => {
             const wideList = extractArr(wideListRes.data);
             const list = rawList.length > 0 ? rawList : wideList;
 
-            console.log('[OKR-Sub] objectives list raw count:', list.length, '| filtered was:', rawList.length);
+            const allTasks = extractArr(tasksRes.data);
+            const manualParents = allTasks.filter(t => {
+                const isParentByFlag = t.is_parent || t.task_type === 'PARENT' || (t.subtask_count && t.subtask_count > 0);
+                const isRecurring = !!(t.recurring_task_id || t.recurring_id || t.automation_id);
+                // If it has no parent_task_id, it is a root task (objective candidate)
+                const hasNoParent = !t.parent_task_id && !t.parent_id;
+                return hasNoParent && (isParentByFlag || isRecurring);
+            });
+
+            console.log('[OKR-Sub] objectives report count:', list.length, '| manual parents from tasks:', manualParents.length);
 
             const dropdownList = list
                 .map(item => ({
@@ -169,10 +179,24 @@ const OKRSubTaskPage = () => {
                     total_subtasks:     cleanNum(item.total_subtasks ?? item.sub_total ?? item.subtask_count ?? item.total_tasks),
                     completed_subtasks: cleanNum(item.completed_subtasks ?? item.sub_comp ?? item.completed_count ?? item.completed_tasks),
                     submitted_subtasks: cleanNum(item.submitted_subtasks ?? item.submitted_count),
-                }))
-                .filter(i => i.parent_task_id != null && i.objective_title);
+                }));
 
-            setObjectivesList(dropdownList);
+            // Merge manual parents if not already in list
+            manualParents.forEach(mp => {
+                const mid = mp.id || mp.task_id;
+                if (!dropdownList.some(o => String(o.parent_task_id) === String(mid))) {
+                    dropdownList.push({
+                        parent_task_id: mid,
+                        objective_title: mp.title || mp.task_name || 'Strategic Objective',
+                        total_subtasks: cleanNum(mp.subtask_count || (Array.isArray(mp.subtasks) ? mp.subtasks.length : 0)),
+                        completed_subtasks: 0, // Placeholder, will be updated by fetchDrilldown
+                        submitted_subtasks: 0
+                    });
+                }
+            });
+
+            const finalDropdown = dropdownList.filter(i => i.parent_task_id != null && i.objective_title);
+            setObjectivesList(finalDropdown);
 
             /* global KPI calculation with fallbacks */
             const listTotal     = dropdownList.reduce((a, i) => a + i.total_subtasks, 0);

@@ -60,17 +60,20 @@ const TaskDetailModal = ({ isOpen, onClose, task, currentUser }) => {
             const taskData = taskRes.data?.data || taskRes.data;
             
             if (taskData && typeof taskData === 'object' && !Array.isArray(taskData)) {
-                setFullTask(prev => ({
-                    ...prev,
-                    ...taskData,
-                    id: taskData.task_id || taskData.id || prev.id,
-                    department: taskData.department_name || taskData.department || prev.department,
-                    severity: taskData.priority || taskData.severity || prev.severity,
-                    employee_id: taskData.assigned_to_name || taskData.employee_name || taskData.employee?.name || taskData.assignee_name || taskData.assigned_to_emp_id || prev.assigneeName || prev.employee_id,
-                    assigned_by: taskData.assigned_by_name || taskData.assigned_by_emp_id || prev.assignerName || prev.assigned_by,
-                    title: taskData.title || taskData.task_title || taskData.name || prev.title,
-                    description: taskData.description || taskData.task_description || prev.description
-                }));
+                setFullTask(prev => {
+                    const baseTask = prev || task || {};
+                    return {
+                        ...baseTask,
+                        ...taskData,
+                        id: taskData.task_id || taskData.id || baseTask.id,
+                        department: taskData.department_name || taskData.department || baseTask.department,
+                        severity: taskData.priority || taskData.severity || baseTask.severity,
+                        employee_id: taskData.assigned_to_name || taskData.employee_name || taskData.employee?.name || taskData.assignee_name || taskData.assigned_to_emp_id || baseTask.assigneeName || baseTask.employee_id,
+                        assigned_by: taskData.assigned_by_name || taskData.assigned_by_emp_id || baseTask.assignerName || baseTask.assigned_by,
+                        title: taskData.title || taskData.task_title || taskData.name || baseTask.title,
+                        description: taskData.description || taskData.task_description || baseTask.description
+                    };
+                });
             }
 
             // Always fetch attachments and history concurrently for immediate availability

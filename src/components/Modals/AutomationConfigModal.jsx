@@ -19,7 +19,9 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
         status: 'ACTIVE',
         department_id: '',
         assigned_to_emp_id: '',
-        start_date: new Date().toISOString().slice(0, 10)
+        priority: 'MEDIUM',
+        start_date: new Date().toISOString().slice(0, 10),
+        end_date: ''
     });
     const [subtasks, setSubtasks] = useState([]);
     const [departments, setDepartments] = useState([]);
@@ -41,7 +43,9 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                 status: template.status || 'ACTIVE',
                 department_id: template.department_id || template.dept_id || '',
                 assigned_to_emp_id: template.assigned_to_emp_id || template.assigned_to || '',
-                start_date: template.start_date || new Date().toISOString().slice(0, 10)
+                priority: template.priority || 'MEDIUM',
+                start_date: template.start_date || new Date().toISOString().slice(0, 10),
+                end_date: template.end_date || ''
             });
             fetchSubtasks(rid);
             fetchMetadata();
@@ -301,8 +305,10 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                 department_id: formData.department_id,
                 assigned_to_emp_id: formData.assigned_to_emp_id,
                 assigned_by_emp_id: currentEmpId,
+                priority: formData.priority,
                 interval_days: 1,
                 start_date: formData.start_date || new Date().toISOString().slice(0, 10),
+                end_date: formData.end_date || null,
                 weekly_day: formData.frequency === 'WEEKLY' ? weeklyDayInt : null,
                 monthly_day: formData.frequency === 'MONTHLY' ? (parseInt(formData.monthly_day, 10) || 1) : null,
                 yearly_month: formData.frequency === 'YEARLY' ? (parseInt(formData.yearly_month, 10) || 1) : null,
@@ -488,25 +494,48 @@ const AutomationConfigModal = ({ isOpen, onClose, template, onSave }) => {
                             </div>
                         )}
 
-                        <div className="grid grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Start Date</label>
+                                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Priority Level</label>
+                                <select 
+                                    className="w-full px-5 py-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-bold transition-all text-sm"
+                                    value={formData.priority}
+                                    onChange={(e) => setFormData({...formData, priority: e.target.value})}
+                                >
+                                    <option value="LOW">Low Priority</option>
+                                    <option value="MEDIUM">Medium Priority</option>
+                                    <option value="HIGH">High Priority</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Task Goal (Description)</label>
+                                <textarea 
+                                    rows="2"
+                                    className="w-full px-5 py-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-medium transition-all text-sm"
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                                    placeholder="High-level requirements..."
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Effective From</label>
                                 <input 
                                     type="date"
-                                    required
                                     className="w-full px-5 py-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-bold transition-all text-sm"
                                     value={formData.start_date}
                                     onChange={(e) => setFormData({...formData, start_date: e.target.value})}
                                 />
                             </div>
                             <div>
-                                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Task Goal (Description)</label>
-                                <textarea 
-                                    rows="3"
-                                    className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-medium transition-all text-sm"
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({...formData, description: e.target.value})}
-                                    placeholder="Define the primary objective and high-level requirements..."
+                                <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Effective Until (Optional)</label>
+                                <input 
+                                    type="date"
+                                    className="w-full px-5 py-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-300 font-bold transition-all text-sm"
+                                    value={formData.end_date}
+                                    onChange={(e) => setFormData({...formData, end_date: e.target.value})}
                                 />
                             </div>
                         </div>

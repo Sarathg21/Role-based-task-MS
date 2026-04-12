@@ -9,6 +9,7 @@ import {
     ListTodo, Info, Edit2, Check
 } from 'lucide-react';
 import AutomationConfigModal from '../components/Modals/AutomationConfigModal';
+import RunForDateModal from '../components/Modals/RunForDateModal';
 import { useAuth } from '../context/AuthContext';
 
 const RecurringTasksPage = () => {
@@ -19,6 +20,7 @@ const RecurringTasksPage = () => {
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(null);
     const [configModal, setConfigModal] = useState({ isOpen: false, template: null });
+    const [runModal, setRunModal] = useState({ isOpen: false, template: null });
     const [selectedTemplateId, setSelectedTemplateId] = useState(null);
     const [filterStatus, setFilterStatus] = useState('ALL');
     const [searchQuery, setSearchQuery] = useState('');
@@ -29,34 +31,7 @@ const RecurringTasksPage = () => {
     const [expandedRowId, setExpandedRowId] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
 
-    const handleRunRecurring = async () => {
-        if (!window.confirm("Run the recurring task generator for today? This will manually trigger the generation of all scheduled tasks.")) return;
-        
-        setIsRunning(true);
-        const toastId = toast.loading("Executing recurring task generator...");
-        try {
-            const today = new Date().toISOString().slice(0, 10);
-            const res = await api.post('/recurring-tasks/run', { run_date: today });
-            const { generated_count, skipped_count } = res.data;
-            
-            toast.success(
-                <div className="flex flex-col gap-1">
-                    <p className="font-bold">Generator Execution Complete</p>
-                    <p className="text-xs">{generated_count} tasks generated, {skipped_count} skipped.</p>
-                </div>, 
-                { id: toastId, duration: 5000 }
-            );
-            
-            // Refresh the OKR dashboard or relevant lists if needed
-            // But here we just refresh the local template list to show status updates if any
-            fetchInitial(); 
-        } catch (err) {
-            console.error("Manual trigger failed", err);
-            toast.error("Failed to run recurring tasks: " + (err.response?.data?.detail || err.message), { id: toastId });
-        } finally {
-            setIsRunning(false);
-        }
-    };
+    // Removed: old handleRunRecurring – replaced by RunForDateModal
 
     // Filter templates based on status, search, and frequency
     const filteredTemplates = useMemo(() => {
@@ -284,49 +259,7 @@ const RecurringTasksPage = () => {
         return freq || 'Daily';
     };
 
-    const handleRunRecurringTasks = async () => {
-        if (!window.confirm("Manually trigger task generation for today? This will execute the automation engine now.")) return;
-        
-        const tid = toast.loading('Executing automation engine...', { duration: 10000 });
-        setIsRunning(true);
-        try {
-            const today = new Date().toISOString().slice(0, 10);
-            const res = await api.post('/recurring-tasks/run', { run_date: today });
-            const data = res.data || {};
-            const generated = data.generated_count ?? 0;
-            const skipped = data.skipped_count ?? 0;
-            const taskList = data.generated_tasks || [];
-
-            toast.success(
-                <div className="flex flex-col gap-1 items-start text-left">
-                    <p className="font-black text-[13px]">Automation Complete</p>
-                    <p className="text-[11px] font-medium opacity-90 leading-tight">
-                        <span className="text-emerald-300 font-bold">{generated} tasks</span> created successfully.<br/>
-                        <span className="text-orange-200 font-bold">{skipped} tasks</span> were skipped/duplicate.
-                    </p>
-                    {taskList.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                            {taskList.slice(0, 3).map((t, i) => (
-                                <span key={i} className="px-1.5 py-0.5 bg-white/10 rounded text-[9px] font-bold">
-                                    {t.title || t}
-                                </span>
-                            ))}
-                            {taskList.length > 3 && <span className="text-[9px] opacity-60">+{taskList.length - 3} more</span>}
-                        </div>
-                    )}
-                </div>, 
-                { id: tid, duration: 6000 }
-            );
-            
-            // Re-fetch everything to show the updated state (last_run, etc)
-            fetchInitial();
-        } catch (err) {
-            console.error("Manual trigger failed", err);
-            toast.error('Failed to execute recurring tasks engine: ' + (err.response?.data?.detail || err.message), { id: tid });
-        } finally {
-            setIsRunning(false);
-        }
-    };
+    // Removed: old handleRunRecurringTasks – replaced by RunForDateModal
 
 
     return (
@@ -342,11 +275,11 @@ const RecurringTasksPage = () => {
                 <div className="flex items-center gap-4">
                     {isAdminOrCFO && (
                         <button 
-                            onClick={handleRunRecurringTasks}
+                            onClick={() => setRunModal({ isOpen: true, template: null })}
                             className="bg-white text-indigo-600 px-6 py-3.5 rounded-2xl font-black text-[13px] shadow-sm hover:shadow-md border border-indigo-100/50 hover:bg-indigo-50 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2"
-                            title="Manually trigger recurring tasks engine for today"
+                            title="Manually run recurring task generation for a chosen date"
                         >
-                            <Play size={16} strokeWidth={3} className="text-emerald-500" /> Run Recurring Tasks
+                            <Play size={16} strokeWidth={3} className="text-emerald-500" /> Run for Date
                         </button>
                     )}
                     <button 
@@ -447,6 +380,7 @@ const RecurringTasksPage = () => {
                             <tr>
                                 <th className="px-6 py-5">ID</th>
                                 <th className="px-10 py-5">Template</th>
+                                <th className="px-8 py-5">Department</th>
                                 <th className="px-8 py-5">Assigned By</th>
                                 <th className="px-8 py-5">Frequency</th>
                                 <th className="px-8 py-5">Status</th>
@@ -499,6 +433,12 @@ const RecurringTasksPage = () => {
                                                 </td>
                                                 <td className="px-8 py-5">
                                                     <div className="flex flex-col">
+                                                        <span className="text-[13px] font-bold text-slate-700 truncate max-w-[150px]">{t.department_name || t.dept_name || 'Accounts Payable'}</span>
+                                                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-0.5">Focus Dept</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <div className="flex flex-col">
                                                         <span className="text-[13px] font-bold text-slate-700">{t.assigned_by_name || 'System Admin'}</span>
                                                         <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-0.5">Executor</span>
                                                     </div>
@@ -527,7 +467,17 @@ const RecurringTasksPage = () => {
                                                     {rowMenuId === id && (
                                                         <>
                                                             <div className="fixed inset-0 z-40" onClick={() => setRowMenuId(null)} />
-                                                            <div className="absolute top-full right-10 mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                                                            <div className="absolute top-full right-10 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                                                                {/* Run for Date — per template */}
+                                                                {isAdminOrCFO && (
+                                                                    <button 
+                                                                        onClick={() => { setRunModal({ isOpen: true, template: t }); setRowMenuId(null); }}
+                                                                        className="w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black text-indigo-600 uppercase tracking-widest hover:bg-indigo-50 transition-all mb-0.5 flex items-center gap-3"
+                                                                    >
+                                                                        <Calendar size={14} />
+                                                                        Run for Date
+                                                                    </button>
+                                                                )}
                                                                 <button 
                                                                     onClick={() => { handleToggleStatus(t); setRowMenuId(null); }}
                                                                     className={`w-full text-left px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all mb-0.5 flex items-center gap-3 ${
@@ -621,13 +571,24 @@ const RecurringTasksPage = () => {
             {/* ── SELECTION DETAILS SECTION ── */}
             {selectedTemplate && (
                 <div className="animate-in slide-in-from-bottom-6 duration-700">
-                    <h2 className="text-[14px] font-black text-slate-500 mb-6 flex items-center gap-3 flex-wrap">
-                        Selected Template:
-                        <span className="text-indigo-600 uppercase tracking-tight">{selectedTemplate.title}</span>
-                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white rounded-full text-[10px] font-black font-mono tracking-widest shadow-sm">
-                            RT-{selectedTemplate.id || selectedTemplate.recurring_id}
-                        </span>
-                    </h2>
+                    <div className="flex items-center gap-4 flex-wrap mb-6">
+                        <h2 className="text-[14px] font-black text-slate-500 flex items-center gap-3 flex-wrap">
+                            Selected Template:
+                            <span className="text-indigo-600 uppercase tracking-tight">{selectedTemplate.title}</span>
+                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white rounded-full text-[10px] font-black font-mono tracking-widest shadow-sm">
+                                RT-{selectedTemplate.id || selectedTemplate.recurring_id}
+                            </span>
+                        </h2>
+                        {isAdminOrCFO && (
+                            <button
+                                onClick={() => setRunModal({ isOpen: true, template: selectedTemplate })}
+                                className="ml-auto flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 transition-all"
+                                title="Run this template for a specific date"
+                            >
+                                <Play size={13} strokeWidth={3} /> Run for Date
+                            </button>
+                        )}
+                    </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         {/* Template Info Card */}
@@ -769,6 +730,15 @@ const RecurringTasksPage = () => {
                         fetchSubtasks(uid); // Re-fetch to ensure subtasks are synced
                     }
                 }}
+            />
+
+            {/* ── Run for Date Modal ── */}
+            <RunForDateModal
+                isOpen={runModal.isOpen}
+                onClose={() => setRunModal({ isOpen: false, template: null })}
+                template={runModal.template}
+                templates={templates}
+                onSuccess={fetchInitial}
             />
         </div>
     );

@@ -1,12 +1,12 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import {
     Search, RefreshCw, Download, Plus, ChevronRight,
     Paperclip, CheckCircle2, RotateCcw,
     XCircle, User, Users, Calendar, Layout, ArrowRight,
-    ClipboardCheck, Play, Upload, AlertTriangle
+    ClipboardCheck, Play, Upload, AlertTriangle, Target
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -109,6 +109,7 @@ const TaskRow = ({
     taskTitles = {},
     user,
     onViewDetails,
+    isHighlighted = false,
 }) => {
     if (!task) return null;
 
@@ -140,7 +141,12 @@ const TaskRow = ({
     return (
         <>
             <tr
-                className="group hover:bg-violet-50/20 transition-all duration-300"
+                ref={isHighlighted ? (el => { if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400); }) : null}
+                className={`group hover:bg-violet-50/20 transition-all duration-300 ${
+                    isHighlighted
+                        ? 'bg-indigo-50/70 border-l-4 border-l-indigo-500 shadow-[inset_0_0_0_1px_rgba(99,102,241,0.15)]'
+                        : 'border-l-4 border-l-transparent'
+                }`}
                 role={onViewDetails ? 'button' : undefined}
                 tabIndex={onViewDetails ? 0 : undefined}
                 onClick={onViewDetails ? handleRowClick : undefined}
@@ -310,6 +316,7 @@ const TaskRow = ({
 
 const TeamTasksPage = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { user } = useAuth();
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -333,6 +340,7 @@ const TeamTasksPage = () => {
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState(null);
     const [detailModalOpen, setDetailModalOpen] = useState(false);
+    const [highlightedTaskId, setHighlightedTaskId] = useState(null);
 
     const taskTitles = useMemo(() => {
         const map = {};
@@ -477,6 +485,39 @@ const TeamTasksPage = () => {
         api.get('/employees').then(res => setAllEmployees(res.data?.data || res.data || []));
     }, []);
 
+    // Sync URL params → filters (e.g. when navigated from Objective Progress Matrix)
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const searchParam = params.get('search');
+        const taskIdParam = params.get('task_id');
+
+        if (searchParam) {
+            setFilters(prev => ({ ...prev, search: decodeURIComponent(searchParam) }));
+        }
+
+        if (taskIdParam) {
+            setHighlightedTaskId(taskIdParam);
+            const tryOpen = (attempts = 0) => {
+                setTasks(currentTasks => {
+                    const found = currentTasks.find(t =>
+                        String(t.task_id || t.id) === String(taskIdParam)
+                    );
+                    if (found) {
+                        const id = found.id ?? found.task_id;
+                        setSelectedTask({ ...found, id });
+                        setDetailModalOpen(true);
+                    } else if (attempts < 8) {
+                        // Retry up to 8 times (4 seconds) while tasks are loading
+                        setTimeout(() => tryOpen(attempts + 1), 500);
+                    }
+                    return currentTasks; // no-op state update, just for access
+                });
+            };
+            // Start trying after brief delay for initial load
+            setTimeout(() => tryOpen(), 800);
+        }
+    }, [location.search]);
+
     useEffect(() => {
         const timer = setTimeout(() => { fetchTasks(1); }, 500);
         return () => clearTimeout(timer);
@@ -571,6 +612,30 @@ const TeamTasksPage = () => {
 
     return (
         <div className="p-3 lg:p-5 w-full space-y-8 animate-in fade-in duration-700 text-left">
+            {/* ── OBJECTIVE FILTER BANNER ── */}
+            {new URLSearchParams(location.search).get('from_obj') && filters.search && (
+                <div className="flex items-center justify-between gap-4 px-6 py-3.5 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-200 animate-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                            <Target size={14} className="text-white" />
+                        </div>
+                        <div>
+                            <p className="text-[11px] font-black text-white/70 uppercase tracking-widest leading-none mb-0.5">Viewing tasks for objective</p>
+                            <p className="text-[14px] font-black text-white leading-tight">{filters.search}</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => {
+                                setFilters(prev => ({ ...prev, search: '' }));
+                                setHighlightedTaskId(null);
+                                navigate('/tasks/team', { replace: true });
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-[11px] font-black uppercase tracking-widest rounded-xl transition-all"
+                    >
+                        <XCircle size={13} strokeWidth={3} /> Clear Filter
+                    </button>
+                </div>
+            )}
             {/* ── PREMIUM HEADER SECTION ── */}
             <div className="relative overflow-hidden bg-[#1E1B4B] rounded-[2.5rem] border border-white/10 shadow-xl shadow-indigo-900/20 p-8 group transition-all duration-700 hover:shadow-2xl hover:shadow-indigo-500/10">
                 {/* Decorative Accents */}
@@ -721,6 +786,7 @@ const TeamTasksPage = () => {
                                     taskTitles={taskTitles}
                                     user={user}
                                     onViewDetails={openDetailModal}
+                                    isHighlighted={!!highlightedTaskId && String(task?.task_id || task?.id) === String(highlightedTaskId)}
                                 />
                             ))}
                         </tbody>

@@ -83,17 +83,19 @@ const PerformanceDashboard = () => {
         manager_score_current: null,
         manager_personal_score_current: null,
         manager_score_delta_percent: null,
+        team_score_prev: null,
+        manager_score_prev: null,
+        personal_score_prev: null
     });
     const [trends, setTrends] = useState([]);
     const [teamPerformance, setTeamPerformance] = useState([]);
     const [employeeRisk, setEmployeeRisk] = useState([]);
     const [deptPerformance, setDeptPerformance] = useState([]); // New state for CFO
     const [deptMetrics, setDeptMetrics] = useState({
-        total_tasks: 0,
-        completed_tasks: 0,
-        overdue_tasks: 0,
         active_tasks: 0,
-        completion_pct: 0
+        completion_pct: 0,
+        in_progress: 0,
+        open_pending: 0
     });
     const [loading, setLoading] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -183,9 +185,13 @@ const PerformanceDashboard = () => {
         
         setSummary(prev => ({
             ...prev,
-            ...metrics,
-            manager_score_current: targetManagerId ? managerOverall : (prev.manager_score_current || metrics.team_score_current),
-            manager_personal_score_current: targetManagerId ? personalScore : prev.manager_personal_score_current
+            team_tasks: metrics.team_tasks,
+            in_progress_tasks: metrics.in_progress_tasks,
+            pending_approval: metrics.pending_approval,
+            overdue_tasks: metrics.overdue_tasks,
+            team_score_current: (prev.team_score_current && prev.team_score_current > 0) ? prev.team_score_current : metrics.team_score_current,
+            manager_score_current: (prev.manager_score_current && prev.manager_score_current > 0) ? prev.manager_score_current : (targetManagerId ? managerOverall : (prev.manager_score_current || metrics.team_score_current)),
+            manager_personal_score_current: (prev.manager_personal_score_current && prev.manager_personal_score_current > 0) ? prev.manager_personal_score_current : (targetManagerId ? personalScore : prev.manager_personal_score_current)
         }));
 
         setDeptMetrics({
@@ -193,7 +199,9 @@ const PerformanceDashboard = () => {
             completed_tasks: done,
             overdue_tasks: overdueCount,
             active_tasks: total - done,
-            completion_pct: Math.round((done / (total || 1)) * 100)
+            in_progress: inProgress,
+            open_pending: total - done - overdueCount,
+            completion_pct: Number((done / (total || 1) * 100).toFixed(2))
         });
 
         // Use actual state values for fromDate/toDate
@@ -350,7 +358,9 @@ const PerformanceDashboard = () => {
         setDeptMetrics({
             total_tasks: total, completed_tasks: completed, submitted_tasks: pending, overdue_tasks: overdueCount,
             active_tasks: total - completed - tasks.filter(t => (t.status || '').toUpperCase() === 'CANCELLED').length,
-            completion_pct: Math.round((completed / (total || 1)) * 100)
+            in_progress: inProgress,
+            open_pending: total - completed - overdueCount,
+            completion_pct: Number((completed / (total || 1) * 100).toFixed(2))
         });
     }, [fromDate, toDate]);
 
@@ -380,9 +390,18 @@ const PerformanceDashboard = () => {
             const currentDept = (selectedDept && selectedDept !== 'all' && selectedDept !== 'undefined' && String(selectedDept).trim() !== '') ? selectedDept : '';
             if (currentDept) {
                 standardizedParams.department_id = currentDept;
+                standardizedParams.dept_id = currentDept;
+                standardizedParams.dep_id = currentDept;
+                standardizedParams.scope = 'department';
                 // Add department name if we can find it
                 const dObj = departments.find(d => String(d.department_id || d.id) === String(currentDept));
-                if (dObj) standardizedParams.department = dObj.name || dObj.department_name;
+                if (dObj) {
+                    const dName = dObj.name || dObj.department_name;
+                    standardizedParams.department = dName;
+                    standardizedParams.dept_name = dName;
+                }
+            } else if (isCFO) {
+                standardizedParams.scope = 'org';
             }
 
             const base = isCFO ? '/dashboard/cfo' : '/dashboard/manager';
@@ -427,6 +446,9 @@ const PerformanceDashboard = () => {
                     manager_score_current: merged.manager_score_current != null ? Number(merged.manager_score_current) : null,
                     manager_personal_score_current: merged.manager_personal_score_current != null ? Number(merged.manager_personal_score_current) : null,
                     manager_score_delta_percent: merged.manager_score_delta_percent != null ? Number(merged.manager_score_delta_percent) : null,
+                    team_score_prev: merged.team_score_prev != null ? Number(merged.team_score_prev) : (merged.prev_team_score != null ? Number(merged.prev_team_score) : null),
+                    manager_score_prev: merged.manager_score_prev != null ? Number(merged.manager_score_prev) : (merged.prev_manager_score != null ? Number(merged.prev_manager_score) : null),
+                    personal_score_prev: merged.personal_score_prev != null ? Number(merged.personal_score_prev) : (merged.prev_personal_score != null ? Number(merged.prev_personal_score) : null),
                 });
             }
 
@@ -481,14 +503,15 @@ const PerformanceDashboard = () => {
                         const deptName = (deptObj?.name || deptObj?.department_name || '').toLowerCase();
 
                         tasks = rows.filter(t => {
-                            // 1. Date Filter
-                            const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date || t.day;
-                            if (dateStr) {
-                                try {
-                                    const taskDate = new Date(dateStr).toISOString().split('T')[0];
-                                    if (taskDate < safeFrom || taskDate > safeTo) return false;
-                                } catch (e) {}
-                            }
+                            // 1. Date Filter (Inclusive)
+                            const creationDate = t.assigned_at || t.assigned_date || t.created_at || t.date || t.day;
+                            const dueDate = t.due_date || t.end_date;
+                            const cKey = creationDate ? String(creationDate).slice(0, 10) : null;
+                            const dKey = dueDate ? String(dueDate).slice(0, 10) : null;
+
+                            // A task is relevant if it was assigned/created within the window OR is due within the window
+                            const isWithinRange = (k) => k && k >= safeFrom && k <= safeTo;
+                            if (!isWithinRange(cKey) && !isWithinRange(dKey)) return false;
 
                             // 2. Department Filter (only if we got 'org' scope but wanted 'department')
                             if (currentDept && cand.p.scope === 'org') {
@@ -659,35 +682,60 @@ const PerformanceDashboard = () => {
         try {
             const safeFrom = (fromDate && fromDate.length === 10) ? fromDate : getFirstDayOfMonth();
             const safeTo   = (toDate   && toDate.length   === 10) ? toDate   : getToday();
-            const depId    = (!selectedDept || selectedDept === 'all' || selectedDept === '') ? undefined : selectedDept;
+            const depId    = (!selectedDept || selectedDept === 'all' || selectedDept === '' || selectedDept === 'undefined') ? undefined : selectedDept;
 
             const rolePath = isCFO ? 'cfo' : (user?.role?.toLowerCase() || 'manager');
 
+            const depObj = departments.find(d => String(d.department_id || d.id || d.dept_id) === String(depId));
+            const depName = depObj?.name || depObj?.department_name;
+
             const candidates = [];
-            if (!depId) {
+            
+            if (depId) {
+                // If a department is selected, try ALL possible endpoints with ALL possible department keys
+                // Attempt 1: Manager endpoint (specifically designed for department scopes)
+                candidates.push({
+                    ep: format === 'pdf' ? '/reports/manager/export-pdf' : '/reports/manager/export-excel',
+                    params: { 
+                        from_date: safeFrom, to_date: safeTo, 
+                        start_date: safeFrom, end_date: safeTo,
+                        department_id: depId, dept_id: depId, dep_id: depId,
+                        scope: 'department', department: depName, dept_name: depName
+                    }
+                });
+                // Attempt 2: CFO endpoint with filtering
+                candidates.push({
+                    ep: format === 'pdf' ? '/reports/cfo/export-pdf' : '/reports/cfo/export-excel',
+                    params: { 
+                        from_date: safeFrom, to_date: safeTo, 
+                        start_date: safeFrom, end_date: safeTo,
+                        department_id: depId, dept_id: depId, dep_id: depId,
+                        scope: 'department', department: depName, dept_name: depName
+                    }
+                });
+            } else {
                 // General Org-wide report for CFO
                 candidates.push({
                     ep: format === 'pdf' ? '/reports/cfo/export-pdf' : '/reports/cfo/export-excel',
-                    params: { from_date: safeFrom, to_date: safeTo }
-                });
-            } else {
-                // Department-specific report
-                // Priority 1: CFO-scoped department report (if exists)
-                candidates.push({
-                    ep: format === 'pdf' ? '/reports/cfo/export-pdf' : '/reports/cfo/export-excel',
-                    params: { from_date: safeFrom, to_date: safeTo, department_id: depId }
-                });
-                // Priority 2: Manager-scoped department report (high likelihood of success for a specific dept)
-                candidates.push({
-                    ep: format === 'pdf' ? '/reports/manager/export-pdf' : '/reports/manager/export-excel',
-                    params: { from_date: safeFrom, to_date: safeTo, department_id: depId }
+                    params: { 
+                        from_date: safeFrom, to_date: safeTo,
+                        start_date: safeFrom, end_date: safeTo,
+                        scope: 'org'
+                    }
                 });
             }
 
-            // Final fallback to generic org report
+            // Fallback: Use the user's role path but ENSURE department params are included if selected
             candidates.push({
                 ep: format === 'pdf' ? `/reports/${rolePath}/export-pdf` : `/reports/${rolePath}/export-excel`,
-                params: { from_date: safeFrom, to_date: safeTo }
+                params: { 
+                    from_date: safeFrom, to_date: safeTo,
+                    start_date: safeFrom, end_date: safeTo,
+                    ...(depId ? { 
+                        department_id: depId, dept_id: depId, dep_id: depId, 
+                        scope: 'department', department: depName, dept_name: depName 
+                    } : { scope: 'org' })
+                }
             });
 
             const seen = new Set();
@@ -786,7 +834,12 @@ const PerformanceDashboard = () => {
             const params = {
                 from_date: sf, to_date: st,
                 limit: 200,
-                ...(hasDept ? { department_id: selectedDept, scope: 'department' } : { scope: 'org' })
+                ...(hasDept ? { 
+                    department_id: selectedDept, 
+                    dept_id: selectedDept, 
+                    dep_id: selectedDept, 
+                    scope: 'department' 
+                } : { scope: 'org' })
             };
             const res = await api.get('/tasks', { params });
             const rawTks = res.data?.data || res.data || [];
@@ -796,13 +849,13 @@ const PerformanceDashboard = () => {
 
             // Client-side Filter Safeguard
             const tks = rawTks.filter(t => {
-                const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date || t.day;
-                if (dateStr) {
-                    try {
-                        const taskDate = new Date(dateStr).toISOString().split('T')[0];
-                        if (taskDate < sf || taskDate > st) return false;
-                    } catch { }
-                }
+                const creationDate = t.assigned_at || t.assigned_date || t.created_at || t.date || t.day;
+                const dueDate = t.due_date || t.end_date;
+                const cKey = creationDate ? String(creationDate).slice(0, 10) : null;
+                const dKey = dueDate ? String(dueDate).slice(0, 10) : null;
+
+                const isWithinRange = (k) => k && k >= sf && k <= st;
+                return isWithinRange(cKey) || isWithinRange(dKey);
 
                 if (hasDept) {
                     const tDeptId = String(t.department_id || '');
@@ -854,19 +907,25 @@ const PerformanceDashboard = () => {
             const params = {
                 from_date: sf, to_date: st,
                 limit: 200,
-                ...(hasDept ? { department_id: selectedDept, scope: 'department' } : { scope: 'org' })
+                ...(hasDept ? { 
+                    department_id: selectedDept, 
+                    dept_id: selectedDept, 
+                    dep_id: selectedDept, 
+                    scope: 'department' 
+                } : { scope: 'org' })
             };
             const res = await api.get('/tasks', { params });
             const rawTks = res.data?.data || res.data || [];
             
             // Client-side Filter Safeguard
             const tks = rawTks.filter(t => {
-                const dateStr = t.assigned_at || t.assigned_date || t.created_at || t.date || t.due_date || t.day;
-                if (!dateStr) return true;
-                try {
-                    const taskDate = new Date(dateStr).toISOString().split('T')[0];
-                    return taskDate >= sf && taskDate <= st;
-                } catch { return true; }
+                const creationDate = t.assigned_at || t.assigned_date || t.created_at || t.date || t.day;
+                const dueDate = t.due_date || t.end_date;
+                const cKey = creationDate ? String(creationDate).slice(0, 10) : null;
+                const dKey = dueDate ? String(dueDate).slice(0, 10) : null;
+
+                const isWithinRange = (k) => k && k >= sf && k <= st;
+                return isWithinRange(cKey) || isWithinRange(dKey);
             });
             
             const empMap = {};
@@ -976,8 +1035,16 @@ const PerformanceDashboard = () => {
         const weeks = [];
         for (let i = 0; i < trends.length; i += 7) {
             const chunk = trends.slice(i, i + 7);
+            const dateStr = chunk[0].date || chunk[0].name || chunk[0].dateKey;
+            let weekName = chunk[0].month ? `${chunk[0].month} W${Math.floor(i/7)%4 + 1}` : chunk[0].name;
+            
+            // If we have a valid date, use it as the week label to match PDF report format
+            if (dateStr && String(dateStr).match(/^\d{4}-\d{2}-\d{2}/)) {
+                weekName = dateStr;
+            }
+
             weeks.push({
-                name: chunk[0].month ? `${chunk[0].month} W${Math.floor(i/7)%4 + 1}` : chunk[0].name,
+                name: weekName,
                 new: chunk.reduce((s, it) => s + (it.new || 0), 0),
                 pending: chunk.reduce((s, it) => s + (it.pending || 0), 0),
                 overdue: chunk.reduce((s, it) => s + (it.overdue || 0), 0)
@@ -1081,16 +1148,23 @@ const PerformanceDashboard = () => {
                         <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-4 relative z-10"><Target size={20} /></div>
                         <p className="text-[10px] font-medium uppercase tracking-widest opacity-80 mb-1 relative z-10">Manager Score</p>
                         <h4 className="text-2xl font-semibold mt-auto relative z-10">
-                            {summary.manager_score_current != null ? `${summary.manager_score_current}%` : '—'}
+                            {summary.manager_score_current != null ? `${summary.manager_score_current.toFixed(1)}` : '—'}
                         </h4>
-                        <p className="text-[10px] mt-1.5 opacity-70 relative z-10">
-                            {(() => {
-                                const delta = summary.manager_score_delta_percent;
-                                if (delta === null || delta === undefined) return '70% Team + 30% Personal';
-                                const arrow = delta >= 0 ? '▲' : '▼';
-                                return `${arrow} ${Math.abs(delta)}% vs last period`;
-                            })()}
-                        </p>
+                        <div className="flex flex-col mt-1.5 relative z-10">
+                            <p className="text-[10px] opacity-90 font-bold">
+                                {(() => {
+                                    const delta = summary.manager_score_delta_percent;
+                                    if (delta === null || delta === undefined) return 'Calculation: 70% Team + 30% Personal';
+                                    const arrow = delta >= 0 ? '▲' : '▼';
+                                    return `${arrow} ${Math.abs(delta).toFixed(1)}% vs Last Period`;
+                                })()}
+                            </p>
+                            {summary.manager_score_prev != null && (
+                                <p className="text-[9px] opacity-60 font-medium italic mt-0.5">
+                                    Compare: {summary.manager_score_prev.toFixed(1)} (Prev Period)
+                                </p>
+                            )}
+                        </div>
                     </div>
 
                     {/* Team Score + Manager Personal Score — two slim stacked companion cards */}
@@ -1103,8 +1177,13 @@ const PerformanceDashboard = () => {
                                 <p className="text-[9px] font-bold uppercase tracking-widest opacity-80 leading-tight">Team<br/>Score</p>
                             </div>
                             <h4 className="text-xl font-bold relative z-10">
-                                {summary.team_score_current != null ? `${summary.team_score_current}%` : '—'}
+                                {summary.team_score_current != null ? `${summary.team_score_current.toFixed(1)}` : '—'}
                             </h4>
+                            {summary.team_score_prev != null && (
+                                <p className="text-[9px] opacity-60 font-bold mt-1 relative z-10 italic">
+                                    Prev: {summary.team_score_prev.toFixed(1)}
+                                </p>
+                            )}
                         </div>
 
                         {/* Manager Personal Score */}
@@ -1115,8 +1194,13 @@ const PerformanceDashboard = () => {
                                 <p className="text-[9px] font-bold uppercase tracking-widest opacity-80 leading-tight">Manager Personal<br/>Score</p>
                             </div>
                             <h4 className="text-xl font-bold relative z-10">
-                                {summary.manager_personal_score_current !== null && summary.manager_personal_score_current !== undefined ? `${summary.manager_personal_score_current}%` : '—'}
+                                {summary.manager_personal_score_current !== null && summary.manager_personal_score_current !== undefined ? `${summary.manager_personal_score_current.toFixed(1)}` : '—'}
                             </h4>
+                            {(summary.personal_score_prev != null || summary.manager_score_prev != null) && (
+                                <p className="text-[9px] opacity-60 font-bold mt-1 relative z-10 italic">
+                                    Prev: {(summary.personal_score_prev ?? summary.manager_score_prev)?.toFixed(1)}
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1219,7 +1303,7 @@ const PerformanceDashboard = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 w-full mt-8">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 w-full mt-8">
                         <div className="bg-slate-50 border border-slate-100 p-2 sm:p-3 rounded-2xl flex flex-col items-center">
                             <span className="text-slate-900 font-black text-lg">{deptMetrics.total_tasks || 0}</span>
                             <span className="text-[9px] uppercase font-bold text-slate-400">Total</span>
@@ -1235,6 +1319,14 @@ const PerformanceDashboard = () => {
                         <div className="bg-rose-50 border border-rose-100 p-2 sm:p-3 rounded-2xl flex flex-col items-center">
                             <span className="text-rose-600 font-black text-lg">{deptMetrics.overdue_tasks || 0}</span>
                             <span className="text-[9px] uppercase font-bold text-rose-400">Overdue</span>
+                        </div>
+                        <div className="bg-blue-50 border border-blue-100 p-2 sm:p-3 rounded-2xl flex flex-col items-center">
+                            <span className="text-blue-600 font-black text-lg">{deptMetrics.in_progress || 0}</span>
+                            <span className="text-[9px] uppercase font-bold text-blue-400">Progress</span>
+                        </div>
+                        <div className="bg-indigo-50 border border-indigo-100 p-2 sm:p-3 rounded-2xl flex flex-col items-center">
+                            <span className="text-indigo-600 font-black text-lg">{deptMetrics.open_pending || 0}</span>
+                            <span className="text-[9px] uppercase font-bold text-indigo-400">Open-Pend</span>
                         </div>
                     </div>
                 </div>

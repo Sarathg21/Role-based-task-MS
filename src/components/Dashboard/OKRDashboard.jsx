@@ -1122,8 +1122,19 @@ const OKRDashboard = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {displayedTableData.length > 0 ? displayedTableData.map((row, idx) => (
-                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                            {displayedTableData.length > 0 ? displayedTableData.map((row, idx) => {
+                                const handleObjRowClick = () => {
+                                    const title = encodeURIComponent(row.title || row.objective || '');
+                                    const tid = row.id || '';
+                                    navigate(`/tasks/team?search=${title}&task_id=${tid}&from_obj=1`);
+                                };
+                                return (
+                                <tr
+                                    key={idx}
+                                    className="hover:bg-indigo-50/60 transition-all duration-200 group cursor-pointer border-l-4 border-l-transparent hover:border-l-indigo-500"
+                                    onClick={handleObjRowClick}
+                                    title={`Click to view team tasks for: ${row.title || row.objective}`}
+                                >
                                     <td className="py-6 px-6">
                                         <span className="text-[14px] font-bold text-slate-400 transition-colors group-hover:text-indigo-600">
                                             OBJ-{row.id || (idx + 1)}
@@ -1131,9 +1142,14 @@ const OKRDashboard = () => {
                                     </td>
                                     <td className="py-6 px-6">
                                         <div className="flex flex-col">
-                                            <span className="text-[15px] font-bold text-slate-800 leading-tight">
-                                                {row.title || row.objective_title}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[15px] font-bold text-slate-800 leading-tight group-hover:text-indigo-700 transition-colors">
+                                                    {row.title || row.objective_title}
+                                                </span>
+                                                <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <ArrowUpRight size={14} className="text-indigo-400" />
+                                                </span>
+                                            </div>
                                             {row.deptNames?.[0] && (
                                                 <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mt-1">
                                                     {row.deptNames[0]}
@@ -1178,7 +1194,8 @@ const OKRDashboard = () => {
                                         </span>
                                     </td>
                                 </tr>
-                            )) : (
+                                );
+                            }) : (
                                 <tr>
                                     <td colSpan="8" className="py-20 text-center">
                                         <div className="flex flex-col items-center justify-center gap-4">
